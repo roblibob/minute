@@ -34,7 +34,7 @@ public struct WhisperLibraryTranscriptionConfiguration: Sendable, Equatable {
 /// Uses the whisper.cpp C API (see `whisper.h`) directly from Swift.
 public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
     private let configuration: WhisperLibraryTranscriptionConfiguration
-    private let logger = Logger(subsystem: "knowitflx.Minute", category: "whisper-lib")
+    private let logger = Logger(subsystem: "roblibob.Minute", category: "whisper-lib")
 
     public init(configuration: WhisperLibraryTranscriptionConfiguration) {
         self.configuration = configuration

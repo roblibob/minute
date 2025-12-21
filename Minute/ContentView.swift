@@ -10,6 +10,40 @@ import MinuteCore
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var appState: AppNavigationModel
+    @StateObject private var onboardingModel = OnboardingViewModel()
+
+    var body: some View {
+        Group {
+            contentBody
+        }
+        .frame(minWidth: 720, minHeight: 520)
+        .background(WindowChromeAccessor { window in
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.styleMask.insert(.fullSizeContentView)
+            window.isMovableByWindowBackground = true
+        })
+        .onAppear { onboardingModel.refreshAll() }
+    }
+
+    @ViewBuilder
+    private var contentBody: some View {
+        if onboardingModel.isComplete {
+            switch appState.mainContent {
+            case .pipeline:
+                PipelineContentView()
+            case .settings:
+                MainSettingsView()
+            }
+        } else {
+            OnboardingView(model: onboardingModel)
+        }
+    }
+}
+
+private struct PipelineContentView: View {
+    @EnvironmentObject private var appState: AppNavigationModel
     @StateObject private var model = MeetingPipelineViewModel.live()
 
     var body: some View {
@@ -22,7 +56,6 @@ struct ContentView: View {
             Spacer(minLength: 0)
         }
         .padding(24)
-        .frame(minWidth: 720, minHeight: 520)
         .onAppear { model.refreshVaultStatus() }
     }
 
@@ -51,7 +84,7 @@ struct ContentView: View {
             Spacer()
 
             Button("Settings…") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                appState.showSettings()
             }
         }
     }
@@ -224,6 +257,42 @@ struct ContentView: View {
     }
 }
 
+private struct WindowChromeAccessor: NSViewRepresentable {
+    let configure: (NSWindow) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        let coordinator = context.coordinator
+
+        DispatchQueue.main.async { [weak view] in
+            guard let window = view?.window, !coordinator.didConfigure else { return }
+            coordinator.didConfigure = true
+            configure(window)
+        }
+
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        let coordinator = context.coordinator
+
+        DispatchQueue.main.async { [weak nsView] in
+            guard let window = nsView?.window, !coordinator.didConfigure else { return }
+            coordinator.didConfigure = true
+            configure(window)
+        }
+    }
+
+    final class Coordinator {
+        var didConfigure = false
+    }
+}
+
 #Preview {
     ContentView()
+        .environmentObject(AppNavigationModel())
 }

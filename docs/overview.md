@@ -80,13 +80,11 @@ Technology choices (fixed)
 	•	App: Swift + SwiftUI (macOS 14+ recommended)
 	•	Audio capture: AVFoundation (mic) + ScreenCaptureKit (system audio)
 	•	Audio format: WAV, mono, 16 kHz, 16‑bit PCM (stored in vault)
-	•	Transcription: whisper.cpp (bundled)
-	•	LLM summarization: llama.cpp (bundled, Metal‑accelerated build where possible)
+	•	Transcription: whisper.cpp (library, in an XPC helper)
+	•	LLM summarization: llama.cpp (library, Metal‑accelerated build where possible)
 	•	Model format: GGUF (downloaded by the app on first run)
 	•	Templating: deterministic Markdown renderer (no “model writes markdown”)
 	•	The app does not depend on Ollama.
-
-Practical v1 choice: bundle whisper.cpp and llama.cpp as executables and invoke them via Process for fast iteration and deterministic integration.
 
 ⸻
 
@@ -201,10 +199,10 @@ Minute only reads/writes within:
 
 Model management
 
-Bundled binaries
-	•	whisper.cpp
-	•	llama.cpp
-	•	ffmpeg (optional; used only if AVFoundation export is insufficient for deterministic 16 kHz mono output)
+Bundled libraries
+	•	whisper.cpp (library, hosted in an XPC helper)
+	•	llama.cpp (library)
+	•	ffmpeg (optional executable; used only if AVFoundation export is insufficient for deterministic 16 kHz mono output)
 
 Downloaded model weights (first run)
 
@@ -233,11 +231,11 @@ Phase 1 — Audio
 	•	Verify output WAV constraints (mono, 16 kHz, 16‑bit PCM)
 
 Phase 2 — Transcription
-	•	Bundle and invoke whisper.cpp via Process
-	•	Capture stdout deterministically + cancellation + errors
+	•	Integrate whisper.cpp via library + XPC helper
+	•	Deterministic output handling + cancellation + errors
 
 Phase 3 — Summarization
-	•	Bundle and invoke llama.cpp via Process
+	•	Integrate llama.cpp via library
 	•	JSON‑only prompt + one repair pass
 
 Phase 4 — Deterministic note writing

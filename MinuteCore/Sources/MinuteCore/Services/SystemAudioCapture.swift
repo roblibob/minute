@@ -87,7 +87,7 @@ private extension SystemAudioCapture {
 }
 
 private final class SystemAudioOutput: NSObject, SCStreamOutput {
-    let queue = DispatchQueue(label: "knowitflx.Minute.systemAudioOutput")
+    let queue = DispatchQueue(label: "roblibob.Minute.systemAudioOutput")
     private let writer: SampleBufferAudioWriter
 
     init(writer: SampleBufferAudioWriter) {

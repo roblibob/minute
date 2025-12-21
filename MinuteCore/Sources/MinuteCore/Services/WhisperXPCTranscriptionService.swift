@@ -26,7 +26,7 @@ public struct WhisperXPCTranscriptionConfiguration: Sendable, Equatable {
 public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unchecked Sendable {
     private let configuration: WhisperXPCTranscriptionConfiguration
     private let connection: NSXPCConnection
-    private let logger = Logger(subsystem: "knowitflx.Minute", category: "whisper-xpc")
+    private let logger = Logger(subsystem: "roblibob.Minute", category: "whisper-xpc")
 
     public init(configuration: WhisperXPCTranscriptionConfiguration) {
         self.configuration = configuration
@@ -43,7 +43,7 @@ public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unch
     public static func liveDefault() -> WhisperXPCTranscriptionService {
         WhisperXPCTranscriptionService(
             configuration: WhisperXPCTranscriptionConfiguration(
-                serviceName: "knowitflx.Minute.WhisperService",
+                serviceName: "roblibob.Minute.WhisperService",
                 modelURL: WhisperModelPaths.defaultBaseModelURL,
                 detectLanguage: true,
                 language: "sv",

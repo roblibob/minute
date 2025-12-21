@@ -114,6 +114,14 @@ struct MockModelManager: ModelManaging {
         // No-op for now.
         _ = progress
     }
+
+    func validateModels() async throws -> ModelValidationResult {
+        ModelValidationResult(missingModelIDs: [], invalidModelIDs: [])
+    }
+
+    func removeModels(withIDs ids: [String]) async throws {
+        _ = ids
+    }
 }
 
 // MARK: - Utilities

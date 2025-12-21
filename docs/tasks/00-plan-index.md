@@ -49,7 +49,7 @@ flowchart TD
 
 ## Decision points (confirm early)
 Even though the overview fixes most choices, these are the remaining early decisions that affect implementation details:
-- Prefer **libraries** for `whisper.cpp` and `llama.cpp` if practical; fall back to bundled executables invoked via `Process` when library integration is too costly/fragile.
+- Use **library** integrations for `whisper.cpp` and `llama.cpp` (no bundled CLI executables).
 - Audio conversion strategy:
   - Prefer AVFoundation for **capture**.
   - Prefer an `ffmpeg`-based conversion step for **guaranteed** mono 16 kHz 16-bit PCM WAV output across machines.

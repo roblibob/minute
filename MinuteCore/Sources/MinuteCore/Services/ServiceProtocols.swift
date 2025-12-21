@@ -71,6 +71,22 @@ public struct ModelDownloadProgress: Sendable, Equatable {
     }
 }
 
+public struct ModelValidationResult: Sendable, Equatable {
+    public var missingModelIDs: [String]
+    public var invalidModelIDs: [String]
+
+    public var isReady: Bool {
+        missingModelIDs.isEmpty && invalidModelIDs.isEmpty
+    }
+
+    public init(missingModelIDs: [String], invalidModelIDs: [String]) {
+        self.missingModelIDs = missingModelIDs
+        self.invalidModelIDs = invalidModelIDs
+    }
+}
+
 public protocol ModelManaging: Sendable {
     func ensureModelsPresent(progress: (@Sendable (ModelDownloadProgress) -> Void)?) async throws
+    func validateModels() async throws -> ModelValidationResult
+    func removeModels(withIDs ids: [String]) async throws
 }

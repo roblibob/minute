@@ -9,13 +9,20 @@ import SwiftUI
 
 @main
 struct MinuteApp: App {
+    @StateObject private var appState = AppNavigationModel()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(appState)
         }
-
-        Settings {
-            SettingsView()
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    appState.showSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
     }
 }

@@ -26,7 +26,7 @@ public struct WhisperTranscriptionService: TranscriptionServicing {
     private let configuration: WhisperTranscriptionConfiguration
     private let processRunner: any ProcessRunning
     private let maximumOutputBytes: Int
-    private let logger = Logger(subsystem: "knowitflx.Minute", category: "whisper")
+    private let logger = Logger(subsystem: "roblibob.Minute", category: "whisper")
 
     public init(
         configuration: WhisperTranscriptionConfiguration,

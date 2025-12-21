@@ -74,7 +74,7 @@ Suggested approach:
 ### Cancellation
 - When user cancels, call `processingTask.cancel()`
 - In each stage wrapper, check `Task.isCancelled` and throw `CancellationError` when needed
-- Ensure external processes (whisper/llama) are terminated on cancel
+- Ensure transcription/summarization work is cancelled on request
 
 ## Progress reporting
 For v1, it can be coarse:
@@ -86,7 +86,7 @@ If whisper/llama expose progress, it can be wired later.
 
 ## Observability
 - Use `OSLog` categories per stage
-- Capture stdout/stderr from whisper/llama and store as debug output for failures (do not write to vault)
+- Capture service debug output for failures (do not write to vault)
 
 ## Exit criteria checklist
 - [ ] UI follows Start → Stop → Process and reflects all states

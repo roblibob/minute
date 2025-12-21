@@ -37,7 +37,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     private let vaultAccess: VaultAccess
     private let vaultWriter: any VaultWriting
 
-    private let logger = Logger(subsystem: "knowitflx.Minute", category: "pipeline")
+    private let logger = Logger(subsystem: "roblibob.Minute", category: "pipeline")
 
     private var defaultsObserver: AnyCancellable?
     private var processingTask: Task<Void, Never>?

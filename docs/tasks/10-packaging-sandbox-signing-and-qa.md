@@ -27,17 +27,11 @@ Set:
 - `NSScreenCaptureUsageDescription`: explain system audio capture
 
 ## Bundling whisper, llama, and ffmpeg
-### Preferred: libraries
+### Libraries
 If `whisper.cpp` / `llama.cpp` are integrated as libraries:
 - Ensure the compiled libraries are included and code-signed as part of the app.
 - Confirm runtime linking works under App Sandbox.
 - Prefer this approach for simpler cancellation, fewer moving parts, and better observability.
-
-### Fallback: executables
-If they are bundled as executables:
-- Ensure each executable is included in the app bundle and code signed.
-- Validate they can be executed under sandbox constraints.
-- Ensure `Process` spawning is reliable for notarized builds.
 
 ### ffmpeg (WAV conversion)
 Given the v1 requirement for deterministic WAV output, this plan assumes `ffmpeg` is bundled (unless AVFoundation-only export is later proven sufficient and `ffmpeg` is removed).
@@ -93,7 +87,7 @@ From `docs/overview.md`:
   - Filename sanitization tests
   - MeetingFileContract path computation tests
   - JSON decode + repair behavior tests (repair service mocked)
-- Integration tests (mocked `ProcessRunner`):
+- Integration tests (mocked transcription/summarization services):
   - Whisper + llama output handling
 
 ## Privacy and logging
@@ -102,6 +96,6 @@ From `docs/overview.md`:
 
 ## Exit criteria checklist
 - [ ] App runs with App Sandbox enabled and can access vault via bookmark
-- [ ] Whisper/llama executables run successfully inside the signed app
+- [ ] Whisper/llama libraries load successfully inside the signed app
 - [ ] DMG can be installed on a clean machine (or new user profile)
 - [ ] Manual QA checklist passes

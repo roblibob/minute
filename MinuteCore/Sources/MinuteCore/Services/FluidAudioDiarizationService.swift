@@ -38,7 +38,7 @@ public struct FluidAudioDiarizationService: DiarizationServicing {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    Logger(subsystem: "knowitflx.Minute", category: "diarization").info("Running diarization")
+                    Logger(subsystem: "roblibob.Minute", category: "diarization").info("Running diarization")
                     let diarizer = DiarizerManager(config: config)
                     diarizer.initialize(models: models)
 

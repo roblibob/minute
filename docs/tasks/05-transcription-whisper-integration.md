@@ -3,9 +3,8 @@
 ## Goal
 Integrate `whisper.cpp` to produce an in-memory transcript from the WAV file, with deterministic behavior, robust error handling, and clean cancellation.
 
-Preference order:
-1. **Library integration** (preferred) — call whisper directly from Swift.
-2. **Executable integration** (fallback) — bundle a `whisper.cpp` CLI and invoke it via `Process`.
+Approach:
+- **Library integration** — call whisper via the XCFramework, hosted in an XPC helper to avoid ggml symbol conflicts.
 
 ## Deliverables
 - `TranscriptionService` that:
@@ -15,44 +14,10 @@ Preference order:
   - Provides debug output on failure
 
 Note: The transcript is persisted as its own Markdown file in the vault in phase 08 (output contract + vault writing).
-- One of:
-  - A bundled whisper **library** integrated into the app/Swift package, or
-  - A bundled whisper **executable** invoked via `ProcessRunner`
 
 ## Bundling strategy
-### Preferred: library
-- Build `whisper.cpp` as a static library (or XCFramework) and expose a small C shim API suitable for Swift.
-- Integrate via Swift Package (binary target or C target) so `MinuteCore` can call it.
-
-Pros:
-- No external process management
-- Easier cancellation and progress reporting
-
-Cons:
-- Tooling complexity (CMake, C/C++ interop)
-
-### Fallback: executable
-For fast iteration (and if library integration becomes too costly):
-- Build `whisper.cpp` outside Xcode and add the executable to the app target.
-- Ensure it is code-signed as part of the app bundle.
-
+Build `whisper.cpp` as an XCFramework and host it in an XPC helper target so the main app avoids symbol conflicts.
 Keep models out of the app bundle; they are downloaded to Application Support (phase 09).
-
-## Process runner abstraction
-Create a reusable `ProcessRunner` in `MinuteCore`:
-- Inputs:
-  - executable URL
-  - arguments
-  - environment (optional)
-  - working directory (optional)
-- Outputs:
-  - combined output or separated stdout/stderr
-  - exit status
-
-Best practices:
-- Use `Pipe()` for stdout/stderr.
-- Read pipes asynchronously to avoid deadlocks.
-- Impose a maximum output size to prevent runaway memory use.
 
 ## Deterministic invocation
 Choose a fixed whisper command line.
@@ -71,8 +36,8 @@ After capturing output, normalize to reduce downstream prompt noise:
 
 ## Error handling
 Map failures into domain errors:
-- binary missing → `MinuteError.whisperMissing`
-- non-zero exit code → `MinuteError.whisperFailed(exitCode:output:)`
+- service missing → `MinuteError.whisperMissing`
+- inference failure → `MinuteError.whisperFailed(exitCode:output:)`
 - timeout (optional) → `MinuteError.whisperTimeout`
 
 Log full stdout/stderr to debug output, but never write it to the vault.

@@ -28,8 +28,13 @@ public actor DefaultModelManager: ModelManaging {
         }
     }
 
+    private struct ChecksumMarker: Codable {
+        var expectedSHA256Hex: String
+        var verifiedSHA256Hex: String
+    }
+
     private let requiredModels: [ModelSpec]
-    private let logger = Logger(subsystem: "knowitflx.Minute", category: "models")
+    private let logger = Logger(subsystem: "roblibob.Minute", category: "models")
 
     public init(requiredModels: [ModelSpec] = DefaultModelManager.defaultRequiredModels()) {
         self.requiredModels = requiredModels
@@ -93,13 +98,19 @@ public actor DefaultModelManager: ModelManaging {
                 if spec.sourceURL.pathExtension.lowercased() == "zip", spec.destinationURL.pathExtension.lowercased() == "mlmodelc" {
                     // Special case: Core ML encoder distributed as a .zip containing a .mlmodelc directory.
                     // (whisper.cpp will look for `<model>-encoder.mlmodelc` next to the ggml model file).
-                    try extractZipModel(at: downloadedURL, to: spec.destinationURL)
+                    try extractZipModel(at: downloadedURL, to: spec.destinationURL, expectedSHA256Hex: spec.expectedSHA256Hex)
                 } else {
                     // Atomically move into place (best-effort replace).
                     if fileManager.fileExists(atPath: spec.destinationURL.path) {
                         try? fileManager.removeItem(at: spec.destinationURL)
                     }
+                    try? fileManager.removeItem(at: checksumMarkerURL(for: spec.destinationURL))
                     try fileManager.moveItem(at: downloadedURL, to: spec.destinationURL)
+                    try writeChecksumMarker(
+                        for: spec.destinationURL,
+                        expectedSHA256Hex: spec.expectedSHA256Hex,
+                        verifiedSHA256Hex: sha
+                    )
                 }
 
                 completed += 1
@@ -116,6 +127,92 @@ public actor DefaultModelManager: ModelManaging {
         }
 
         progress?(ModelDownloadProgress(fractionCompleted: 1, label: "Models ready"))
+    }
+
+    public func validateModels() async throws -> ModelValidationResult {
+        let fileManager = FileManager.default
+        var missing: [String] = []
+        var invalid: [String] = []
+
+        for spec in requiredModels {
+            if isDirectoryModel(spec) {
+                var isDir: ObjCBool = false
+                guard fileManager.fileExists(atPath: spec.destinationURL.path, isDirectory: &isDir) else {
+                    missing.append(spec.id)
+                    continue
+                }
+
+                guard isDir.boolValue else {
+                    invalid.append(spec.id)
+                    continue
+                }
+
+                let marker: ChecksumMarker?
+                do {
+                    marker = try readChecksumMarker(for: spec.destinationURL)
+                } catch {
+                    invalid.append(spec.id)
+                    continue
+                }
+
+                guard let marker,
+                      marker.expectedSHA256Hex.lowercased() == spec.expectedSHA256Hex.lowercased()
+                else {
+                    invalid.append(spec.id)
+                    continue
+                }
+
+                do {
+                    let current = try directoryChecksumHex(of: spec.destinationURL)
+                    if current.lowercased() != marker.verifiedSHA256Hex.lowercased() {
+                        invalid.append(spec.id)
+                    }
+                } catch {
+                    invalid.append(spec.id)
+                }
+            } else {
+                guard fileManager.fileExists(atPath: spec.destinationURL.path) else {
+                    missing.append(spec.id)
+                    continue
+                }
+
+                do {
+                    let sha = try sha256Hex(of: spec.destinationURL)
+                    if sha.lowercased() != spec.expectedSHA256Hex.lowercased() {
+                        invalid.append(spec.id)
+                        continue
+                    }
+
+                    if let expectedSize = spec.expectedFileSizeBytes {
+                        let attrs = try fileManager.attributesOfItem(atPath: spec.destinationURL.path)
+                        let size = (attrs[.size] as? NSNumber)?.int64Value
+                        if size != expectedSize {
+                            invalid.append(spec.id)
+                        }
+                    }
+                } catch {
+                    invalid.append(spec.id)
+                }
+            }
+        }
+
+        return ModelValidationResult(missingModelIDs: missing, invalidModelIDs: invalid)
+    }
+
+    public func removeModels(withIDs ids: [String]) async throws {
+        let fileManager = FileManager.default
+
+        for spec in requiredModels where ids.contains(spec.id) {
+            if fileManager.fileExists(atPath: spec.destinationURL.path) {
+                do {
+                    try fileManager.removeItem(at: spec.destinationURL)
+                } catch {
+                    throw MinuteError.modelDownloadFailed(underlyingDescription: "Failed to remove model \(spec.id): \(error)")
+                }
+            }
+
+            try? fileManager.removeItem(at: checksumMarkerURL(for: spec.destinationURL))
+        }
     }
 
     // MARK: - Defaults
@@ -146,15 +243,48 @@ public actor DefaultModelManager: ModelManaging {
 
             // LLM (GGUF)
             ModelSpec(
-                id: "llm/gemma-3-1b-it-q4_k_m",
+                id: "llm/gemma-3-27b-it-q4_k_m",
                 destinationURL: llamaURL,
-                sourceURL: URL(string: "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf")!,
-                expectedSHA256Hex: "8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135"
+                sourceURL: URL(string: "https://huggingface.co/ggml-org/gemma-3-27b-it-GGUF/resolve/main/gemma-3-27b-it-Q4_K_M.gguf")!,
+                expectedSHA256Hex: "edc9aff4d811a285b9157618130b08688b0768d94ee5355b02dc0cb713012e15",
+                expectedFileSizeBytes: 16_546_404_736
             ),
         ]
     }
 
     // MARK: - Download + hashing
+
+    private func isDirectoryModel(_ spec: ModelSpec) -> Bool {
+        spec.destinationURL.pathExtension.lowercased() == "mlmodelc"
+    }
+
+    private func checksumMarkerURL(for destinationURL: URL) -> URL {
+        destinationURL.appendingPathExtension("sha256")
+    }
+
+    private func writeChecksumMarker(
+        for destinationURL: URL,
+        expectedSHA256Hex: String,
+        verifiedSHA256Hex: String
+    ) throws {
+        let marker = ChecksumMarker(
+            expectedSHA256Hex: expectedSHA256Hex,
+            verifiedSHA256Hex: verifiedSHA256Hex
+        )
+
+        let data = try JSONEncoder().encode(marker)
+        try data.write(to: checksumMarkerURL(for: destinationURL), options: [.atomic])
+    }
+
+    private func readChecksumMarker(for destinationURL: URL) throws -> ChecksumMarker? {
+        let url = checksumMarkerURL(for: destinationURL)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
+        }
+
+        let data = try Data(contentsOf: url)
+        return try JSONDecoder().decode(ChecksumMarker.self, from: data)
+    }
 
     private func download(from sourceURL: URL, to destinationURL: URL, onProgress: (@Sendable (Double) -> Void)?) async throws -> URL {
         final class Coordinator: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
@@ -219,7 +349,46 @@ public actor DefaultModelManager: ModelManaging {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    private func extractZipModel(at zipURL: URL, to destinationDirectoryURL: URL) throws {
+    private func directoryChecksumHex(of directoryURL: URL) throws -> String {
+        let fileManager = FileManager.default
+        guard let enumerator = fileManager.enumerator(at: directoryURL, includingPropertiesForKeys: [.isRegularFileKey]) else {
+            throw MinuteError.modelDownloadFailed(underlyingDescription: "Failed to read model directory for checksum.")
+        }
+
+        var files: [URL] = []
+        for case let fileURL as URL in enumerator {
+            let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
+            if values.isRegularFile == true {
+                files.append(fileURL)
+            }
+        }
+
+        files.sort { $0.path < $1.path }
+
+        var hasher = SHA256()
+        let basePath = directoryURL.path
+
+        for fileURL in files {
+            let relativePath = fileURL.path.replacingOccurrences(of: basePath + "/", with: "")
+            if let pathData = relativePath.data(using: .utf8) {
+                hasher.update(data: pathData)
+            }
+
+            let handle = try FileHandle(forReadingFrom: fileURL)
+            defer { try? handle.close() }
+
+            while true {
+                let chunk = try handle.read(upToCount: 1024 * 1024)
+                guard let chunk, !chunk.isEmpty else { break }
+                hasher.update(data: chunk)
+            }
+        }
+
+        let digest = hasher.finalize()
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func extractZipModel(at zipURL: URL, to destinationDirectoryURL: URL, expectedSHA256Hex: String) throws {
         let fileManager = FileManager.default
 
         // Extract into a temporary directory first.
@@ -273,6 +442,18 @@ public actor DefaultModelManager: ModelManaging {
 
         try fileManager.createDirectory(at: destinationDirectoryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try fileManager.moveItem(at: extractedDir, to: destinationDirectoryURL)
+
+        do {
+            let verifiedSHA = try directoryChecksumHex(of: destinationDirectoryURL)
+            try writeChecksumMarker(
+                for: destinationDirectoryURL,
+                expectedSHA256Hex: expectedSHA256Hex,
+                verifiedSHA256Hex: verifiedSHA
+            )
+        } catch {
+            try? fileManager.removeItem(at: destinationDirectoryURL)
+            throw MinuteError.modelDownloadFailed(underlyingDescription: "Failed to verify extracted model: \(error)")
+        }
 
         // Cleanup the downloaded zip.
         try? fileManager.removeItem(at: zipURL)

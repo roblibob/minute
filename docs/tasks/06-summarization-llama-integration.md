@@ -12,13 +12,7 @@ Critical constraint: the model output must be machine-validated JSON; the model 
   - Returns raw JSON string (or `Data`) on success
   - Provides debug output on failure
   - Supports one repair pass (wired to phase 07)
-- One of:
-  - A bundled llama **library** integrated into the app/Swift package (preferred, e.g., `llama.xcframework`), or
-  - A bundled llama **executable** invoked via `ProcessRunner` (fallback)
-
-### Library vs executable
-- Library integration is preferred if a stable C/C++ API can be wrapped cleanly for Swift.
-- Executable integration remains a pragmatic fallback and can be shipped in v1 if needed.
+- A bundled llama **library** integrated into the app/Swift package (e.g., `llama.xcframework`)
 
 ## Prompting strategy
 ### System prompt goals
@@ -62,12 +56,6 @@ Define stable parameters:
 - seed (fixed) if supported/desired
 - max tokens limit
 
-Document the exact arguments used.
-
-## Executable location
-- For development, set `MINUTE_LLAMA_BIN` to an absolute path to `llama`/`llama-cli`, or ensure it is available on `PATH`.
-- For distribution, bundle and codesign the executable (task 10).
-
 ## Model location
 - Model weights stored at:
   - `~/Library/Application Support/Minute/models/`
@@ -75,8 +63,8 @@ Document the exact arguments used.
 
 ## Output capture and sanitization
 Like whisper:
-- Capture stdout/stderr
-- Remove any progress logs
+- Capture raw model output
+- Remove any progress logs if present
 - Extract the JSON object (in case llama prints extra whitespace)
 
 Prefer strictness: if output contains anything besides JSON, treat it as invalid and route through repair/fallback.

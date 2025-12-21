@@ -40,7 +40,7 @@ public struct LlamaLibrarySummarizationConfiguration: Sendable, Equatable {
 /// Summarization + schema extraction using a local llama.cpp XCFramework.
 public struct LlamaLibrarySummarizationService: SummarizationServicing {
     private let configuration: LlamaLibrarySummarizationConfiguration
-    private let logger = Logger(subsystem: "knowitflx.Minute", category: "llama-lib")
+    private let logger = Logger(subsystem: "roblibob.Minute", category: "llama-lib")
 
     public init(configuration: LlamaLibrarySummarizationConfiguration) {
         self.configuration = configuration
@@ -279,7 +279,7 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
 }
 
 private enum LlamaLibraryRuntime {
-    private static let logger = Logger(subsystem: "knowitflx.Minute", category: "llama-lib")
+    private static let logger = Logger(subsystem: "roblibob.Minute", category: "llama-lib")
     private static let backendInit: Void = {
         llama_backend_init()
         logger.info("llama backend initialized")

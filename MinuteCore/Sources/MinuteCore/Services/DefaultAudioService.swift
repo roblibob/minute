@@ -7,7 +7,7 @@ import os
 /// This implementation uses an AudioToolbox `ExtAudioFile` conversion step for deterministic output.
 /// Task 09 may introduce an `ffmpeg`-backed conversion path.
 public actor DefaultAudioService: AudioServicing {
-    private let logger = Logger(subsystem: "knowitflx.Minute", category: "audio")
+    private let logger = Logger(subsystem: "roblibob.Minute", category: "audio")
 
     private var engine: AVAudioEngine?
     private var tapWriter: AudioTapWriter?
