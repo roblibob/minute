@@ -314,6 +314,14 @@ private enum PromptBuilder {
         - All arrays must be present (use [] if none).
         - date must be \"\(isoDate)\" unless the transcript clearly indicates a different meeting date.
         - action_items.due must be \"YYYY-MM-DD\" or \"\".
+        - Do not invent facts. Only use information from the transcript.
+        - Do not copy long phrases from the transcript. Paraphrase and summarize.
+        - title must be a short topic-based phrase (3-8 words), suitable for a filename (no slashes).
+        - summary must be 2-5 sentences focused on outcomes and key takeaways, not a transcript dump.
+        - decisions must list explicit decisions only (empty if none).
+        - action_items must list explicit tasks with an owner and task; if owner is unknown use \"\".
+        - open_questions should capture unresolved issues or follow-ups (empty if none).
+        - key_points should capture notable facts, constraints, or context (empty if none).
         - If the title is unknown, use \"Meeting \(isoDate)\".
 
         Transcript:
