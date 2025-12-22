@@ -5,6 +5,7 @@ struct SettingsContentView: View {
 
     var body: some View {
         Form {
+            PermissionsSettingsSection()
             VaultConfigurationView(model: model, style: .settings)
         }
     }

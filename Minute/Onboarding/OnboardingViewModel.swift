@@ -38,6 +38,7 @@ final class OnboardingViewModel: ObservableObject {
         static let didShowIntro = "didShowOnboardingIntro"
         static let didCompleteOnboarding = "didCompleteOnboarding"
         static let lastStep = "onboardingLastStep"
+        static let didSkipPermissions = "didSkipOnboardingPermissions"
         static let vaultRootBookmark = "vaultRootBookmark"
         static let debugBuildStamp = "onboardingDebugBuildStamp"
     }
@@ -77,7 +78,7 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     var requirementsMet: Bool {
-        permissionsReady && modelsReady && vaultConfigured
+        permissionsSatisfied && modelsReady && vaultConfigured
     }
 
     var isComplete: Bool {
@@ -100,7 +101,7 @@ final class OnboardingViewModel: ObservableObject {
         case .intro:
             return true
         case .permissions:
-            return permissionsReady
+            return permissionsSatisfied
         case .models:
             return modelsReady
         case .vault:
@@ -166,7 +167,7 @@ final class OnboardingViewModel: ObservableObject {
             setCurrentStep(.permissions)
 
         case .permissions:
-            guard permissionsReady else { return }
+            guard permissionsSatisfied else { return }
             setCurrentStep(.models)
 
         case .models:
@@ -181,6 +182,11 @@ final class OnboardingViewModel: ObservableObject {
         case .complete:
             break
         }
+    }
+
+    func skipPermissions() {
+        didSkipPermissions = true
+        setCurrentStep(.models)
     }
 
     private func refreshPermissions() {
@@ -257,7 +263,7 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     private func requiredStep() -> Step {
-        if !permissionsReady {
+        if !permissionsSatisfied {
             return .permissions
         }
         if !modelsReady {
@@ -295,6 +301,15 @@ final class OnboardingViewModel: ObservableObject {
         set { defaults.set(newValue, forKey: DefaultsKey.didCompleteOnboarding) }
     }
 
+    private var didSkipPermissions: Bool {
+        get { defaults.bool(forKey: DefaultsKey.didSkipPermissions) }
+        set { defaults.set(newValue, forKey: DefaultsKey.didSkipPermissions) }
+    }
+
+    private var permissionsSatisfied: Bool {
+        permissionsReady || didSkipPermissions
+    }
+
     private func resetForDebugBuildIfNeeded() {
         #if DEBUG
         let currentStamp = debugBuildStamp()
@@ -314,6 +329,7 @@ final class OnboardingViewModel: ObservableObject {
         defaults.removeObject(forKey: DefaultsKey.didShowIntro)
         defaults.removeObject(forKey: DefaultsKey.didCompleteOnboarding)
         defaults.removeObject(forKey: DefaultsKey.lastStep)
+        defaults.removeObject(forKey: DefaultsKey.didSkipPermissions)
     }
 
     private func debugBuildStamp() -> Double {

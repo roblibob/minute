@@ -26,6 +26,13 @@ struct OnboardingView: View {
             Divider()
 
             HStack {
+                if model.currentStep == .permissions && !model.permissionsReady {
+                    Button("Skip for now") {
+                        model.skipPermissions()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
                 Spacer()
                 Button(model.primaryButtonTitle) {
                     model.advance()
@@ -114,6 +121,10 @@ struct OnboardingView: View {
             )
 
             Text("macOS may require a restart for screen recording permission to apply.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            Text("You can skip this step and enable permissions later in Settings.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

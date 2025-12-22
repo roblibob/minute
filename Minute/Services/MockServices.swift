@@ -16,7 +16,7 @@ struct DefaultVaultWriter: VaultWriting {
 // MARK: - Mocks (used until tasks 04–09 replace them)
 
 @preconcurrency
-final class MockAudioService: AudioServicing, @unchecked Sendable {
+final class MockAudioService: AudioServicing, AudioLevelMetering, @unchecked Sendable {
     private var isRecording = false
 
     func startRecording() async throws {
@@ -43,6 +43,10 @@ final class MockAudioService: AudioServicing, @unchecked Sendable {
         // Placeholder: just copy bytes.
         let data = try Data(contentsOf: inputURL)
         try data.write(to: outputURL, options: [.atomic])
+    }
+
+    func setLevelHandler(_ handler: (@Sendable (Float) -> Void)?) async {
+        _ = handler
     }
 }
 

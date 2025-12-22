@@ -16,6 +16,8 @@ struct MinuteApp: App {
             ContentView()
                 .environmentObject(appState)
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {

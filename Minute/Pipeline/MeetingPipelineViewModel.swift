@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import QuartzCore
 @preconcurrency import AVFoundation
 import Combine
 import Foundation
@@ -26,6 +27,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     @Published private(set) var vaultStatus: VaultStatus = VaultStatus(displayText: "Not selected", isConfigured: false)
     @Published private(set) var microphonePermissionGranted: Bool = false
     @Published private(set) var screenRecordingPermissionGranted: Bool = false
+    @Published private(set) var audioLevelSamples: [CGFloat] = Array(repeating: 0, count: 24)
 
     private let audioService: any AudioServicing
     private let mediaImportService: any MediaImporting
@@ -42,6 +44,10 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private var defaultsObserver: AnyCancellable?
     private var processingTask: Task<Void, Never>?
+    private var lastAudioLevelUpdate: CFTimeInterval = 0
+
+    private let audioLevelBucketCount = 24
+    private let audioLevelUpdateInterval: CFTimeInterval = 1.0 / 24.0
 	
     init(
         audioService: some AudioServicing,
@@ -172,10 +178,14 @@ final class MeetingPipelineViewModel: ObservableObject {
                 }
 
                 try await audioService.startRecording()
+                await startAudioLevelMonitoring()
+                resetAudioLevelSamples()
                 state = .recording(session: RecordingSession())
             } catch let minuteError as MinuteError {
+                await stopAudioLevelMonitoring()
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
             } catch {
+                await stopAudioLevelMonitoring()
                 state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
             }
         }
@@ -189,6 +199,8 @@ final class MeetingPipelineViewModel: ObservableObject {
         Task {
             do {
                 let result = try await audioService.stopRecording()
+                await stopAudioLevelMonitoring()
+                resetAudioLevelSamples()
                 state = .recorded(
                     audioTempURL: result.wavURL,
                     durationSeconds: result.duration,
@@ -196,8 +208,10 @@ final class MeetingPipelineViewModel: ObservableObject {
                     stoppedAt: stoppedAt
                 )
             } catch let minuteError as MinuteError {
+                await stopAudioLevelMonitoring()
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
             } catch {
+                await stopAudioLevelMonitoring()
                 state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
             }
         }
@@ -268,6 +282,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         guard state.canReset else { return }
         progress = nil
         state = .idle
+        resetAudioLevelSamples()
     }
 
     // MARK: - Pipeline
@@ -469,6 +484,42 @@ final class MeetingPipelineViewModel: ObservableObject {
             logger.error("Diarization failed: \(String(describing: error), privacy: .public)")
             return []
         }
+    }
+
+    // MARK: - Audio levels
+
+    private func startAudioLevelMonitoring() async {
+        guard let meter = audioService as? (any AudioLevelMetering) else { return }
+        await meter.setLevelHandler { [weak self] level in
+            Task { @MainActor [weak self] in
+                self?.pushAudioLevel(level)
+            }
+        }
+    }
+
+    private func stopAudioLevelMonitoring() async {
+        guard let meter = audioService as? (any AudioLevelMetering) else { return }
+        await meter.setLevelHandler(nil)
+    }
+
+    private func resetAudioLevelSamples() {
+        audioLevelSamples = Array(repeating: 0, count: audioLevelBucketCount)
+        lastAudioLevelUpdate = 0
+    }
+
+    private func pushAudioLevel(_ level: Float) {
+        let now = CACurrentMediaTime()
+        guard now - lastAudioLevelUpdate >= audioLevelUpdateInterval else { return }
+        lastAudioLevelUpdate = now
+
+        if audioLevelSamples.count != audioLevelBucketCount {
+            audioLevelSamples = Array(repeating: 0, count: audioLevelBucketCount)
+        }
+
+        let clamped = min(max(level, 0), 1)
+        let quantized = (clamped * 8).rounded() / 8
+        audioLevelSamples.removeFirst()
+        audioLevelSamples.append(CGFloat(quantized))
     }
 
     // MARK: - Permissions

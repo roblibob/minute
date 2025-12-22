@@ -5,7 +5,6 @@
 //  Created by Robert Holst on 12/19/25.
 //
 
-import AppKit
 import MinuteCore
 import SwiftUI
 import UniformTypeIdentifiers
@@ -19,23 +18,18 @@ struct ContentView: View {
             contentBody
         }
         .frame(minWidth: 720, minHeight: 520)
-        .background(WindowChromeAccessor { window in
-            window.titleVisibility = .hidden
-            window.titlebarAppearsTransparent = true
-            window.styleMask.insert(.fullSizeContentView)
-            window.isMovableByWindowBackground = true
-        })
         .onAppear { onboardingModel.refreshAll() }
     }
 
     @ViewBuilder
     private var contentBody: some View {
         if onboardingModel.isComplete {
-            switch appState.mainContent {
-            case .pipeline:
+            ZStack {
                 PipelineContentView()
-            case .settings:
-                MainSettingsView()
+
+                if appState.mainContent == .settings {
+                    SettingsOverlayView()
+                }
             }
         } else {
             OnboardingView(model: onboardingModel)
@@ -44,23 +38,25 @@ struct ContentView: View {
 }
 
 private struct PipelineContentView: View {
-    @EnvironmentObject private var appState: AppNavigationModel
     @StateObject private var model = MeetingPipelineViewModel.live()
     @State private var isImportingFile = false
     @State private var isDropTargeted = false
+    @State private var isRecordButtonHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
+        VStack(spacing: 24) {
+            recordControl
             importArea
-            controls
-            statusArea
-            resultsArea
 
             Spacer(minLength: 0)
         }
         .padding(24)
         .onAppear { model.refreshVaultStatus() }
+        .onReceive(model.$state) { state in
+            if case .done = state {
+                model.send(.reset)
+            }
+        }
         .fileImporter(isPresented: $isImportingFile, allowedContentTypes: [.audio, .movie]) { result in
             switch result {
             case .success(let url):
@@ -92,91 +88,64 @@ private struct PipelineContentView: View {
                 }
                 .padding(16)
             }
-            .frame(height: 120)
+            .frame(maxWidth: .infinity, minHeight: 120)
             .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
                 handleDrop(providers)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Minute")
-                    .font(.largeTitle.bold())
+    private var recordControl: some View {
+        Button(action: handleRecordButtonTap) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(red: 0.2, green: 0.5, blue: 1.0), Color(red: 0.1, green: 0.35, blue: 0.9)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
 
-                HStack(spacing: 8) {
-                    Text("Vault:")
-                        .foregroundStyle(.secondary)
+                VStack(spacing: 12) {
+                    HStack(spacing: 10) {
+                        if recordButtonShowsSpinner {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        } else if let iconName = recordButtonIconName {
+                            Image(systemName: iconName)
+                                .font(.title3.weight(.semibold))
+                        }
 
-                    Text(model.vaultStatus.displayText)
-                        .foregroundStyle(model.vaultStatus.isConfigured ? .primary : .secondary)
-                        .lineLimit(1)
+                        Text(recordButtonTitle)
+                            .font(.title3.bold())
+                    }
+                    .foregroundStyle(.white)
 
-                    if !model.vaultStatus.isConfigured {
-                        Text("(select in Settings)")
-                            .foregroundStyle(.secondary)
+                    if recordButtonShowsWaveform {
+                        AudioWaveformView(levels: model.audioLevelSamples)
+                            .frame(height: 36)
                     }
                 }
-                .font(.callout)
+                .padding(.vertical, 22)
+                .padding(.horizontal, 24)
             }
-
-            Spacer()
-
-            Button("Settings…") {
-                appState.showSettings()
-            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 140)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.25), radius: 20, x: 0, y: 12)
         }
-    }
-
-    private var controls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Controls")
-                .font(.title3.bold())
-
-            HStack(spacing: 12) {
-                if !model.microphonePermissionGranted {
-                    Button("Enable Microphone") {
-                        model.requestMicrophonePermission()
-                    }
-                }
-
-                if !model.screenRecordingPermissionGranted {
-                    Button("Enable Screen Recording") {
-                        model.requestScreenRecordingPermission()
-                    }
-                }
-
-                Button("Start Recording") {
-                    model.send(.startRecording)
-                }
-                .disabled(!model.state.canStartRecording || !model.microphonePermissionGranted || !model.screenRecordingPermissionGranted)
-
-                Button("Stop") {
-                    model.send(.stopRecording)
-                }
-                .disabled(!model.state.canStopRecording)
-
-                Button("Process") {
-                    model.send(.process)
-                }
-                .disabled(!model.state.canProcess)
-
-                if model.state.canCancelProcessing {
-                    Button("Cancel") {
-                        model.send(.cancelProcessing)
-                    }
-                }
-
-                if model.state.canReset {
-                    Button("Reset") {
-                        model.send(.reset)
-                    }
-                }
-
-                Spacer()
-            }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isRecordButtonHovered = hovering
         }
+        .disabled(!recordButtonEnabled)
+        .opacity(recordButtonEnabled ? 1 : 0.6)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -213,154 +182,117 @@ private struct PipelineContentView: View {
         model.send(.importFile(url))
     }
 
-    private var statusArea: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Status")
-                .font(.title3.bold())
-
-            HStack(spacing: 12) {
-                Text(model.state.statusLabel)
-
-                if let progress = model.progress {
-                    ProgressView(value: progress)
-                        .frame(width: 240)
-                } else if model.state.canCancelProcessing {
-                    ProgressView()
-                }
-
-                Spacer()
-            }
-            .font(.callout)
-            .foregroundStyle(.secondary)
+    private var recordButtonState: RecordButtonState {
+        switch model.state {
+        case .recording:
+            return .recording
+        case .recorded:
+            return .recorded
+        case .processing, .writing, .importing:
+            return .processing
+        case .idle, .done, .failed:
+            return .ready
         }
     }
 
-    @ViewBuilder
-    private var resultsArea: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Results")
-                .font(.title3.bold())
-
-            switch model.state {
-            case .done(let noteURL, let audioURL):
-                VStack(alignment: .leading, spacing: 8) {
-                    LabeledContent("Note") {
-                        Text(noteURL.path)
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-
-                    LabeledContent("Audio") {
-                        Text(audioURL.path)
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-
-                    HStack(spacing: 12) {
-                        Button("Reveal note in Finder") { model.revealInFinder(noteURL) }
-                        Button("Reveal audio in Finder") { model.revealInFinder(audioURL) }
-                        Spacer()
-                    }
-                }
-
-            case .failed(let error, let debugOutput):
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(error.errorDescription ?? "Failed")
-                        .foregroundStyle(.red)
-
-                    DisclosureGroup("Debug details") {
-                        Text((debugOutput?.isEmpty == false) ? debugOutput! : error.debugSummary)
-                            .font(.caption)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    HStack(spacing: 12) {
-                        Button("Copy debug info") { model.copyDebugInfoToClipboard() }
-                        Spacer()
-                    }
-                }
-
-            case .recording(let session):
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Recording…")
-                        .foregroundStyle(.secondary)
-
-                    LabeledContent("Elapsed") {
-                        Text(session.startedAt, style: .timer)
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-                }
-
-            case .recorded(let audioTempURL, let durationSeconds, let startedAt, let stoppedAt):
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Ready to process")
-                        .foregroundStyle(.secondary)
-
-                    LabeledContent("Temp audio") {
-                        Text(audioTempURL.path)
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-
-                    LabeledContent("Duration") {
-                        Text(durationSeconds.formatted(.number.precision(.fractionLength(1))) + "s")
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-
-                    LabeledContent("Start") {
-                        Text(startedAt.formatted(date: .abbreviated, time: .standard))
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-
-                    LabeledContent("Stop") {
-                        Text(stoppedAt.formatted(date: .abbreviated, time: .standard))
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-                }
-
-            case .importing(let sourceURL):
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Importing file…")
-                        .foregroundStyle(.secondary)
-
-                    LabeledContent("Source") {
-                        Text(sourceURL.lastPathComponent)
-                            .font(.caption)
-                            .textSelection(.enabled)
-                    }
-                }
-
-            default:
-                Text("No results yet")
-                    .foregroundStyle(.secondary)
-            }
+    private var recordButtonTitle: String {
+        switch recordButtonState {
+        case .ready:
+            return "Start recording"
+        case .recording:
+            return isRecordButtonHovered ? "Stop recording" : "Recording..."
+        case .recorded:
+            return "Process"
+        case .processing:
+            return "Processing"
         }
     }
+
+    private var recordButtonIconName: String? {
+        switch recordButtonState {
+        case .ready:
+            return "mic.fill"
+        case .recording:
+            return "mic.fill"
+        case .recorded:
+            return "sparkles"
+        case .processing:
+            return nil
+        }
+    }
+
+    private var recordButtonShowsSpinner: Bool {
+        if case .processing = recordButtonState {
+            return true
+        }
+        return false
+    }
+
+    private var recordButtonShowsWaveform: Bool {
+        if case .recording = recordButtonState {
+            return true
+        }
+        return false
+    }
+
+    private var recordButtonEnabled: Bool {
+        switch recordButtonState {
+        case .ready:
+            return true
+        case .recording:
+            return true
+        case .recorded:
+            return model.state.canProcess
+        case .processing:
+            return false
+        }
+    }
+
+    private func handleRecordButtonTap() {
+        switch model.state {
+        case .idle:
+            model.send(.startRecording)
+        case .recording:
+            model.send(.stopRecording)
+        case .recorded:
+            model.send(.process)
+        case .done, .failed:
+            model.send(.reset)
+            model.send(.startRecording)
+        default:
+            break
+        }
+    }
+
 }
 
-private struct WindowChromeAccessor: NSViewRepresentable {
-    let configure: (NSWindow) -> Void
+private enum RecordButtonState {
+    case ready
+    case recording
+    case recorded
+    case processing
+}
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
+private struct AudioWaveformView: View {
+    let levels: [CGFloat]
 
-        DispatchQueue.main.async { [weak view] in
-            guard let window = view?.window else { return }
-            configure(window)
-        }
+    var body: some View {
+        GeometryReader { proxy in
+            let height = proxy.size.height
+            let count = max(levels.count, 1)
+            let barWidth = max((proxy.size.width / CGFloat(count)) - 4, 4)
 
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { [weak nsView] in
-            guard let window = nsView?.window else { return }
-            configure(window)
+            HStack(alignment: .center, spacing: 4) {
+                ForEach(levels.indices, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.white.opacity(0.85))
+                        .frame(
+                            width: barWidth,
+                            height: max(6, levels[index] * height)
+                        )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
     }
 }

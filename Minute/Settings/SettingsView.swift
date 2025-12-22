@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @StateObject private var model = VaultSettingsModel()
+    @StateObject private var appState = AppNavigationModel()
 
     var body: some View {
-        SettingsContentView(model: model)
-            .padding()
-            .frame(minWidth: 560, minHeight: 360)
+        MainSettingsView()
+            .environmentObject(appState)
+            .frame(width: 680, height: 480)
     }
 }
 
