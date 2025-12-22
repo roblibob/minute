@@ -346,17 +346,11 @@ private struct PipelineContentView: View {
 private struct WindowChromeAccessor: NSViewRepresentable {
     let configure: (NSWindow) -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        let coordinator = context.coordinator
 
         DispatchQueue.main.async { [weak view] in
-            guard let window = view?.window, !coordinator.didConfigure else { return }
-            coordinator.didConfigure = true
+            guard let window = view?.window else { return }
             configure(window)
         }
 
@@ -364,17 +358,10 @@ private struct WindowChromeAccessor: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        let coordinator = context.coordinator
-
         DispatchQueue.main.async { [weak nsView] in
-            guard let window = nsView?.window, !coordinator.didConfigure else { return }
-            coordinator.didConfigure = true
+            guard let window = nsView?.window else { return }
             configure(window)
         }
-    }
-
-    final class Coordinator {
-        var didConfigure = false
     }
 }
 
