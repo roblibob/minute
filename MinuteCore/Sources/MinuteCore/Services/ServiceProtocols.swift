@@ -38,6 +38,10 @@ public protocol AudioServicing: Sendable {
     func convertToContractWav(inputURL: URL, outputURL: URL) async throws
 }
 
+public protocol AudioLevelMetering: Sendable {
+    func setLevelHandler(_ handler: (@Sendable (Float) -> Void)?) async
+}
+
 public struct MediaImportResult: Sendable, Equatable {
     public var wavURL: URL
     public var duration: TimeInterval

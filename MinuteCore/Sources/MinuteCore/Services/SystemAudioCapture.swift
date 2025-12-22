@@ -15,7 +15,11 @@ final class SystemAudioCapture: @unchecked Sendable {
         self.writer = writer
     }
 
-    static func start(outputURL: URL, logger: Logger) async throws -> SystemAudioCapture {
+    static func start(
+        outputURL: URL,
+        logger: Logger,
+        levelHandler: (@Sendable (Float) -> Void)?
+    ) async throws -> SystemAudioCapture {
         let content = try await fetchShareableContent()
         guard let display = content.displays.first else {
             throw MinuteError.audioExportFailed
@@ -29,7 +33,7 @@ final class SystemAudioCapture: @unchecked Sendable {
         configuration.excludesCurrentProcessAudio = true
 
         let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
-        let writer = SampleBufferAudioWriter(outputURL: outputURL, logger: logger)
+        let writer = SampleBufferAudioWriter(outputURL: outputURL, logger: logger, levelHandler: levelHandler)
         let output = SystemAudioOutput(writer: writer)
 
         try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: output.queue)
@@ -104,13 +108,15 @@ private final class SystemAudioOutput: NSObject, SCStreamOutput {
 private final class SampleBufferAudioWriter {
     private let outputURL: URL
     private let logger: Logger
+    private let levelHandler: (@Sendable (Float) -> Void)?
     private let lock = NSLock()
     private var audioFile: AVAudioFile?
     private var writeError: Error?
 
-    init(outputURL: URL, logger: Logger) {
+    init(outputURL: URL, logger: Logger, levelHandler: (@Sendable (Float) -> Void)?) {
         self.outputURL = outputURL
         self.logger = logger
+        self.levelHandler = levelHandler
     }
 
     func write(_ sampleBuffer: CMSampleBuffer) {
@@ -123,6 +129,7 @@ private final class SampleBufferAudioWriter {
             let file = try audioFile ?? AVAudioFile(forWriting: outputURL, settings: pcmBuffer.format.settings)
             audioFile = file
             try file.write(from: pcmBuffer)
+            levelHandler?(Self.level(for: pcmBuffer))
         } catch {
             record(error)
         }
@@ -193,5 +200,37 @@ private final class SampleBufferAudioWriter {
         }
 
         return pcmBuffer
+    }
+
+    private static func level(for buffer: AVAudioPCMBuffer) -> Float {
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return 0 }
+
+        if let channelData = buffer.floatChannelData {
+            let channel = channelData[0]
+            var sum: Float = 0
+            for index in 0..<frameLength {
+                let sample = channel[index]
+                sum += sample * sample
+            }
+
+            let rms = sqrt(sum / Float(frameLength))
+            return min(max(rms * 4, 0), 1)
+        }
+
+        if let channelData = buffer.int16ChannelData {
+            let channel = channelData[0]
+            let scale = 1.0 / Float(Int16.max)
+            var sum: Float = 0
+            for index in 0..<frameLength {
+                let sample = Float(channel[index]) * scale
+                sum += sample * sample
+            }
+
+            let rms = sqrt(sum / Float(frameLength))
+            return min(max(rms * 4, 0), 1)
+        }
+
+        return 0
     }
 }
