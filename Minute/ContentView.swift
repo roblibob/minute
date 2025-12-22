@@ -8,6 +8,7 @@
 import AppKit
 import MinuteCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel
@@ -45,10 +46,13 @@ struct ContentView: View {
 private struct PipelineContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel
     @StateObject private var model = MeetingPipelineViewModel.live()
+    @State private var isImportingFile = false
+    @State private var isDropTargeted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
+            importArea
             controls
             statusArea
             resultsArea
@@ -57,6 +61,42 @@ private struct PipelineContentView: View {
         }
         .padding(24)
         .onAppear { model.refreshVaultStatus() }
+        .fileImporter(isPresented: $isImportingFile, allowedContentTypes: [.audio, .movie]) { result in
+            switch result {
+            case .success(let url):
+                importFile(url)
+            case .failure:
+                break
+            }
+        }
+    }
+
+    private var importArea: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Import")
+                .font(.title3.bold())
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(isDropTargeted ? Color.accentColor : Color.gray.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.gray.opacity(0.06)))
+
+                VStack(spacing: 8) {
+                    Text("Drop an audio or video file")
+                        .foregroundStyle(.secondary)
+
+                    Button("Choose File…") {
+                        isImportingFile = true
+                    }
+                    .disabled(!model.state.canImportMedia)
+                }
+                .padding(16)
+            }
+            .frame(height: 120)
+            .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
+                handleDrop(providers)
+            }
+        }
     }
 
     private var header: some View {
@@ -137,6 +177,40 @@ private struct PipelineContentView: View {
                 Spacer()
             }
         }
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard model.state.canImportMedia else { return false }
+
+        for provider in providers {
+            guard provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) else { continue }
+
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url: URL?
+                if let data = item as? Data {
+                    url = URL(dataRepresentation: data, relativeTo: nil)
+                } else {
+                    url = item as? URL
+                }
+
+                guard let url, isSupportedMediaURL(url) else { return }
+                Task { @MainActor in
+                    importFile(url)
+                }
+            }
+            return true
+        }
+
+        return false
+    }
+
+    private func isSupportedMediaURL(_ url: URL) -> Bool {
+        guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
+        return type.conforms(to: .audio) || type.conforms(to: .movie)
+    }
+
+    private func importFile(_ url: URL) {
+        model.send(.importFile(url))
     }
 
     private var statusArea: some View {
@@ -244,6 +318,18 @@ private struct PipelineContentView: View {
 
                     LabeledContent("Stop") {
                         Text(stoppedAt.formatted(date: .abbreviated, time: .standard))
+                            .font(.caption)
+                            .textSelection(.enabled)
+                    }
+                }
+
+            case .importing(let sourceURL):
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Importing file…")
+                        .foregroundStyle(.secondary)
+
+                    LabeledContent("Source") {
+                        Text(sourceURL.lastPathComponent)
                             .font(.caption)
                             .textSelection(.enabled)
                     }

@@ -46,7 +46,7 @@ public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unch
                 serviceName: "roblibob.Minute.WhisperService",
                 modelURL: WhisperModelPaths.defaultBaseModelURL,
                 detectLanguage: true,
-                language: "sv",
+                language: "auto",
                 threads: 4
             )
         )

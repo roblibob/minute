@@ -38,6 +38,22 @@ public protocol AudioServicing: Sendable {
     func convertToContractWav(inputURL: URL, outputURL: URL) async throws
 }
 
+public struct MediaImportResult: Sendable, Equatable {
+    public var wavURL: URL
+    public var duration: TimeInterval
+    public var suggestedStartDate: Date
+
+    public init(wavURL: URL, duration: TimeInterval, suggestedStartDate: Date) {
+        self.wavURL = wavURL
+        self.duration = duration
+        self.suggestedStartDate = suggestedStartDate
+    }
+}
+
+public protocol MediaImporting: Sendable {
+    func importMedia(from sourceURL: URL) async throws -> MediaImportResult
+}
+
 // MARK: - Transcription + Summarization
 
 public protocol TranscriptionServicing: Sendable {

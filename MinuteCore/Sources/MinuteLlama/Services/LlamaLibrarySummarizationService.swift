@@ -316,6 +316,8 @@ private enum PromptBuilder {
         - action_items.due must be \"YYYY-MM-DD\" or \"\".
         - Do not invent facts. Only use information from the transcript.
         - Do not copy long phrases from the transcript. Paraphrase and summarize.
+        - The transcript may contain multiple languages (e.g., Swedish and English).
+        - Use the dominant transcript language for the output; preserve original-language phrases and names and do not translate unless the transcript explicitly includes a translation.
         - title must be a short topic-based phrase (3-8 words), suitable for a filename (no slashes).
         - summary must be 2-5 sentences focused on outcomes and key takeaways, not a transcript dump.
         - decisions must list explicit decisions only (empty if none).
@@ -351,6 +353,7 @@ private enum PromptBuilder {
         - All arrays must be present.
         - If a field cannot be recovered, use an empty string or empty array as appropriate.
         - action_items.due must be \"YYYY-MM-DD\" or \"\".
+        - Preserve the language used in the invalid output; do not translate.
 
         Invalid output:
         \(invalidOutput)

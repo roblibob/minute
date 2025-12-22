@@ -41,13 +41,13 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
     }
 
     public static func liveDefault() -> WhisperLibraryTranscriptionService {
-        // v1 default: multilingual model + auto language detection so we can transcribe both Swedish + English.
+        // v1 default: multilingual model + auto language detection for mixed-language meetings.
         WhisperLibraryTranscriptionService(
             configuration: WhisperLibraryTranscriptionConfiguration(
                 modelURL: WhisperModelPaths.defaultBaseModelURL,
                 detectLanguage: true,
-                // Unused when `detectLanguage = true`, but keep a Swedish hint for easier debugging.
-                language: "sv"
+                // Unused when `detectLanguage = true`, but keep "auto" for clearer logs.
+                language: "auto"
             )
         )
     }

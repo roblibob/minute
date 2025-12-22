@@ -56,6 +56,16 @@ struct MockTranscriptionService: TranscriptionServicing {
     }
 }
 
+struct MockMediaImportService: MediaImporting {
+    func importMedia(from sourceURL: URL) async throws -> MediaImportResult {
+        _ = sourceURL
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("minute-import-\(UUID().uuidString).wav")
+        try Data().write(to: url, options: [.atomic])
+        return MediaImportResult(wavURL: url, duration: 0, suggestedStartDate: Date())
+    }
+}
+
 struct MockDiarizationService: DiarizationServicing {
     func diarize(wavURL: URL) async throws -> [SpeakerSegment] {
         _ = wavURL

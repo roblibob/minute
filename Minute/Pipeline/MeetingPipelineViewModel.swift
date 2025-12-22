@@ -28,6 +28,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     @Published private(set) var screenRecordingPermissionGranted: Bool = false
 
     private let audioService: any AudioServicing
+    private let mediaImportService: any MediaImporting
     private let transcriptionService: any TranscriptionServicing
     private let diarizationService: any DiarizationServicing
     private let summarizationService: any SummarizationServicing
@@ -44,6 +45,7 @@ final class MeetingPipelineViewModel: ObservableObject {
 	
     init(
         audioService: some AudioServicing,
+        mediaImportService: some MediaImporting,
         transcriptionService: some TranscriptionServicing,
         diarizationService: some DiarizationServicing,
         summarizationService: some SummarizationServicing,
@@ -52,6 +54,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         vaultWriter: some VaultWriting
     ) {
         self.audioService = audioService
+        self.mediaImportService = mediaImportService
         self.transcriptionService = transcriptionService
         self.diarizationService = diarizationService
         self.summarizationService = summarizationService
@@ -78,6 +81,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     static func mock() -> MeetingPipelineViewModel {
         MeetingPipelineViewModel(
             audioService: MockAudioService(),
+            mediaImportService: MockMediaImportService(),
             transcriptionService: MockTranscriptionService(),
             diarizationService: MockDiarizationService(),
             summarizationService: MockSummarizationService(),
@@ -93,6 +97,7 @@ final class MeetingPipelineViewModel: ObservableObject {
 
         return MeetingPipelineViewModel(
             audioService: DefaultAudioService(),
+            mediaImportService: DefaultMediaImportService(),
             transcriptionService: transcriptionService,
             diarizationService: FluidAudioDiarizationService.liveDefault(),
             summarizationService: summarizationService,
@@ -119,6 +124,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             stopRecordingIfAllowed()
         case .process:
             processIfAllowed()
+        case .importFile(let url):
+            importFileIfAllowed(url)
         case .cancelProcessing:
             cancelProcessingIfAllowed()
         case .reset:
@@ -191,6 +198,38 @@ final class MeetingPipelineViewModel: ObservableObject {
             } catch let minuteError as MinuteError {
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
             } catch {
+                state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
+            }
+        }
+    }
+
+    private func importFileIfAllowed(_ url: URL) {
+        guard state.canImportMedia else { return }
+
+        processingTask?.cancel()
+        progress = nil
+        state = .importing(sourceURL: url)
+
+        processingTask = Task(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await mediaImportService.importMedia(from: url)
+                let startedAt = result.suggestedStartDate
+                let stoppedAt = startedAt.addingTimeInterval(result.duration)
+                state = .recorded(
+                    audioTempURL: result.wavURL,
+                    durationSeconds: result.duration,
+                    startedAt: startedAt,
+                    stoppedAt: stoppedAt
+                )
+            } catch is CancellationError {
+                progress = nil
+                state = .idle
+            } catch let minuteError as MinuteError {
+                progress = nil
+                state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
+            } catch {
+                progress = nil
                 state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
             }
         }

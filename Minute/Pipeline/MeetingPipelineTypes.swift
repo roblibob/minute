@@ -44,6 +44,7 @@ struct PipelineContext: Sendable {
 
 enum MeetingPipelineState {
     case idle
+    case importing(sourceURL: URL)
     case recording(session: RecordingSession)
     case recorded(audioTempURL: URL, durationSeconds: TimeInterval, startedAt: Date, stoppedAt: Date)
     case processing(stage: ProcessingStage, context: PipelineContext)
@@ -55,6 +56,8 @@ enum MeetingPipelineState {
         switch self {
         case .idle:
             return "Idle"
+        case .importing:
+            return "Importing"
         case .recording:
             return "Recording"
         case .recorded:
@@ -82,6 +85,15 @@ enum MeetingPipelineState {
         return false
     }
 
+    var canImportMedia: Bool {
+        switch self {
+        case .idle, .recorded, .done, .failed:
+            return true
+        default:
+            return false
+        }
+    }
+
     var canStopRecording: Bool {
         if case .recording = self { return true }
         return false
@@ -94,7 +106,7 @@ enum MeetingPipelineState {
 
     var canCancelProcessing: Bool {
         switch self {
-        case .processing, .writing:
+        case .importing, .processing, .writing:
             return true
         default:
             return false
@@ -128,6 +140,7 @@ enum MeetingPipelineAction: Sendable {
     case startRecording
     case stopRecording
     case process
+    case importFile(URL)
     case cancelProcessing
     case reset
 }
