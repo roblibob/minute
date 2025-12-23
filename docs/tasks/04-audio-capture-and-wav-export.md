@@ -56,7 +56,7 @@ If AVFoundation-only conversion proves fully deterministic and always passes val
 ## File locations
 - During recording: write into app temp directory (`FileManager.default.temporaryDirectory`) under a per-session subfolder.
 - After stop/export:
-  1. Determine vault destination URL: `Meetings/_audio/YYYY-MM-DD - <Title>.wav`
+  1. Determine vault destination URL: `Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav`
   2. Copy or move the exported WAV into the vault (atomic write patterns handled later)
 
 In early implementation, the title may be unknown at stop time. Two strategies:

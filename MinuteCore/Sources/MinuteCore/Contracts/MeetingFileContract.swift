@@ -80,6 +80,6 @@ public struct MeetingFileContract: Sendable {
         let d = String(format: "%02d", cal.component(.day, from: date))
         let h = String(format: "%02d", cal.component(.hour, from: date))
         let min = String(format: "%02d", cal.component(.minute, from: date))
-        return "\(y)-\(m)-\(d) \(h):\(min)"
+        return "\(y)-\(m)-\(d) \(h).\(min)"
     }
 }

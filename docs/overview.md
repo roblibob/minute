@@ -19,11 +19,11 @@ Fixed v1 output contract
 
 File locations
 	•	Markdown note:
-	•	Meetings/YYYY/MM/YYYY-MM-DD - <Title>.md
+	•	Meetings/YYYY/MM/YYYY-MM-DD HH.MM - <Title>.md
 	•	Audio:
-	•	Meetings/_audio/YYYY-MM-DD - <Title>.wav
+	•	Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav
 	•	Transcript:
-	•	Meetings/_transcripts/YYYY-MM-DD - <Title>.md
+	•	Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md
 
 The WAV must be mono, 16 kHz, 16‑bit PCM.
 
@@ -40,8 +40,8 @@ Frontmatter (fixed schema)
 type: meeting
 date: YYYY-MM-DD
 title: "<Title>"
-audio: "Meetings/_audio/YYYY-MM-DD - <Title>.wav"
-transcript: "Meetings/_transcripts/YYYY-MM-DD - <Title>.md"
+audio: "Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav"
+transcript: "Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md"
 source: "Minute"
 ---
 
@@ -65,10 +65,10 @@ Body template (fixed)
 - <point 1>
 
 ## Audio
-[[Meetings/_audio/YYYY-MM-DD - <Title>.wav]]
+[[Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav]]
 
 ## Transcript
-[[Meetings/_transcripts/YYYY-MM-DD - <Title>.md]]
+[[Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md]]
 
 The transcript is written as its own Markdown file and linked from the note.
 

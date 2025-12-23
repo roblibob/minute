@@ -171,10 +171,13 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
         var hour = 0
         var minute = 0
         if parts.count > 1 {
-            let timeSegments = parts[1].split(separator: ":")
-            if timeSegments.count == 2,
-               let parsedHour = Int(timeSegments[0]),
-               let parsedMinute = Int(timeSegments[1]) {
+            let rawTime = parts[1]
+            let timeSegments = rawTime.split(separator: ":")
+            let fallbackSegments = rawTime.split(separator: ".")
+            let segments = timeSegments.count == 2 ? timeSegments : fallbackSegments
+            if segments.count == 2,
+               let parsedHour = Int(segments[0]),
+               let parsedMinute = Int(segments[1]) {
                 hour = parsedHour
                 minute = parsedMinute
             }

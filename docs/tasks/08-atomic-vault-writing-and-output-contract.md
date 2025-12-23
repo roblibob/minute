@@ -16,13 +16,13 @@ Implement writing to the Obsidian vault in a way that is:
 
 ## Output paths (fixed contract)
 ### Markdown note
-- `Meetings/YYYY/MM/YYYY-MM-DD HH:MM - <Title>.md`
+- `Meetings/YYYY/MM/YYYY-MM-DD HH.MM - <Title>.md`
 
 ### Audio
-- `Meetings/_audio/YYYY-MM-DD HH:MM - <Title>.wav`
+- `Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav`
 
 ### Transcript Markdown
-- `Meetings/_transcripts/YYYY-MM-DD HH:MM - <Title>.md`
+- `Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md`
 
 Where `<Title>` is derived from the validated extraction (phase 07), sanitized for filenames.
 
@@ -44,7 +44,7 @@ This avoids partially-written files if the app crashes.
 
 ## Collision handling
 If the target filename already exists:
-- Append a suffix: `YYYY-MM-DD - <Title> (2).md` and similarly for WAV
+- Append a suffix: `YYYY-MM-DD HH.MM - <Title> (2).md` and similarly for WAV
 - Ensure both artifacts share the same suffix so links remain correct
 
 Implement this as a single “reservation” step that determines final URLs for both note and audio.
@@ -57,8 +57,8 @@ Add a defense check:
 
 ## Links in the note
 Render links as required:
-- Audio: `[[Meetings/_audio/YYYY-MM-DD - <Title>.wav]]`
-- Transcript: `[[Meetings/_transcripts/YYYY-MM-DD - <Title>.md]]`
+- Audio: `[[Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav]]`
+- Transcript: `[[Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md]]`
 
 Ensure that paths stored in frontmatter (`audio:` and `transcript:`) match exactly.
 

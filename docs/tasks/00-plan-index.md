@@ -8,9 +8,9 @@ This folder contains an execution-ordered, multi-file implementation plan for th
 - Transcribe locally using `whisper.cpp`
 - Generate structured meeting note locally using `llama.cpp`
 - Write exactly three artifacts into a user-selected Obsidian vault:
-  - Markdown note: `Meetings/YYYY/MM/YYYY-MM-DD - <Title>.md`
-  - WAV audio: `Meetings/_audio/YYYY-MM-DD - <Title>.wav` (mono, 16 kHz, 16-bit PCM)
-  - Transcript markdown: `Meetings/_transcripts/YYYY-MM-DD - <Title>.md`
+  - Markdown note: `Meetings/YYYY/MM/YYYY-MM-DD HH.MM - <Title>.md`
+  - WAV audio: `Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav` (mono, 16 kHz, 16-bit PCM)
+  - Transcript markdown: `Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md`
 
 ## Execution order
 1. `01-foundation-and-project-structure.md`

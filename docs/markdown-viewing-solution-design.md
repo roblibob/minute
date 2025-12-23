@@ -41,7 +41,7 @@ protocol MeetingNotesBrowsing: Sendable {
     - Locate the meetings root using `meetingsRelativePath`.
     - Recursively enumerate Markdown files (`.md`) under that folder.
     - Exclude `_audio` and `_transcripts` directories to avoid showing non-note artifacts.
-  - Parses `YYYY-MM-DD HH:MM - Title.md` from filenames to derive `title` and `date`.
+  - Parses `YYYY-MM-DD HH.MM - Title.md` from filenames to derive `title` and `date`.
   - Sorts newest-first by parsed date; falls back to file modification date when parsing fails.
   - Reads file contents as UTF-8 and returns a `String`.
 

@@ -8,15 +8,15 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
         try createFile(
-            at: rootURL.appendingPathComponent("Meetings/2025/01/2025-01-10 10:00 - Team Sync.md"),
+            at: rootURL.appendingPathComponent("Meetings/2025/01/2025-01-10 10.00 - Team Sync.md"),
             contents: "# Team Sync"
         )
         try createFile(
-            at: rootURL.appendingPathComponent("Meetings/_audio/2025-01-10 10:00 - Team Sync.md"),
+            at: rootURL.appendingPathComponent("Meetings/_audio/2025-01-10 10.00 - Team Sync.md"),
             contents: "should ignore"
         )
         try createFile(
-            at: rootURL.appendingPathComponent("Meetings/_transcripts/2025-01-10 10:00 - Team Sync.md"),
+            at: rootURL.appendingPathComponent("Meetings/_transcripts/2025-01-10 10.00 - Team Sync.md"),
             contents: "should ignore"
         )
 
@@ -27,7 +27,7 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         XCTAssertEqual(notes.first?.title, "Team Sync")
         XCTAssertEqual(
             notes.first?.relativePath,
-            "Meetings/2025/01/2025-01-10 10:00 - Team Sync.md"
+            "Meetings/2025/01/2025-01-10 10.00 - Team Sync.md"
         )
         XCTAssertNotNil(notes.first?.date)
     }
@@ -37,11 +37,11 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
         try createFile(
-            at: rootURL.appendingPathComponent("Meetings/2025/01/2025-01-01 08:00 - First.md"),
+            at: rootURL.appendingPathComponent("Meetings/2025/01/2025-01-01 08.00 - First.md"),
             contents: "# First"
         )
         try createFile(
-            at: rootURL.appendingPathComponent("Meetings/2025/02/2025-02-01 09:00 - Second.md"),
+            at: rootURL.appendingPathComponent("Meetings/2025/02/2025-02-01 09.00 - Second.md"),
             contents: "# Second"
         )
 
@@ -55,7 +55,7 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         let rootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
-        let parsedURL = rootURL.appendingPathComponent("Meetings/2025/01/2025-01-01 08:00 - Parsed.md")
+        let parsedURL = rootURL.appendingPathComponent("Meetings/2025/01/2025-01-01 08.00 - Parsed.md")
         let looseURL = rootURL.appendingPathComponent("Meetings/Loose.md")
 
         try createFile(at: parsedURL, contents: "# Parsed")

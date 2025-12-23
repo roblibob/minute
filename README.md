@@ -20,9 +20,9 @@ Minute is a native macOS companion for Obsidian that turns meetings into clean, 
 
 ## 📄 Output contract (default)
 Exactly three artifacts are written per meeting:
-- `Meetings/YYYY/MM/YYYY-MM-DD - <Title>.md`
-- `Meetings/_audio/YYYY-MM-DD - <Title>.wav`
-- `Meetings/_transcripts/YYYY-MM-DD - <Title>.md`
+- `Meetings/YYYY/MM/YYYY-MM-DD HH.MM - <Title>.md`
+- `Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav`
+- `Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md`
 
 The WAV format is mono, 16 kHz, 16-bit PCM. The note links to the audio and transcript files.
 

@@ -16,13 +16,13 @@ final class MeetingFileContractTests: XCTestCase {
         )
 
         let note = contract.noteRelativePath(date: date, title: "Weekly Sync", calendar: calendar)
-        XCTAssertEqual(note, "Meetings/2025/12/2025-12-19 09:30 - Weekly Sync.md")
+        XCTAssertEqual(note, "Meetings/2025/12/2025-12-19 09.30 - Weekly Sync.md")
 
         let audio = contract.audioRelativePath(date: date, title: "Weekly Sync", calendar: calendar)
-        XCTAssertEqual(audio, "Meetings/_audio/2025-12-19 09:30 - Weekly Sync.wav")
+        XCTAssertEqual(audio, "Meetings/_audio/2025-12-19 09.30 - Weekly Sync.wav")
 
         let transcript = contract.transcriptRelativePath(date: date, title: "Weekly Sync", calendar: calendar)
-        XCTAssertEqual(transcript, "Meetings/_transcripts/2025-12-19 09:30 - Weekly Sync.md")
+        XCTAssertEqual(transcript, "Meetings/_transcripts/2025-12-19 09.30 - Weekly Sync.md")
     }
 
     func testPaths_sanitizeTitle() {
@@ -33,6 +33,6 @@ final class MeetingFileContractTests: XCTestCase {
         let contract = MeetingFileContract()
 
         let audio = contract.audioRelativePath(date: date, title: "A/B:C", calendar: calendar)
-        XCTAssertEqual(audio, "Meetings/_audio/2025-01-02 07:05 - A B C.wav")
+        XCTAssertEqual(audio, "Meetings/_audio/2025-01-02 07.05 - A B C.wav")
     }
 }

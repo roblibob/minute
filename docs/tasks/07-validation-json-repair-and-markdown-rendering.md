@@ -60,7 +60,7 @@ Render exactly:
 type: meeting
 date: YYYY-MM-DD
 title: "<Title>"
-audio: "Meetings/_audio/YYYY-MM-DD - <Title>.wav"
+audio: "Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav"
 source: "Minute"
 ---
 ```
