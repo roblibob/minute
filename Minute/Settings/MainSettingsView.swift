@@ -81,6 +81,7 @@ struct MainSettingsView: View {
             switch selection {
             case .general:
                 Form {
+                    GeneralSettingsSection()
                     VaultConfigurationView(model: vaultModel, style: .settings)
                 }
             case .permissions:

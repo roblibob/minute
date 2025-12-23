@@ -14,7 +14,12 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         )
 
         let audio = "Meetings/_audio/2025-12-19 - Weekly Sync.wav"
-        let markdown = MarkdownRenderer().render(extraction: extraction, audioRelativePath: audio)
+        let transcript = "Meetings/_transcripts/2025-12-19 - Weekly Sync.md"
+        let markdown = MarkdownRenderer().render(
+            extraction: extraction,
+            audioRelativePath: audio,
+            transcriptRelativePath: transcript
+        )
 
         let expected = """
         ---
@@ -22,6 +27,7 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         date: 2025-12-19
         title: \"Weekly Sync\"
         audio: \"Meetings/_audio/2025-12-19 - Weekly Sync.wav\"
+        transcript: \"Meetings/_transcripts/2025-12-19 - Weekly Sync.md\"
         source: \"Minute\"
         ---
 
@@ -44,6 +50,9 @@ final class MarkdownRendererGoldenTests: XCTestCase {
 
         ## Audio
         [[Meetings/_audio/2025-12-19 - Weekly Sync.wav]]
+
+        ## Transcript
+        [[Meetings/_transcripts/2025-12-19 - Weekly Sync.md]]
         """ + "\n"
 
         XCTAssertEqual(markdown, expected)

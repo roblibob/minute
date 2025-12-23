@@ -17,7 +17,6 @@ struct SettingsOverlayView: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(0.2), radius: 24, x: 0, y: 12)
         }
         .transition(.opacity)
     }

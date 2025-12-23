@@ -11,14 +11,32 @@ struct SummarizationModelPicker: View {
             Text("Summarization model")
                 .font(.headline)
 
-            Picker("Summarization model", selection: $selection) {
+            Menu {
                 ForEach(models) { model in
-                    Text(menuLabel(for: model))
-                        .tag(model.id)
+                    Button {
+                        selection = model.id
+                    } label: {
+                        if model.id == selection {
+                            Label(menuLabel(for: model), systemImage: "checkmark")
+                        } else {
+                            Text(menuLabel(for: model))
+                        }
+                    }
                 }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(selectedMenuLabel)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .minuteDropdownStyle()
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
+            .menuStyle(.borderlessButton)
 
             if let selectedModel {
                 Text(selectedModel.summary)
@@ -30,6 +48,11 @@ struct SummarizationModelPicker: View {
 
     private var selectedModel: SummarizationModel? {
         models.first { $0.id == selection } ?? models.first
+    }
+
+    private var selectedMenuLabel: String {
+        guard let selectedModel else { return "Select model" }
+        return menuLabel(for: selectedModel)
     }
 
     private func sizeLabel(for model: SummarizationModel) -> String? {

@@ -24,6 +24,8 @@ struct PipelineContext: Sendable {
     var startedAt: Date
     var stoppedAt: Date
     var workingDirectoryURL: URL
+    var saveAudio: Bool
+    var saveTranscript: Bool
 
     init(
         vaultFolders: MeetingFileContract.VaultFolders,
@@ -31,7 +33,9 @@ struct PipelineContext: Sendable {
         audioDurationSeconds: TimeInterval,
         startedAt: Date,
         stoppedAt: Date,
-        workingDirectoryURL: URL
+        workingDirectoryURL: URL,
+        saveAudio: Bool,
+        saveTranscript: Bool
     ) {
         self.vaultFolders = vaultFolders
         self.audioTempURL = audioTempURL
@@ -39,6 +43,8 @@ struct PipelineContext: Sendable {
         self.startedAt = startedAt
         self.stoppedAt = stoppedAt
         self.workingDirectoryURL = workingDirectoryURL
+        self.saveAudio = saveAudio
+        self.saveTranscript = saveTranscript
     }
 }
 
@@ -49,7 +55,7 @@ enum MeetingPipelineState {
     case recorded(audioTempURL: URL, durationSeconds: TimeInterval, startedAt: Date, stoppedAt: Date)
     case processing(stage: ProcessingStage, context: PipelineContext)
     case writing(context: PipelineContext, extraction: MeetingExtraction)
-    case done(noteURL: URL, audioURL: URL)
+    case done(noteURL: URL, audioURL: URL?)
     case failed(error: MinuteError, debugOutput: String?)
 
     var statusLabel: String {

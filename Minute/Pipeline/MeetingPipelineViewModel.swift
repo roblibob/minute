@@ -420,6 +420,8 @@ final class MeetingPipelineViewModel: ObservableObject {
         let meetings = defaults.string(forKey: DefaultsKey.meetingsRelativePath) ?? "Meetings"
         let audio = defaults.string(forKey: DefaultsKey.audioRelativePath) ?? "Meetings/_audio"
         let transcripts = defaults.string(forKey: DefaultsKey.transcriptsRelativePath) ?? "Meetings/_transcripts"
+        let saveAudio = defaults.object(forKey: AppDefaultsKey.saveAudio) as? Bool ?? true
+        let saveTranscript = defaults.object(forKey: AppDefaultsKey.saveTranscript) as? Bool ?? true
 
         // Validate vault selection.
         do {
@@ -437,7 +439,9 @@ final class MeetingPipelineViewModel: ObservableObject {
             audioDurationSeconds: audioDurationSeconds,
             startedAt: startedAt,
             stoppedAt: stoppedAt,
-            workingDirectoryURL: workingDirectoryURL
+            workingDirectoryURL: workingDirectoryURL,
+            saveAudio: saveAudio,
+            saveTranscript: saveTranscript
         )
     }
 
@@ -446,7 +450,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         extraction: MeetingExtraction,
         transcription: TranscriptionResult,
         attributedSegments: [AttributedTranscriptSegment]
-    ) throws -> (noteURL: URL, audioURL: URL) {
+    ) throws -> (noteURL: URL, audioURL: URL?) {
         let recordingDate = context.startedAt
         // Use extraction.date if parseable, otherwise fall back to the recording date.
         let meetingDate = MinuteISODate.parse(extraction.date) ?? recordingDate
@@ -454,37 +458,51 @@ final class MeetingPipelineViewModel: ObservableObject {
 
         let contract = MeetingFileContract(folders: context.vaultFolders)
         let noteRelativePath = contract.noteRelativePath(date: recordingDate, title: extraction.title)
-        let audioRelativePath = contract.audioRelativePath(date: recordingDate, title: extraction.title)
-        let transcriptRelativePath = contract.transcriptRelativePath(date: recordingDate, title: extraction.title)
+        let audioRelativePath = context.saveAudio ? contract.audioRelativePath(date: recordingDate, title: extraction.title) : nil
+        let transcriptRelativePath = context.saveTranscript ? contract.transcriptRelativePath(date: recordingDate, title: extraction.title) : nil
 
-        let transcriptMarkdown = TranscriptMarkdownRenderer().render(
-            title: extraction.title,
-            dateISO: meetingDateISO,
-            transcript: transcription.text,
-            attributedSegments: attributedSegments
-        )
-        let transcriptData = Data(transcriptMarkdown.utf8)
+        let transcriptData: Data?
+        if context.saveTranscript, let transcriptRelativePath {
+            let transcriptMarkdown = TranscriptMarkdownRenderer().render(
+                title: extraction.title,
+                dateISO: meetingDateISO,
+                transcript: transcription.text,
+                attributedSegments: attributedSegments
+            )
+            transcriptData = Data(transcriptMarkdown.utf8)
+        } else {
+            transcriptData = nil
+        }
 
         let noteMarkdown = MarkdownRenderer().render(
             extraction: extraction,
-            audioRelativePath: audioRelativePath
+            audioRelativePath: audioRelativePath,
+            transcriptRelativePath: transcriptRelativePath
         )
         let noteData = Data(noteMarkdown.utf8)
 
         return try vaultAccess.withVaultAccess { vaultRootURL in
             let noteURL = vaultRootURL.appendingPathComponent(noteRelativePath)
-            let audioURL = vaultRootURL.appendingPathComponent(audioRelativePath)
-            let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
 
             // Transcript
-            try vaultWriter.writeAtomically(data: transcriptData, to: transcriptURL)
+            if let transcriptRelativePath, let transcriptData {
+                let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
+                try vaultWriter.writeAtomically(data: transcriptData, to: transcriptURL)
+            }
 
             // Note
             try vaultWriter.writeAtomically(data: noteData, to: noteURL)
 
             // Audio (temporary implementation reads into memory; task 08 will stream/copy atomically).
-            let audioData = try Data(contentsOf: context.audioTempURL)
-            try vaultWriter.writeAtomically(data: audioData, to: audioURL)
+            let audioURL: URL?
+            if let audioRelativePath {
+                let audioData = try Data(contentsOf: context.audioTempURL)
+                let resolvedURL = vaultRootURL.appendingPathComponent(audioRelativePath)
+                try vaultWriter.writeAtomically(data: audioData, to: resolvedURL)
+                audioURL = resolvedURL
+            } else {
+                audioURL = nil
+            }
 
             return (noteURL: noteURL, audioURL: audioURL)
         }

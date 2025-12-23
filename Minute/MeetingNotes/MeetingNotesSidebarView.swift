@@ -28,20 +28,6 @@ struct MeetingNotesSidebarView: View {
                 .font(.headline)
 
             Spacer()
-
-            Button(action: model.refresh) {
-                if model.isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(.accentColor)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.accentColor)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Refresh notes list")
         }
     }
 
@@ -104,7 +90,7 @@ struct MeetingNotesSidebarView: View {
         guard model.isOverlayPresented, model.selectedItem?.id == item.id else {
             return nil
         }
-        return Color(nsColor: NSColor.selectedContentBackgroundColor).opacity(0.2)
+        return Color(nsColor: NSColor.selectedContentBackgroundColor)
     }
 
     private func dateLabel(for item: MeetingNoteItem) -> String {

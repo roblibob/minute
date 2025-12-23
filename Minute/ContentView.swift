@@ -45,15 +45,10 @@ private struct PipelineContentView: View {
     @State private var isRecordButtonHovered = false
 
     var body: some View {
-        ZStack {
-            HStack(spacing: 0) {
-                MeetingNotesSidebarView(model: notesModel)
+        HStack(spacing: 0) {
+            MeetingNotesSidebarView(model: notesModel)
 
-                Divider()
-
-                pipelineBody
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            Divider()
 
             if notesModel.isOverlayPresented {
                 MarkdownViewerOverlay(
@@ -66,6 +61,10 @@ private struct PipelineContentView: View {
                     onRetry: notesModel.retryLoadContent,
                     onOpenInObsidian: notesModel.openInObsidian
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                pipelineBody
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .onAppear {
@@ -286,7 +285,7 @@ private struct PipelineContentView: View {
 
     private var recordButtonBackground: some View {
         LinearGradient(
-            colors: [Color(red: 0.2, green: 0.5, blue: 1.0), Color(red: 0.1, green: 0.35, blue: 0.9)],
+            colors: [Color("AccentColor"), Color("AccentGradientEndColor")],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

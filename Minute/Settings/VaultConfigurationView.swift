@@ -52,17 +52,20 @@ struct VaultConfigurationView: View {
                 Button("Choose vault...") {
                     Task { await model.chooseVaultRootFolder() }
                 }
+                .minuteStandardButtonStyle()
 
                 Button("Clear") {
                     model.clearVaultSelection()
                 }
                 .disabled(model.vaultRootPathDisplay == "Not selected")
+                .minuteStandardButtonStyle()
 
                 Spacer()
 
                 Button("Verify access") {
                     model.verifyAccessAndCreateFolders()
                 }
+                .minuteStandardButtonStyle()
             }
 
             if let message = model.lastVerificationMessage {
@@ -80,8 +83,11 @@ struct VaultConfigurationView: View {
     private var foldersSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             TextField("Meetings folder (relative)", text: $model.meetingsRelativePath)
+                .minuteTextFieldStyle()
             TextField("Audio folder (relative)", text: $model.audioRelativePath)
+                .minuteTextFieldStyle()
             TextField("Transcript folder (relative)", text: $model.transcriptsRelativePath)
+                .minuteTextFieldStyle()
             Text("Defaults: Meetings, Meetings/_audio, and Meetings/_transcripts")
                 .foregroundStyle(.secondary)
         }

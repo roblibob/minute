@@ -37,7 +37,7 @@ struct OnboardingView: View {
                 Button(model.primaryButtonTitle) {
                     model.advance()
                 }
-                .buttonStyle(.borderedProminent)
+                .minuteStandardButtonStyle()
                 .disabled(!model.primaryButtonEnabled)
             }
         }

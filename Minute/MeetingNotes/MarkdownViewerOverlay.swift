@@ -13,29 +13,13 @@ struct MarkdownViewerOverlay: View {
     var onOpenInObsidian: (() -> Void)?
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                header
-                Divider()
-                bodyContent
-            }
-            .frame(maxWidth: 860, maxHeight: 620)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(nsColor: NSColor.windowBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.25), radius: 24, x: 0, y: 12)
-            .padding(24)
+        VStack(spacing: 0) {
+            header
+            Divider()
+            bodyContent
         }
+        .background(Color(nsColor: NSColor.windowBackgroundColor))
         .onExitCommand(perform: onClose)
-        .transition(.opacity)
     }
 
     private var header: some View {

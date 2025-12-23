@@ -6,7 +6,11 @@ import Foundation
 public struct MarkdownRenderer: Sendable {
     public init() {}
 
-    public func render(extraction: MeetingExtraction, audioRelativePath: String) -> String {
+    public func render(
+        extraction: MeetingExtraction,
+        audioRelativePath: String?,
+        transcriptRelativePath: String?
+    ) -> String {
         let title = normalizedTitle(extraction.title)
         let date = extraction.date
 
@@ -18,7 +22,12 @@ public struct MarkdownRenderer: Sendable {
         lines.append("type: meeting")
         lines.append("date: \(date)")
         lines.append("title: \(yamlDoubleQuoted(title))")
-        lines.append("audio: \(yamlDoubleQuoted(audioRelativePath))")
+        if let audioRelativePath {
+            lines.append("audio: \(yamlDoubleQuoted(audioRelativePath))")
+        }
+        if let transcriptRelativePath {
+            lines.append("transcript: \(yamlDoubleQuoted(transcriptRelativePath))")
+        }
         lines.append("source: \"Minute\"")
         lines.append("---")
         lines.append("")
@@ -47,8 +56,16 @@ public struct MarkdownRenderer: Sendable {
         appendBullets(extraction.keyPoints, to: &lines)
         lines.append("")
 
-        lines.append("## Audio")
-        lines.append("[[\(audioRelativePath)]]")
+        if let audioRelativePath {
+            lines.append("## Audio")
+            lines.append("[[\(audioRelativePath)]]")
+            lines.append("")
+        }
+
+        if let transcriptRelativePath {
+            lines.append("## Transcript")
+            lines.append("[[\(transcriptRelativePath)]]")
+        }
 
         // Ensure file ends with a newline.
         return lines.joined(separator: "\n") + "\n"

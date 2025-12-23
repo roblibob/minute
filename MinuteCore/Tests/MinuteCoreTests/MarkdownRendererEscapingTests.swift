@@ -14,7 +14,11 @@ final class MarkdownRendererEscapingTests: XCTestCase {
         )
 
         let audio = "Meetings/_audio/2025-12-19 - Anything.wav"
-        let markdown = MarkdownRenderer().render(extraction: extraction, audioRelativePath: audio)
+        let markdown = MarkdownRenderer().render(
+            extraction: extraction,
+            audioRelativePath: audio,
+            transcriptRelativePath: nil
+        )
 
         // YAML must be double-quoted and escaped.
         XCTAssertTrue(markdown.contains("title: \"He said \\\"Hello\\\\World\\\" Next\"\n"))
