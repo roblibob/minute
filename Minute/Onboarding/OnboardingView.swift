@@ -131,8 +131,15 @@ struct OnboardingView: View {
     }
 
     private var modelsStep: some View {
-        ModelsRow(state: model.modelsState) {
-            model.startModelDownload()
+        VStack(alignment: .leading, spacing: 16) {
+            SummarizationModelPicker(
+                models: model.summarizationModels,
+                selection: $model.selectedSummarizationModelID
+            )
+
+            ModelsRow(state: model.modelsState) {
+                model.startModelDownload()
+            }
         }
     }
 

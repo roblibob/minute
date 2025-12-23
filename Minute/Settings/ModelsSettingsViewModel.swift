@@ -12,12 +12,29 @@ final class ModelsSettingsViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .checking
+    @Published var selectedSummarizationModelID: String {
+        didSet {
+            guard oldValue != selectedSummarizationModelID else { return }
+            summarizationModelStore.setSelectedModelID(selectedSummarizationModelID)
+            refresh()
+        }
+    }
 
     private let modelManager: any ModelManaging
+    private let summarizationModelStore: SummarizationModelSelectionStore
     private var modelTask: Task<Void, Never>?
 
-    init(modelManager: any ModelManaging = DefaultModelManager()) {
-        self.modelManager = modelManager
+    init(
+        modelManager: (any ModelManaging)? = nil,
+        summarizationModelStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore()
+    ) {
+        self.summarizationModelStore = summarizationModelStore
+        self.modelManager = modelManager ?? DefaultModelManager(selectionStore: summarizationModelStore)
+        let selectedModel = summarizationModelStore.selectedModel()
+        self.selectedSummarizationModelID = selectedModel.id
+        if summarizationModelStore.selectedModelID() != selectedModel.id {
+            summarizationModelStore.setSelectedModelID(selectedModel.id)
+        }
         refresh()
     }
 
@@ -84,11 +101,17 @@ final class ModelsSettingsViewModel: ObservableObject {
 
         var parts: [String] = []
         if !result.missingModelIDs.isEmpty {
-            parts.append("Missing: \(result.missingModelIDs.joined(separator: ", "))")
+            let names = result.missingModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            parts.append("Missing: \(names.joined(separator: ", "))")
         }
         if !result.invalidModelIDs.isEmpty {
-            parts.append("Invalid: \(result.invalidModelIDs.joined(separator: ", "))")
+            let names = result.invalidModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            parts.append("Invalid: \(names.joined(separator: ", "))")
         }
         return parts.joined(separator: " ")
+    }
+
+    var summarizationModels: [SummarizationModel] {
+        SummarizationModelCatalog.all
     }
 }

@@ -7,6 +7,11 @@ struct ModelsSettingsSection: View {
     var body: some View {
         Section("Models") {
             VStack(alignment: .leading, spacing: 12) {
+                SummarizationModelPicker(
+                    models: model.summarizationModels,
+                    selection: $model.selectedSummarizationModelID
+                )
+
                 HStack(alignment: .center, spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Whisper + Llama models")

@@ -33,7 +33,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     private let mediaImportService: any MediaImporting
     private let transcriptionService: any TranscriptionServicing
     private let diarizationService: any DiarizationServicing
-    private let summarizationService: any SummarizationServicing
+    private let summarizationServiceProvider: () -> any SummarizationServicing
     private let modelManager: any ModelManaging
 
     private let bookmarkStore: UserDefaultsVaultBookmarkStore
@@ -54,7 +54,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         mediaImportService: some MediaImporting,
         transcriptionService: some TranscriptionServicing,
         diarizationService: some DiarizationServicing,
-        summarizationService: some SummarizationServicing,
+        summarizationServiceProvider: @escaping () -> any SummarizationServicing,
         modelManager: some ModelManaging,
         bookmarkStore: UserDefaultsVaultBookmarkStore,
         vaultWriter: some VaultWriting
@@ -63,7 +63,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         self.mediaImportService = mediaImportService
         self.transcriptionService = transcriptionService
         self.diarizationService = diarizationService
-        self.summarizationService = summarizationService
+        self.summarizationServiceProvider = summarizationServiceProvider
         self.modelManager = modelManager
         self.bookmarkStore = bookmarkStore
         self.vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
@@ -90,7 +90,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             mediaImportService: MockMediaImportService(),
             transcriptionService: MockTranscriptionService(),
             diarizationService: MockDiarizationService(),
-            summarizationService: MockSummarizationService(),
+            summarizationServiceProvider: { MockSummarizationService() },
             modelManager: MockModelManager(),
             bookmarkStore: UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark),
             vaultWriter: DefaultVaultWriter()
@@ -98,7 +98,10 @@ final class MeetingPipelineViewModel: ObservableObject {
     }
 
     static func live() -> MeetingPipelineViewModel {
-        let summarizationService: any SummarizationServicing = LlamaLibrarySummarizationService.liveDefault()
+        let selectionStore = SummarizationModelSelectionStore()
+        let summarizationServiceProvider: () -> any SummarizationServicing = {
+            LlamaLibrarySummarizationService.liveDefault(selectionStore: selectionStore)
+        }
         let transcriptionService: any TranscriptionServicing = WhisperXPCTranscriptionService.liveDefault()
 
         return MeetingPipelineViewModel(
@@ -106,8 +109,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             mediaImportService: DefaultMediaImportService(),
             transcriptionService: transcriptionService,
             diarizationService: FluidAudioDiarizationService.meetingDefault(),
-            summarizationService: summarizationService,
-            modelManager: DefaultModelManager(),
+            summarizationServiceProvider: summarizationServiceProvider,
+            modelManager: DefaultModelManager(selectionStore: selectionStore),
             bookmarkStore: UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark),
             vaultWriter: DefaultVaultWriter()
         )
@@ -320,9 +323,14 @@ final class MeetingPipelineViewModel: ObservableObject {
             progress = 0.5
             try Task.checkCancellation()
 
+            let summarizationService = summarizationServiceProvider()
             let meetingDate = context.startedAt
             let rawJSON = try await summarizationService.summarize(transcript: transcription.text, meetingDate: meetingDate)
-            let extraction = try await decodeOrRepairExtraction(rawJSON: rawJSON, meetingDate: meetingDate)
+            let extraction = try await decodeOrRepairExtraction(
+                rawJSON: rawJSON,
+                meetingDate: meetingDate,
+                summarizationService: summarizationService
+            )
 
             // Write
             state = .writing(context: context, extraction: extraction)
@@ -363,7 +371,11 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
     }
 
-    private func decodeOrRepairExtraction(rawJSON: String, meetingDate: Date) async throws -> MeetingExtraction {
+    private func decodeOrRepairExtraction(
+        rawJSON: String,
+        meetingDate: Date,
+        summarizationService: any SummarizationServicing
+    ) async throws -> MeetingExtraction {
         do {
             let decoded = try decodeExtractionStrict(from: rawJSON)
             return MeetingExtractionValidation.validated(decoded, recordingDate: meetingDate)
@@ -435,14 +447,15 @@ final class MeetingPipelineViewModel: ObservableObject {
         transcription: TranscriptionResult,
         attributedSegments: [AttributedTranscriptSegment]
     ) throws -> (noteURL: URL, audioURL: URL) {
+        let recordingDate = context.startedAt
         // Use extraction.date if parseable, otherwise fall back to the recording date.
-        let meetingDate = MinuteISODate.parse(extraction.date) ?? context.startedAt
+        let meetingDate = MinuteISODate.parse(extraction.date) ?? recordingDate
         let meetingDateISO = MinuteISODate.format(meetingDate)
 
         let contract = MeetingFileContract(folders: context.vaultFolders)
-        let noteRelativePath = contract.noteRelativePath(date: meetingDate, title: extraction.title)
-        let audioRelativePath = contract.audioRelativePath(date: meetingDate, title: extraction.title)
-        let transcriptRelativePath = contract.transcriptRelativePath(date: meetingDate, title: extraction.title)
+        let noteRelativePath = contract.noteRelativePath(date: recordingDate, title: extraction.title)
+        let audioRelativePath = contract.audioRelativePath(date: recordingDate, title: extraction.title)
+        let transcriptRelativePath = contract.transcriptRelativePath(date: recordingDate, title: extraction.title)
 
         let transcriptMarkdown = TranscriptMarkdownRenderer().render(
             title: extraction.title,

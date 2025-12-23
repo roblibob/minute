@@ -33,14 +33,21 @@ public actor DefaultModelManager: ModelManaging {
         var verifiedSHA256Hex: String
     }
 
-    private let requiredModels: [ModelSpec]
+    private let requiredModelsOverride: [ModelSpec]?
+    private let selectionStore: SummarizationModelSelectionStore
     private let logger = Logger(subsystem: "roblibob.Minute", category: "models")
 
-    public init(requiredModels: [ModelSpec] = DefaultModelManager.defaultRequiredModels()) {
-        self.requiredModels = requiredModels
+    public init(
+        requiredModels: [ModelSpec]? = nil,
+        selectionStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore()
+    ) {
+        self.requiredModelsOverride = requiredModels
+        self.selectionStore = selectionStore
     }
 
     public func ensureModelsPresent(progress: (@Sendable (ModelDownloadProgress) -> Void)? = nil) async throws {
+        let requiredModels = resolvedRequiredModels()
+
         // Ensure the app is configured with pinned URLs + checksums.
         for spec in requiredModels {
             if spec.expectedSHA256Hex == "REPLACE_ME" || spec.expectedSHA256Hex.isEmpty || spec.sourceURL.absoluteString.contains("REPLACE_ME") {
@@ -130,6 +137,7 @@ public actor DefaultModelManager: ModelManaging {
     }
 
     public func validateModels() async throws -> ModelValidationResult {
+        let requiredModels = resolvedRequiredModels()
         let fileManager = FileManager.default
         var missing: [String] = []
         var invalid: [String] = []
@@ -200,6 +208,7 @@ public actor DefaultModelManager: ModelManaging {
     }
 
     public func removeModels(withIDs ids: [String]) async throws {
+        let requiredModels = resolvedRequiredModels()
         let fileManager = FileManager.default
 
         for spec in requiredModels where ids.contains(spec.id) {
@@ -218,10 +227,10 @@ public actor DefaultModelManager: ModelManaging {
     // MARK: - Defaults
 
     /// Default pinned model list.
-    public static func defaultRequiredModels() -> [ModelSpec] {
+    public static func defaultRequiredModels(selectedSummarizationModelID: String? = nil) -> [ModelSpec] {
         let whisperURL = WhisperModelPaths.defaultBaseModelURL
         let whisperCoreMLEncoderURL = WhisperModelPaths.defaultBaseEncoderCoreMLURL
-        let llamaURL = LlamaModelPaths.defaultLLMModelURL
+        let summarizationModel = SummarizationModelCatalog.model(for: selectedSummarizationModelID) ?? SummarizationModelCatalog.defaultModel
 
         return [
             // Whisper (multilingual)
@@ -243,13 +252,22 @@ public actor DefaultModelManager: ModelManaging {
 
             // LLM (GGUF)
             ModelSpec(
-                id: "llm/gemma-3-27b-it-q4_k_m",
-                destinationURL: llamaURL,
-                sourceURL: URL(string: "https://huggingface.co/ggml-org/gemma-3-27b-it-GGUF/resolve/main/gemma-3-27b-it-Q4_K_M.gguf")!,
-                expectedSHA256Hex: "edc9aff4d811a285b9157618130b08688b0768d94ee5355b02dc0cb713012e15",
-                expectedFileSizeBytes: 16_546_404_736
+                id: summarizationModel.id,
+                destinationURL: summarizationModel.destinationURL,
+                sourceURL: summarizationModel.sourceURL,
+                expectedSHA256Hex: summarizationModel.expectedSHA256Hex,
+                expectedFileSizeBytes: summarizationModel.expectedFileSizeBytes
             ),
         ]
+    }
+
+    private func resolvedRequiredModels() -> [ModelSpec] {
+        if let requiredModelsOverride {
+            return requiredModelsOverride
+        }
+
+        let selectedID = selectionStore.selectedModelID()
+        return DefaultModelManager.defaultRequiredModels(selectedSummarizationModelID: selectedID)
     }
 
     // MARK: - Download + hashing

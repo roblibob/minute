@@ -30,7 +30,7 @@ public struct MeetingFileContract: Sendable {
     public func noteRelativePath(date: Date, title: String, calendar: Calendar = .current) -> String {
         let y = String(format: "%04d", calendar.component(.year, from: date))
         let m = String(format: "%02d", calendar.component(.month, from: date))
-        let d = Self.isoDate(date, calendar: calendar)
+        let d = Self.isoDateTimePrefix(date, calendar: calendar)
         let safeTitle = FilenameSanitizer.sanitizeTitle(title)
 
         return [
@@ -42,7 +42,7 @@ public struct MeetingFileContract: Sendable {
     }
 
     public func audioRelativePath(date: Date, title: String, calendar: Calendar = .current) -> String {
-        let d = Self.isoDate(date, calendar: calendar)
+        let d = Self.isoDateTimePrefix(date, calendar: calendar)
         let safeTitle = FilenameSanitizer.sanitizeTitle(title)
 
         return [
@@ -52,7 +52,7 @@ public struct MeetingFileContract: Sendable {
     }
 
     public func transcriptRelativePath(date: Date, title: String, calendar: Calendar = .current) -> String {
-        let d = Self.isoDate(date, calendar: calendar)
+        let d = Self.isoDateTimePrefix(date, calendar: calendar)
         let safeTitle = FilenameSanitizer.sanitizeTitle(title)
 
         return [
@@ -69,5 +69,17 @@ public struct MeetingFileContract: Sendable {
         let m = String(format: "%02d", cal.component(.month, from: date))
         let d = String(format: "%02d", cal.component(.day, from: date))
         return "\(y)-\(m)-\(d)"
+    }
+
+    public static func isoDateTimePrefix(_ date: Date, calendar: Calendar = .current) -> String {
+        var cal = calendar
+        cal.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+
+        let y = String(format: "%04d", cal.component(.year, from: date))
+        let m = String(format: "%02d", cal.component(.month, from: date))
+        let d = String(format: "%02d", cal.component(.day, from: date))
+        let h = String(format: "%02d", cal.component(.hour, from: date))
+        let min = String(format: "%02d", cal.component(.minute, from: date))
+        return "\(y)-\(m)-\(d) \(h):\(min)"
     }
 }

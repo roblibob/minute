@@ -46,10 +46,13 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         self.configuration = configuration
     }
 
-    public static func liveDefault() -> LlamaLibrarySummarizationService {
-        LlamaLibrarySummarizationService(
+    public static func liveDefault(
+        selectionStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore()
+    ) -> LlamaLibrarySummarizationService {
+        let model = selectionStore.selectedModel()
+        return LlamaLibrarySummarizationService(
             configuration: LlamaLibrarySummarizationConfiguration(
-                modelURL: LlamaModelPaths.defaultLLMModelURL
+                modelURL: model.destinationURL
             )
         )
     }

@@ -6,13 +6,17 @@ public enum LlamaModelPaths {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
     }
 
-    /// Default LLM model location (GGUF).
-    public static var defaultLLMModelURL: URL {
-        // ~/Library/Application Support/Minute/models/llama/gemma-3-27b-it-Q4_K_M.gguf
+    public static func modelURL(fileName: String) -> URL {
         applicationSupportRoot
             .appendingPathComponent("Minute", isDirectory: true)
             .appendingPathComponent("models", isDirectory: true)
             .appendingPathComponent("llama", isDirectory: true)
-            .appendingPathComponent("gemma-3-27b-it-Q4_K_M.gguf")
+            .appendingPathComponent(fileName)
+    }
+
+    /// Default LLM model location (GGUF).
+    public static var defaultLLMModelURL: URL {
+        // ~/Library/Application Support/Minute/models/llama/gemma-3-27b-it-Q4_K_M.gguf
+        modelURL(fileName: "gemma-3-27b-it-Q4_K_M.gguf")
     }
 }

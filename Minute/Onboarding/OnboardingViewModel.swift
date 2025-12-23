@@ -26,10 +26,18 @@ final class OnboardingViewModel: ObservableObject {
     @Published private(set) var screenRecordingPermissionGranted = false
     @Published private(set) var vaultConfigured = false
     @Published private(set) var modelsState: ModelsState = .checking
+    @Published var selectedSummarizationModelID: String {
+        didSet {
+            guard oldValue != selectedSummarizationModelID else { return }
+            summarizationModelStore.setSelectedModelID(selectedSummarizationModelID)
+            Task { await refreshModelsStatus() }
+        }
+    }
 
     private let modelManager: any ModelManaging
     private let vaultAccess: VaultAccess
     private let defaults: UserDefaults
+    private let summarizationModelStore: SummarizationModelSelectionStore
 
     private var defaultsObserver: AnyCancellable?
     private var modelTask: Task<Void, Never>?
@@ -44,11 +52,19 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     init(
-        modelManager: any ModelManaging = DefaultModelManager(),
-        defaults: UserDefaults = .standard
+        modelManager: (any ModelManaging)? = nil,
+        defaults: UserDefaults = .standard,
+        summarizationModelStore: SummarizationModelSelectionStore? = nil
     ) {
-        self.modelManager = modelManager
+        let store = summarizationModelStore ?? SummarizationModelSelectionStore(defaults: defaults)
+        self.modelManager = modelManager ?? DefaultModelManager(selectionStore: store)
         self.defaults = defaults
+        self.summarizationModelStore = store
+        let selectedModel = store.selectedModel()
+        self.selectedSummarizationModelID = selectedModel.id
+        if store.selectedModelID() != selectedModel.id {
+            store.setSelectedModelID(selectedModel.id)
+        }
         let bookmarkStore = UserDefaultsVaultBookmarkStore(defaults: defaults, key: DefaultsKey.vaultRootBookmark)
         self.vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
 
@@ -83,6 +99,10 @@ final class OnboardingViewModel: ObservableObject {
 
     var isComplete: Bool {
         didCompleteOnboarding
+    }
+
+    var summarizationModels: [SummarizationModel] {
+        SummarizationModelCatalog.all
     }
 
     var primaryButtonTitle: String {
@@ -235,10 +255,12 @@ final class OnboardingViewModel: ObservableObject {
 
         var parts: [String] = []
         if !result.missingModelIDs.isEmpty {
-            parts.append("Missing: \(result.missingModelIDs.joined(separator: ", "))")
+            let names = result.missingModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            parts.append("Missing: \(names.joined(separator: ", "))")
         }
         if !result.invalidModelIDs.isEmpty {
-            parts.append("Invalid: \(result.invalidModelIDs.joined(separator: ", "))")
+            let names = result.invalidModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            parts.append("Invalid: \(names.joined(separator: ", "))")
         }
         return parts.joined(separator: " ")
     }
