@@ -13,8 +13,8 @@ Networking is allowed only for model downloads.
   - Supports resume if possible (optional)
   - Publishes progress for UI
 - Default models (per overview):
-  - Whisper: `base.en` (whisper.cpp compatible)
-  - LLM: `qwen2.5-7b-instruct` GGUF quantized (Q4)
+  - Whisper with multilingual support
+  - LLM:  GGUF quantized (Q4)
 - Storage location:
   - `~/Library/Application Support/Minute/models/`
 

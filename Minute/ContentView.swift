@@ -46,16 +46,15 @@ private struct PipelineContentView: View {
     var body: some View {
         VStack(spacing: 24) {
             recordControl
-            importArea
+            statusArea
 
             Spacer(minLength: 0)
         }
         .padding(24)
         .onAppear { model.refreshVaultStatus() }
-        .onReceive(model.$state) { state in
-            if case .done = state {
-                model.send(.reset)
-            }
+        .contentShape(Rectangle())
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
+            handleDrop(providers)
         }
         .fileImporter(isPresented: $isImportingFile, allowedContentTypes: [.audio, .movie]) { result in
             switch result {
@@ -67,48 +66,10 @@ private struct PipelineContentView: View {
         }
     }
 
-    private var importArea: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Import")
-                .font(.title3.bold())
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(isDropTargeted ? Color.accentColor : Color.gray.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.gray.opacity(0.06)))
-
-                VStack(spacing: 8) {
-                    Text("Drop an audio or video file")
-                        .foregroundStyle(.secondary)
-
-                    Button("Choose File…") {
-                        isImportingFile = true
-                    }
-                    .disabled(!model.state.canImportMedia)
-                }
-                .padding(16)
-            }
-            .frame(maxWidth: .infinity, minHeight: 120)
-            .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
-                handleDrop(providers)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var recordControl: some View {
-        Button(action: handleRecordButtonTap) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.2, green: 0.5, blue: 1.0), Color(red: 0.1, green: 0.35, blue: 0.9)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                VStack(spacing: 12) {
+        HStack(spacing: 0) {
+            Button(action: handleRecordButtonTap) {
+                VStack(spacing: 8) {
                     HStack(spacing: 10) {
                         if recordButtonShowsSpinner {
                             ProgressView()
@@ -126,26 +87,43 @@ private struct PipelineContentView: View {
 
                     if recordButtonShowsWaveform {
                         AudioWaveformView(levels: model.audioLevelSamples)
-                            .frame(height: 36)
+                            .frame(height: 22)
                     }
                 }
-                .padding(.vertical, 22)
-                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 20)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 140)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.25), radius: 20, x: 0, y: 12)
+            .buttonStyle(.plain)
+            .onHover { hovering in
+                isRecordButtonHovered = hovering
+            }
+            .disabled(!recordButtonEnabled)
+            .opacity(recordButtonEnabled ? 1 : 0.6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Menu {
+                Button("Upload audio file…") {
+                    isImportingFile = true
+                }
+                .disabled(!model.state.canImportMedia)
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: 56, height: 70)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isRecordButtonHovered = hovering
-        }
-        .disabled(!recordButtonEnabled)
-        .opacity(recordButtonEnabled ? 1 : 0.6)
+        .frame(height: 70)
+        .background(recordButtonBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.25), radius: 14, x: 0, y: 8)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -182,6 +160,48 @@ private struct PipelineContentView: View {
         model.send(.importFile(url))
     }
 
+    private var statusArea: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Status")
+                .font(.title3.bold())
+
+            switch model.state {
+            case .done(let noteURL, _):
+                HStack(spacing: 12) {
+                    Text("Meeting ready.")
+                        .foregroundStyle(.secondary)
+
+                    Button("Reveal in Finder") {
+                        model.revealInFinder(noteURL)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+                }
+
+            case .failed(let error, _):
+                Text(error.errorDescription ?? "Processing failed.")
+                    .foregroundStyle(.red)
+
+            default:
+                HStack(spacing: 12) {
+                    Text(model.state.statusLabel)
+                        .foregroundStyle(.secondary)
+
+                    if let progress = model.progress {
+                        ProgressView(value: progress)
+                            .frame(width: 220)
+                    } else if model.state.canCancelProcessing {
+                        ProgressView()
+                    }
+
+                    Spacer()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var recordButtonState: RecordButtonState {
         switch model.state {
         case .recording:
@@ -196,6 +216,10 @@ private struct PipelineContentView: View {
     }
 
     private var recordButtonTitle: String {
+        if isDropTargeted, model.state.canImportMedia {
+            return "Import audio"
+        }
+
         switch recordButtonState {
         case .ready:
             return "Start recording"
@@ -209,6 +233,10 @@ private struct PipelineContentView: View {
     }
 
     private var recordButtonIconName: String? {
+        if isDropTargeted, model.state.canImportMedia {
+            return "tray.and.arrow.down.fill"
+        }
+
         switch recordButtonState {
         case .ready:
             return "mic.fill"
@@ -219,6 +247,14 @@ private struct PipelineContentView: View {
         case .processing:
             return nil
         }
+    }
+
+    private var recordButtonBackground: some View {
+        LinearGradient(
+            colors: [Color(red: 0.2, green: 0.5, blue: 1.0), Color(red: 0.1, green: 0.35, blue: 0.9)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     private var recordButtonShowsSpinner: Bool {

@@ -8,6 +8,7 @@ public enum MinuteError: Error, LocalizedError, Sendable {
     case screenRecordingPermissionDenied
     case vaultUnavailable
     case audioExportFailed
+    case ffmpegMissing
 
     case whisperMissing
     case whisperFailed(exitCode: Int32, output: String)
@@ -33,6 +34,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "The selected Obsidian vault is not available."
         case .audioExportFailed:
             return "Failed to export audio in the required format."
+        case .ffmpegMissing:
+            return "Audio conversion component is missing."
 
         case .whisperMissing:
             return "Transcription component is missing."
@@ -70,6 +73,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "llama failed (exitCode=\(exitCode))\n\(output)"
         case .modelDownloadFailed(let underlyingDescription):
             return "model download failed\n\(underlyingDescription)"
+        case .ffmpegMissing:
+            return "ffmpeg missing: ensure the ffmpeg binary is bundled with the app."
         default:
             return String(describing: self)
         }

@@ -5,16 +5,28 @@ import os
 public struct FluidAudioDiarizationConfiguration: Sendable, Equatable {
     public var clusteringThreshold: Double?
     public var minSpeechDuration: Double?
+    public var minEmbeddingUpdateDuration: Double?
     public var minSilenceGap: Double?
+    public var numClusters: Int?
+    public var chunkOverlap: Double?
+    public var minActiveFramesCount: Double?
 
     public init(
         clusteringThreshold: Double? = nil,
         minSpeechDuration: Double? = nil,
-        minSilenceGap: Double? = nil
+        minEmbeddingUpdateDuration: Double? = nil,
+        minSilenceGap: Double? = nil,
+        numClusters: Int? = nil,
+        chunkOverlap: Double? = nil,
+        minActiveFramesCount: Double? = nil
     ) {
         self.clusteringThreshold = clusteringThreshold
         self.minSpeechDuration = minSpeechDuration
+        self.minEmbeddingUpdateDuration = minEmbeddingUpdateDuration
         self.minSilenceGap = minSilenceGap
+        self.numClusters = numClusters
+        self.chunkOverlap = chunkOverlap
+        self.minActiveFramesCount = minActiveFramesCount
     }
 }
 
@@ -27,6 +39,19 @@ public struct FluidAudioDiarizationService: DiarizationServicing {
 
     public static func liveDefault() -> FluidAudioDiarizationService {
         FluidAudioDiarizationService(configuration: FluidAudioDiarizationConfiguration())
+    }
+
+    public static func meetingDefault() -> FluidAudioDiarizationService {
+        FluidAudioDiarizationService(
+            configuration: FluidAudioDiarizationConfiguration(
+                clusteringThreshold: 0.55,
+                minSpeechDuration: 0.4,
+                minEmbeddingUpdateDuration: 1.0,
+                minSilenceGap: 0.25,
+                chunkOverlap: 1.0,
+                minActiveFramesCount: 6.0
+            )
+        )
     }
 
     public func diarize(wavURL: URL) async throws -> [SpeakerSegment] {
@@ -43,7 +68,7 @@ public struct FluidAudioDiarizationService: DiarizationServicing {
                     diarizer.initialize(models: models)
 
                     let samples = try AudioConverter().resampleAudioFile(wavURL)
-                    let result = try diarizer.performCompleteDiarization(samples)
+                    let result: DiarizationResult = try diarizer.performCompleteDiarization(samples)
 
                     var speakerIdMap: [String: Int] = [:]
                     var nextSpeakerId = 1
@@ -76,8 +101,24 @@ public struct FluidAudioDiarizationService: DiarizationServicing {
             config.minSpeechDuration = Float(minSpeechDuration)
         }
 
+        if let minEmbeddingUpdateDuration = configuration.minEmbeddingUpdateDuration {
+            config.minEmbeddingUpdateDuration = Float(minEmbeddingUpdateDuration)
+        }
+
         if let minSilenceGap = configuration.minSilenceGap {
             config.minSilenceGap = Float(minSilenceGap)
+        }
+
+        if let numClusters = configuration.numClusters {
+            config.numClusters = numClusters
+        }
+
+        if let chunkOverlap = configuration.chunkOverlap {
+            config.chunkOverlap = Float(chunkOverlap)
+        }
+
+        if let minActiveFramesCount = configuration.minActiveFramesCount {
+            config.minActiveFramesCount = Float(minActiveFramesCount)
         }
 
         return config

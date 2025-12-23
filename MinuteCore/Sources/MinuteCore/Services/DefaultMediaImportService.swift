@@ -4,8 +4,11 @@ import os
 
 public actor DefaultMediaImportService: MediaImporting {
     private let logger = Logger(subsystem: "roblibob.Minute", category: "media-import")
+    private let processRunner: any ProcessRunning
 
-    public init() {}
+    public init(processRunner: any ProcessRunning = DefaultProcessRunner()) {
+        self.processRunner = processRunner
+    }
 
     public func importMedia(from sourceURL: URL) async throws -> MediaImportResult {
         try Task.checkCancellation()
@@ -23,25 +26,19 @@ public actor DefaultMediaImportService: MediaImporting {
         try fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
 
         let asset = AVURLAsset(url: sourceURL)
-        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-        guard !audioTracks.isEmpty else {
+        let wavURL = tempRoot.appendingPathComponent("contract.wav")
+        guard let ffmpegURL = ffmpegExecutableURL() else {
+            logger.error("ffmpeg is missing from the app bundle.")
+            throw MinuteError.ffmpegMissing
+        }
+
+        do {
+            try await convertWithFFmpeg(sourceURL: sourceURL, tempRoot: tempRoot, outputURL: wavURL, ffmpegURL: ffmpegURL)
+        } catch {
+            logger.error("ffmpeg conversion failed: \(String(describing: error), privacy: .public)")
             throw MinuteError.audioExportFailed
         }
 
-        let videoTracks = try await asset.loadTracks(withMediaType: .video)
-        let audioSourceURL: URL
-        if !videoTracks.isEmpty {
-            let extractedURL = tempRoot.appendingPathComponent("extracted.m4a")
-            try await exportAudio(from: asset, to: extractedURL)
-            audioSourceURL = extractedURL
-        } else {
-            audioSourceURL = sourceURL
-        }
-
-        try Task.checkCancellation()
-
-        let wavURL = tempRoot.appendingPathComponent("contract.wav")
-        try await AudioWavConverter.convertToContractWav(inputURL: audioSourceURL, outputURL: wavURL)
         try ContractWavVerifier.verifyContractWav(at: wavURL)
 
         try Task.checkCancellation()
@@ -58,41 +55,65 @@ public actor DefaultMediaImportService: MediaImporting {
         )
     }
 
-    private func exportAudio(from asset: AVAsset, to outputURL: URL) async throws {
-        let logger = logger
+    private func ffmpegExecutableURL() -> URL? {
+        let fileManager = FileManager.default
+        let environment = ProcessInfo.processInfo.environment
 
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
-            throw MinuteError.audioExportFailed
+        if let env = environment["MINUTE_FFMPEG_BIN"], !env.isEmpty {
+            return URL(fileURLWithPath: env)
         }
 
-        exportSession.outputFileType = .m4a
-        exportSession.outputURL = outputURL
-
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try? FileManager.default.removeItem(at: outputURL)
+        if let bundled = Bundle.main.url(forResource: "ffmpeg", withExtension: nil),
+           fileManager.isExecutableFile(atPath: bundled.path) {
+            return bundled
         }
 
-        try await withTaskCancellationHandler {
-            exportSession.cancelExport()
-        } operation: {
-            try await withCheckedThrowingContinuation { continuation in
-                exportSession.exportAsynchronously {
-                    switch exportSession.status {
-                    case .completed:
-                        continuation.resume()
-                    case .failed, .cancelled:
-                        if exportSession.status == .cancelled {
-                            continuation.resume(throwing: CancellationError())
-                            return
-                        }
-                        let message = exportSession.error?.localizedDescription ?? "export failed"
-                        logger.error("Audio export failed: \(message, privacy: .public)")
-                        continuation.resume(throwing: MinuteError.audioExportFailed)
-                    default:
-                        continuation.resume(throwing: MinuteError.audioExportFailed)
-                    }
-                }
+        if let executableFolder = Bundle.main.executableURL?.deletingLastPathComponent() {
+            let bundledExecutable = executableFolder.appendingPathComponent("ffmpeg")
+            if fileManager.isExecutableFile(atPath: bundledExecutable.path) {
+                return bundledExecutable
             }
+        }
+
+        return nil
+    }
+
+    private func convertWithFFmpeg(sourceURL: URL, tempRoot: URL, outputURL: URL, ffmpegURL: URL) async throws {
+        let fileManager = FileManager.default
+        let ext = sourceURL.pathExtension.isEmpty ? "media" : sourceURL.pathExtension
+        let ffmpegInputURL = tempRoot.appendingPathComponent("ffmpeg-input.\(ext)")
+        if fileManager.fileExists(atPath: ffmpegInputURL.path) {
+            try? fileManager.removeItem(at: ffmpegInputURL)
+        }
+        try fileManager.copyItem(at: sourceURL, to: ffmpegInputURL)
+        try await convertWithFFmpeg(inputURL: ffmpegInputURL, outputURL: outputURL, ffmpegURL: ffmpegURL)
+    }
+
+    private func convertWithFFmpeg(inputURL: URL, outputURL: URL, ffmpegURL: URL) async throws {
+        let args = [
+            "-y",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-i", inputURL.path,
+            "-vn",
+            "-ac", "1",
+            "-ar", String(Int(ContractWavVerifier.requiredSampleRate)),
+            "-c:a", "pcm_s16le",
+            outputURL.path
+        ]
+
+        let result = try await processRunner.run(
+            executableURL: ffmpegURL,
+            arguments: args,
+            environment: nil,
+            workingDirectoryURL: nil,
+            maximumOutputBytes: 2 * 1024 * 1024
+        )
+
+        if result.exitCode != 0 {
+            logger.error("ffmpeg failed: \(result.combinedOutput, privacy: .public)")
+            throw MinuteError.audioExportFailed
         }
     }
 

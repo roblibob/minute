@@ -105,7 +105,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             audioService: DefaultAudioService(),
             mediaImportService: DefaultMediaImportService(),
             transcriptionService: transcriptionService,
-            diarizationService: FluidAudioDiarizationService.liveDefault(),
+            diarizationService: FluidAudioDiarizationService.meetingDefault(),
             summarizationService: summarizationService,
             modelManager: DefaultModelManager(),
             bookmarkStore: UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark),
