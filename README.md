@@ -32,6 +32,7 @@ The WAV format is mono, 16 kHz, 16-bit PCM. The note links to the audio and tran
 
 ## ✅ Requirements
 - macOS 14+
+- Apple Silicon (M1 or better)
 
 ## 📦 Installation (Alpha)
 1. Download the latest `.dmg` from GitHub Releases.
