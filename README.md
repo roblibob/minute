@@ -7,7 +7,7 @@
 Minute is a native macOS companion for Obsidian that turns meetings into clean, structured notes. It records audio locally, transcribes with Whisper, summarizes with Llama, and writes the results directly into your vault.
 
 ## ✨ What it does
-- Record a meeting and process it locally.
+- Record or upload a meeting and process it locally.
 - Produce deterministic Markdown notes that match a fixed template.
 - Store meeting artifacts inside your Obsidian vault.
 
