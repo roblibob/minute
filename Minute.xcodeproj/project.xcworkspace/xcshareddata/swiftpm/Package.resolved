@@ -1,5 +1,5 @@
 {
-  "originHash" : "07f860230349e664d5692a01a23d9ecf4af7ee5df4bc44ce1c256df60ef729bb",
+  "originHash" : "8ddd3583efe32cd2b183352f625b95893ed1a7d68a8a121a34d3babca8d44743",
   "pins" : [
     {
       "identity" : "fluidaudio",
@@ -8,6 +8,33 @@
       "state" : {
         "branch" : "main",
         "revision" : "c519a13f6f81c8011be901a5eebcfeb0ba608116"
+      }
+    },
+    {
+      "identity" : "networkimage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/NetworkImage",
+      "state" : {
+        "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
+        "version" : "6.0.1"
+      }
+    },
+    {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-cmark",
+      "state" : {
+        "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
+        "version" : "0.7.1"
+      }
+    },
+    {
+      "identity" : "swift-markdown-ui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gonzalezreal/swift-markdown-ui.git",
+      "state" : {
+        "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
+        "version" : "2.4.1"
       }
     }
   ],

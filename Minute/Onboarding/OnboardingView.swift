@@ -30,7 +30,7 @@ struct OnboardingView: View {
                     Button("Skip for now") {
                         model.skipPermissions()
                     }
-                    .buttonStyle(.bordered)
+                    .minuteStandardButtonStyle()
                 }
 
                 Spacer()
@@ -234,7 +234,7 @@ private struct ModelsRow: View {
                 Button(buttonTitle) {
                     action()
                 }
-                .buttonStyle(.bordered)
+                .minuteStandardButtonStyle()
                 .disabled(!buttonEnabled)
 
                 Spacer()

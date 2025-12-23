@@ -13,6 +13,7 @@
 		5A7F52062F1F0D0A00D8E124 /* MinuteWhisperService.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5A7F52012F1F0D0A00D8E124 /* MinuteWhisperService.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		5A7F52072F1F0D0A00D8E124 /* MinuteWhisper in Frameworks */ = {isa = PBXBuildFile; productRef = 5A7F52132F1F0D0A00D8E124 /* MinuteWhisper */; };
 		5A7F52082F1F0D0A00D8E124 /* MinuteCore in Frameworks */ = {isa = PBXBuildFile; productRef = 58B6950B2EF600000068FAA7 /* MinuteCore */; };
+		70055E391D7145CFA8509E54 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 0AF288CF7B9C4B81AEE5DD29 /* MarkdownUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,6 +61,7 @@
 			files = (
 				58B6950C2EF600000068FAA7 /* MinuteCore in Frameworks */,
 				0E0A182A0E8F4C1792A8B075 /* MinuteLlama in Frameworks */,
+				70055E391D7145CFA8509E54 /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,6 +129,7 @@
 			packageProductDependencies = (
 				58B6950B2EF600000068FAA7 /* MinuteCore */,
 				B730481B2E3B4E5FB8E38D6E /* MinuteLlama */,
+				0AF288CF7B9C4B81AEE5DD29 /* MarkdownUI */,
 			);
 			productName = Minute;
 			productReference = 58B694EF2EF54B130068FAA7 /* Minute.app */;
@@ -182,6 +185,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				58B6950A2EF600000068FAA7 /* XCLocalSwiftPackageReference "MinuteCore" */,
+				95CE9161C6A34402B4933FD2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 58B694F02EF54B130068FAA7 /* Products */;
@@ -549,7 +553,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		95CE9161C6A34402B4933FD2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		0AF288CF7B9C4B81AEE5DD29 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 95CE9161C6A34402B4933FD2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
 		58B6950B2EF600000068FAA7 /* MinuteCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 58B6950A2EF600000068FAA7 /* XCLocalSwiftPackageReference "MinuteCore" */;

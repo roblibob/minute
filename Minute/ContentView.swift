@@ -17,7 +17,7 @@ struct ContentView: View {
         Group {
             contentBody
         }
-        .frame(minWidth: 720, minHeight: 520)
+        .frame(minWidth: 860, minHeight: 520)
         .onAppear { onboardingModel.refreshAll() }
     }
 
@@ -39,11 +39,47 @@ struct ContentView: View {
 
 private struct PipelineContentView: View {
     @StateObject private var model = MeetingPipelineViewModel.live()
+    @StateObject private var notesModel = MeetingNotesBrowserViewModel()
     @State private var isImportingFile = false
     @State private var isDropTargeted = false
     @State private var isRecordButtonHovered = false
 
     var body: some View {
+        ZStack {
+            HStack(spacing: 0) {
+                MeetingNotesSidebarView(model: notesModel)
+
+                Divider()
+
+                pipelineBody
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            if notesModel.isOverlayPresented {
+                MarkdownViewerOverlay(
+                    title: notesModel.selectedItem?.title ?? "",
+                    content: notesModel.noteContent,
+                    isLoading: notesModel.isLoadingContent,
+                    errorMessage: notesModel.overlayErrorMessage,
+                    renderPlainText: notesModel.renderPlainText,
+                    onClose: notesModel.dismissOverlay,
+                    onRetry: notesModel.retryLoadContent,
+                    onOpenInObsidian: notesModel.openInObsidian
+                )
+            }
+        }
+        .onAppear {
+            model.refreshVaultStatus()
+            notesModel.refresh()
+        }
+        .onReceive(model.$state) { newState in
+            if case .done = newState {
+                notesModel.refresh()
+            }
+        }
+    }
+
+    private var pipelineBody: some View {
         VStack(spacing: 24) {
             recordControl
             statusArea
@@ -51,7 +87,6 @@ private struct PipelineContentView: View {
             Spacer(minLength: 0)
         }
         .padding(24)
-        .onAppear { model.refreshVaultStatus() }
         .contentShape(Rectangle())
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
             handleDrop(providers)
@@ -174,7 +209,7 @@ private struct PipelineContentView: View {
                     Button("Reveal in Finder") {
                         model.revealInFinder(noteURL)
                     }
-                    .buttonStyle(.bordered)
+                    .minuteStandardButtonStyle()
 
                     Spacer()
                 }

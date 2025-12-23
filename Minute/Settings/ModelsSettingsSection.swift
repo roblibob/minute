@@ -44,7 +44,7 @@ struct ModelsSettingsSection: View {
                     Button(buttonTitle) {
                         model.startDownload()
                     }
-                    .buttonStyle(.bordered)
+                    .minuteStandardButtonStyle()
                     .disabled(!buttonEnabled)
 
                     Spacer()

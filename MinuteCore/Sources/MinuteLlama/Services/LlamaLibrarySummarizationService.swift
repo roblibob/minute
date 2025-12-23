@@ -298,67 +298,68 @@ private enum PromptBuilder {
         let isoDate = MeetingFileContract.isoDate(meetingDate)
 
         return """
-        You must output JSON only.
+        You are an expert automated meeting secretary. Your goal is to analyze a raw meeting transcript and generate a structured, factual summary in strict JSON format.
 
-        Return exactly one JSON object matching this schema:
+        ### CORE INSTRUCTIONS
+        1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript. Do not infer feelings, motives, or details not explicitly spoken. If a point is ambiguous, omit it rather than guessing.
+        2. **ASR Error Correction:** The transcript is machine-generated and may contain phonetic errors (e.g., "sink" instead of "sync"). Use context to interpret the correct meaning, but do not alter the factual substance.
+        3. **Filter Noise:** Ignore small talk, pleasantries, incomplete sentences, and non-substantive filler (um, ah). Focus on the "business" of the meeting.
+        4. **Language Handling:** Detect the dominant language of the business discussion. Output the summary in that language. Retain specific technical terms or proper nouns in their original language.
+
+        ### OUTPUT FORMAT
+        You must output a single, valid JSON object. Do not include markdown formatting (```json), explanations, or raw text outside the braces.
+
+        Schema definition:
         {
-          \"title\": string,
-          \"date\": \"YYYY-MM-DD\",
-          \"summary\": string,
-          \"decisions\": [string],
-          \"action_items\": [{\"owner\": string, \"task\": string, \"due\": string}],
-          \"open_questions\": [string],
-          \"key_points\": [string]
+            "title": "string (3-8 words, filename-safe, summarizes the main topic)",
+            "date": "YYYY-MM-DD (use provided date unless transcript explicitly mentions a different meeting date)",
+            "summary": "string (A concise executive summary of 2-5 sentences. Focus on the 'what' and 'why' of the meeting outcomes.)",
+            "decisions": ["string (Explicit agreements or conclusions reached. Empty if none.)"],
+            "action_items": [
+                {
+                "owner": "string (Name of the person assigned. Use 'Unassigned' if clear task but no owner. Do not guess names.)",
+                "task": "string (Start with a verb. Be specific.)",
+                "due": "YYYY-MM-DD (ISO format if mentioned, otherwise empty string)"
+                }
+            ],
+            "open_questions": ["string (Unresolved issues or topics tabled for later. Empty if none.)"],
+            "key_points": ["string (Notable facts, constraints, or context essential to understanding the meeting. Empty if none.)"]
         }
 
-        Rules:
-        - Output must be a single JSON object.
-        - No markdown, no code fences, no commentary.
-        - All arrays must be present (use [] if none).
-        - date must be \"\(isoDate)\" unless the transcript clearly indicates a different meeting date.
-        - action_items.due must be \"YYYY-MM-DD\" or \"\".
-        - Do not invent facts. Only use information from the transcript.
-        - Do not copy long phrases from the transcript. Paraphrase and summarize.
-        - The transcript may contain multiple languages (e.g., Swedish and English).
-        - Use the dominant transcript language for the output; preserve original-language phrases and names and do not translate unless the transcript explicitly includes a translation.
-        - title must be a short topic-based phrase (3-8 words), suitable for a filename (no slashes).
-        - summary must be 2-5 sentences focused on outcomes and key takeaways, not a transcript dump.
-        - decisions must list explicit decisions only (empty if none).
-        - action_items must list explicit tasks with an owner and task; if owner is unknown use \"\".
-        - open_questions should capture unresolved issues or follow-ups (empty if none).
-        - key_points should capture notable facts, constraints, or context (empty if none).
-        - If the title is unknown, use \"Meeting \(isoDate)\".
+        ### CRITICAL RULES
+        - **No Hallucinations:** If a field (like decisions or action_items) has no content in the transcript, return an empty array []. Do not invent tasks to fill space.
+        - **Action Item Specificity:** Only list an action item if there is a clear commitment to perform a task. Do not list general suggestions as action items.
+        - **Formatting:** Ensure the JSON is minified or properly escaped so it can be parsed programmatically.
 
-        Transcript:
+        Transcript follows:
         \(transcript)
         """
     }
 
     static func repairPrompt(invalidOutput: String) -> String {
         return """
-        You must output JSON only.
+        You are a JSON syntax repair engine. Your only task is to fix the provided text so it becomes a valid, parseable JSON object.
 
-        The following text was intended to be a JSON object but is invalid or does not match the schema.
-        Produce a corrected JSON object that matches this schema exactly:
+        ### SCHEMA ENFORCEMENT
+        Refactor the input into exactly this structure:
         {
-          \"title\": string,
-          \"date\": \"YYYY-MM-DD\",
-          \"summary\": string,
-          \"decisions\": [string],
-          \"action_items\": [{\"owner\": string, \"task\": string, \"due\": string}],
-          \"open_questions\": [string],
-          \"key_points\": [string]
+            "title": "string",
+            "date": "YYYY-MM-DD",
+            "summary": "string",
+            "decisions": ["string"],
+            "action_items": [{"owner": "string", "task": "string", "due": "string"}],
+            "open_questions": ["string"],
+            "key_points": ["string"]
         }
 
-        Rules:
-        - Output must be a single JSON object.
-        - No markdown, no code fences, no commentary.
-        - All arrays must be present.
-        - If a field cannot be recovered, use an empty string or empty array as appropriate.
-        - action_items.due must be \"YYYY-MM-DD\" or \"\".
-        - Preserve the language used in the invalid output; do not translate.
+        ### REPAIR RULES
+        1. **Remove Markdown:** Strip all markdown formatting, code fences (```json), and surrounding commentary.
+        2. **Fix Escaping:** Identify double quotes used *inside* string values (e.g., dialogue or quoted terms) and escape them properly (e.g., change "He said "Hello"" to "He said \"Hello\"").
+        3. **Close Structure:** If the input is truncated, close all open arrays and braces to ensure valid syntax, even if it means losing the last partial sentence.
+        4. **Data Preservation:** Do not change the content, language, or meaning of the text. Only fix the syntax.
+        5. **Fallbacks:** If a required array is missing, insert an empty array []. If a string is missing, use "".
 
-        Invalid output:
+        Input Text to Repair:
         \(invalidOutput)
         """
     }

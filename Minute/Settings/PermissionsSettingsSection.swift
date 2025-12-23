@@ -80,7 +80,7 @@ private struct PermissionSettingsRow: View {
             Button(actionTitle) {
                 action()
             }
-            .buttonStyle(.bordered)
+            .minuteStandardButtonStyle()
             .disabled(isGranted)
         }
         .padding(.vertical, 6)
