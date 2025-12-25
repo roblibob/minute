@@ -94,7 +94,7 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
 
                 params.translate = false
                 params.no_context = true
-                params.no_timestamps = true
+                params.no_timestamps = false
 
                 // Make "no speech" gating as permissive as possible so we don't end up with an empty transcript
                 // for quiet recordings. (Threshold is a probability in [0, 1].)
@@ -177,6 +177,14 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
                             combined.append(cleaned)
                         }
                     }
+                }
+
+                if !transcriptSegments.isEmpty {
+                    let previewCount = min(3, transcriptSegments.count)
+                    let ranges = transcriptSegments.prefix(previewCount)
+                        .map { "[\($0.startSeconds)-\($0.endSeconds)]" }
+                        .joined(separator: " ")
+                    logger.debug("Whisper segments: count=\(transcriptSegments.count, privacy: .public) sample=\(ranges, privacy: .public)")
                 }
 
                 WhisperDebugLogging.maybePrintSegmentsAsMarkdownTable(segmentTexts)

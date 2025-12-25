@@ -1,4 +1,7 @@
 # 05 — Transcription (whisper.cpp) Integration
+---
+Status: Planned, not implemented.
+---
 
 ## Goal
 Integrate `whisper.cpp` to produce an in-memory transcript from the WAV file, with deterministic behavior, robust error handling, and clean cancellation.
@@ -56,3 +59,4 @@ Log full stdout/stderr to debug output, but never write it to the vault.
 - [ ] Cancel reliably terminates whisper
 - [ ] Non-zero exit codes surface as actionable errors
 - [ ] Transcript output is stable enough to be written as Markdown and linked from the meeting note (phase 08)
+

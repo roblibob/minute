@@ -79,6 +79,11 @@ enum WhisperCLIJSONDecoder {
             }
         }
 
+        if let t0 = numberFrom(segment["t0"]),
+           let t1 = numberFrom(segment["t1"]) {
+            return (t0 / 100.0, t1 / 100.0)
+        }
+
         if let startValue = segment["start"],
            let endValue = segment["end"],
            let start = numberFrom(startValue),
