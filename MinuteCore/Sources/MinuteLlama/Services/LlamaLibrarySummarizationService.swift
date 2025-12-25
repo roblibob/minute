@@ -57,8 +57,18 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         )
     }
 
-    public func summarize(transcript: String, meetingDate: Date) async throws -> String {
-        try await runLlama(prompt: PromptBuilder.summarizationPrompt(transcript: transcript, meetingDate: meetingDate))
+    public func summarize(
+        transcript: String,
+        meetingDate: Date,
+        screenContext: ScreenContextSummary?
+    ) async throws -> String {
+        try await runLlama(
+            prompt: PromptBuilder.summarizationPrompt(
+                transcript: transcript,
+                meetingDate: meetingDate,
+                screenContext: screenContext
+            )
+        )
     }
 
     public func repairJSON(_ invalidJSON: String) async throws -> String {
@@ -294,10 +304,28 @@ private enum LlamaLibraryRuntime {
 }
 
 private enum PromptBuilder {
-    static func summarizationPrompt(transcript: String, meetingDate: Date) -> String {
-        let isoDate = MeetingFileContract.isoDate(meetingDate)
+    private static let logger = Logger(subsystem: "roblibob.Minute", category: "prompt-builder")
+    static func summarizationPrompt(
+        transcript: String,
+        meetingDate: Date,
+        screenContext: ScreenContextSummary?
+    ) -> String {
+        let screenContextAppendix = screenContext?.promptAppendix()
 
-        return """
+        let screenContextBlock: String
+        if let screenContextAppendix {
+            screenContextBlock = """
+            ### SCREEN CONTEXT
+            The following text is extracted from user-selected windows. Use it to enhance the summary where relevant.
+
+            \(screenContextAppendix)
+
+            """
+        } else {
+            screenContextBlock = ""
+        }
+
+        let systemPrompt: String = """
         You are an expert automated meeting secretary. Your goal is to analyze a raw meeting transcript and generate a structured, factual summary in strict JSON format.
 
         ### CORE INSTRUCTIONS
@@ -331,9 +359,14 @@ private enum PromptBuilder {
         - **Action Item Specificity:** Only list an action item if there is a clear commitment to perform a task. Do not list general suggestions as action items.
         - **Formatting:** Ensure the JSON is minified or properly escaped so it can be parsed programmatically.
 
+        \(screenContextBlock)
+        
         Transcript follows:
         \(transcript)
         """
+
+        logger.info("System prompt: \(systemPrompt)")
+        return systemPrompt
     }
 
     static func repairPrompt(invalidOutput: String) -> String {

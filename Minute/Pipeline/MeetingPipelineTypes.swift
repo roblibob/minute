@@ -26,6 +26,7 @@ struct PipelineContext: Sendable {
     var workingDirectoryURL: URL
     var saveAudio: Bool
     var saveTranscript: Bool
+    var screenContextSummary: ScreenContextSummary?
 
     init(
         vaultFolders: MeetingFileContract.VaultFolders,
@@ -35,7 +36,8 @@ struct PipelineContext: Sendable {
         stoppedAt: Date,
         workingDirectoryURL: URL,
         saveAudio: Bool,
-        saveTranscript: Bool
+        saveTranscript: Bool,
+        screenContextSummary: ScreenContextSummary? = nil
     ) {
         self.vaultFolders = vaultFolders
         self.audioTempURL = audioTempURL
@@ -45,6 +47,7 @@ struct PipelineContext: Sendable {
         self.workingDirectoryURL = workingDirectoryURL
         self.saveAudio = saveAudio
         self.saveTranscript = saveTranscript
+        self.screenContextSummary = screenContextSummary
     }
 }
 

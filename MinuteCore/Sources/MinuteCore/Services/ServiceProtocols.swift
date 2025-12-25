@@ -70,7 +70,11 @@ public protocol DiarizationServicing: Sendable {
 
 public protocol SummarizationServicing: Sendable {
     /// Returns raw JSON produced by the model.
-    func summarize(transcript: String, meetingDate: Date) async throws -> String
+    func summarize(
+        transcript: String,
+        meetingDate: Date,
+        screenContext: ScreenContextSummary?
+    ) async throws -> String
 
     /// Attempts to repair invalid JSON to match the schema.
     func repairJSON(_ invalidJSON: String) async throws -> String

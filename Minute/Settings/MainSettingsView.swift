@@ -82,6 +82,7 @@ struct MainSettingsView: View {
             case .general:
                 Form {
                     GeneralSettingsSection()
+                    ScreenContextSettingsSection()
                     VaultConfigurationView(model: vaultModel, style: .settings)
                 }
             case .permissions:
