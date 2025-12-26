@@ -347,7 +347,9 @@ private enum PromptBuilder {
         \(transcript)
         """
 
+        #if DEBUG
         logger.info("System prompt: \(systemPrompt)")
+        #endif
         return systemPrompt
     }
 
