@@ -33,3 +33,12 @@ fi
 if [ -f "$SOURCE_DIR/ggml-metal.metal" ]; then
   cp "$SOURCE_DIR/ggml-metal.metal" "$DEST_DIR/ggml-metal.metal"
 fi
+
+if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
+  /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" "$DESTINATION"
+  for lib in "$DEST_DIR"/lib*.0.dylib; do
+    if [ -f "$lib" ]; then
+      /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" "$lib"
+    fi
+  done
+fi
