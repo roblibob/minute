@@ -127,7 +127,7 @@ struct MockSummarizationService: SummarizationServicing {
           \"date\": \"\(iso)\",
           \"summary\": \"Mock summary.\",
           \"decisions\": [\"Mock decision\"],
-          \"action_items\": [{\"owner\": \"\", \"task\": \"Mock action\", \"due\": \"\"}],
+          \"action_items\": [{\"owner\": \"\", \"task\": \"Mock action\"}],
           \"open_questions\": [\"Mock question\"],
           \"key_points\": [\"Mock key point\"]
         }

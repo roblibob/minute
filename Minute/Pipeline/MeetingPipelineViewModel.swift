@@ -59,6 +59,8 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private let audioLevelBucketCount = 24
     private let audioLevelUpdateInterval: CFTimeInterval = 1.0 / 24.0
+    // Conservative sampling to limit capture overhead during long meetings.
+    private let screenContextFrameIntervalSeconds: TimeInterval = 60.0
 	
     init(
         audioService: some AudioServicing,
@@ -285,16 +287,19 @@ final class MeetingPipelineViewModel: ObservableObject {
             guard let self else { return }
             do {
                 let result = try await mediaImportService.importMedia(from: url)
-                screenInferenceStatus = ScreenInferenceStatus(processedCount: 0, skippedCount: 0, isInferenceRunning: true)
-                if let inferenceResult = await extractScreenContextForImport(sourceURL: url) {
-                    screenContextEvents = inferenceResult.events
-                    screenInferenceStatus = ScreenInferenceStatus(
-                        processedCount: inferenceResult.processedCount,
-                        skippedCount: 0,
-                        isInferenceRunning: false
-                    )
-                } else {
-                    screenInferenceStatus = ScreenInferenceStatus(processedCount: 0, skippedCount: 0, isInferenceRunning: false)
+                if screenContextSettingsStore.isVideoImportEnabled {
+                    screenInferenceStatus = ScreenInferenceStatus(processedCount: 0, skippedCount: 0, isInferenceRunning: true)
+                    if let inferenceResult = await extractScreenContextForImport(sourceURL: url) {
+                        screenContextEvents = inferenceResult.events
+                        screenInferenceStatus = ScreenInferenceStatus(
+                            processedCount: inferenceResult.processedCount,
+                            skippedCount: 0,
+                            isInferenceRunning: false
+                        )
+                    } else {
+                        logger.info("Screen context extraction returned nil for \(url.absoluteString, privacy: .public)")
+                        screenInferenceStatus = nil
+                    }
                 }
                 try Task.checkCancellation()
                 let startedAt = result.suggestedStartDate
@@ -373,7 +378,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         do {
             try await screenContextCaptureService.startCapture(
                 selections: selections,
-                minimumFrameInterval: 60.0,
+                minimumFrameInterval: screenContextFrameIntervalSeconds,
                 statusHandler: { [weak self] status in
                     Task { @MainActor [weak self] in
                         self?.screenInferenceStatus = ScreenInferenceStatus(

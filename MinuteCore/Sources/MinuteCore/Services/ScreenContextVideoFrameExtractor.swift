@@ -21,6 +21,17 @@ public final class ScreenContextVideoFrameExtractor: @unchecked Sendable {
         self.inferencer = inferencer
     }
 
+    /// Runs screen-context inference on a video by sampling frames at regular intervals.
+    ///
+    /// - Parameters:
+    ///   - sourceURL: The URL of the video to analyze.
+    ///   - intervalSeconds: The interval, in seconds, between sampled frames.
+    ///     The default value is `300.0` (5 minutes), which is a conservative choice to
+    ///     keep processing time and resource usage bounded for long videos. Callers
+    ///     that require denser coverage of the video content (for example, every few
+    ///     seconds) should pass a smaller value explicitly.
+    /// - Returns: A `ScreenContextVideoInferenceResult` containing all inferred events,
+    ///   or `nil` if the asset has no video tracks or an invalid duration.
     public func inferEvents(
         from sourceURL: URL,
         intervalSeconds: TimeInterval = 300.0

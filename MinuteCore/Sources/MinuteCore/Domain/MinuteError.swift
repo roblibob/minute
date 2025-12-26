@@ -6,6 +6,7 @@ import Foundation
 public enum MinuteError: Error, LocalizedError, Sendable {
     case permissionDenied
     case screenRecordingPermissionDenied
+    case screenCaptureUnavailable
     case vaultUnavailable
     case audioExportFailed
     case ffmpegMissing
@@ -34,6 +35,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "Microphone permission is required to record audio."
         case .screenRecordingPermissionDenied:
             return "Screen recording permission is required to capture system audio."
+        case .screenCaptureUnavailable:
+            return "Unable to access available screen content."
         case .vaultUnavailable:
             return "The selected Obsidian vault is not available."
         case .audioExportFailed:

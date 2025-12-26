@@ -325,13 +325,12 @@ private enum PromptBuilder {
         {
             "title": "string (3-8 words, filename-safe, summarizes the main topic)",
             "date": "YYYY-MM-DD (use provided date unless transcript explicitly mentions a different meeting date)",
-            "summary": "string (A concise executive summary of 2-5 sentences. Focus on the 'what' and 'why' of the meeting outcomes.)",
+            "summary": "string (A concise executive summary of 2-5 sentences. Focus on the 'what' and 'why' of the meeting outcomes. Also a summary of the full names of the main participants )",
             "decisions": ["string (Explicit agreements or conclusions reached. Empty if none.)"],
             "action_items": [
                 {
                 "owner": "string (Name of the person assigned. Use 'Unassigned' if clear task but no owner. Do not guess names.)",
-                "task": "string (Start with a verb. Be specific.)",
-                "due": "YYYY-MM-DD (ISO format if mentioned, otherwise empty string)"
+                "task": "string (Start with a verb. Be specific.)"
                 }
             ],
             "open_questions": ["string (Unresolved issues or topics tabled for later. Empty if none.)"],
@@ -364,7 +363,7 @@ private enum PromptBuilder {
             "date": "YYYY-MM-DD",
             "summary": "string",
             "decisions": ["string"],
-            "action_items": [{"owner": "string", "task": "string", "due": "string"}],
+            "action_items": [{"owner": "string", "task": "string"}],
             "open_questions": ["string"],
             "key_points": ["string"]
         }

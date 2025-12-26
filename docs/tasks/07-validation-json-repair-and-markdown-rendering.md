@@ -74,7 +74,7 @@ Render exactly:
 - `# <Title>`
 - Sections in order: Summary, Decisions, Action Items, Open Questions, Key Points, Audio
 - Action items formatted:
-  - `- [ ] <task> (Owner: <name>) (Due: <YYYY-MM-DD or blank>)`
+  - `- [ ] <task> (Owner: <name>)`
 
 ### Escaping and sanitization
 - Prevent Markdown injection from model text by:

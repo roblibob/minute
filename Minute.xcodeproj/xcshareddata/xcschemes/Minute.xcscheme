@@ -54,7 +54,7 @@
          <EnvironmentVariable
             key = "MINUTE_MTMD_DUMP_IMAGES"
             value = "true"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </EnvironmentVariable>
       </EnvironmentVariables>
       <LocationScenarioReference

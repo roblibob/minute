@@ -21,7 +21,17 @@ found_libs=0
 for lib in "$SOURCE_DIR"/lib*.0.dylib; do
   if [ -f "$lib" ]; then
     found_libs=1
-    cp -L "$lib" "$DEST_DIR/$(basename "$lib")"
+    dest_lib="$DEST_DIR/$(basename "$lib")"
+    cp -L "$lib" "$dest_lib"
+    if [ ! -r "$dest_lib" ]; then
+      echo "error: copied library $dest_lib is not readable"
+      exit 1
+    fi
+    if ! file "$dest_lib" 2>/dev/null | grep -q "dynamically linked shared library"; then
+      echo "error: copied file $dest_lib is not a valid dynamic library"
+      exit 1
+    fi
+    chmod 755 "$dest_lib"
   fi
 done
 

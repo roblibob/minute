@@ -194,7 +194,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                 } else if let content {
                     continuation.resume(returning: content)
                 } else {
-                    continuation.resume(throwing: MinuteError.audioExportFailed)
+                    continuation.resume(throwing: MinuteError.screenCaptureUnavailable)
                 }
             }
         }

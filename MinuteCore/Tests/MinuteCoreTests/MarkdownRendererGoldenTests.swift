@@ -8,7 +8,7 @@ final class MarkdownRendererGoldenTests: XCTestCase {
             date: "2025-12-19",
             summary: "We aligned on next steps.",
             decisions: ["Ship v1"],
-            actionItems: [ActionItem(owner: "Alex", task: "Draft release notes", due: "")],
+            actionItems: [ActionItem(owner: "Alex", task: "Draft release notes")],
             openQuestions: ["Do we need ffmpeg?"],
             keyPoints: ["Local-only processing"]
         )
@@ -40,7 +40,7 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         - Ship v1
 
         ## Action Items
-        - [ ] Draft release notes (Owner: Alex) (Due: )
+        - [ ] Draft release notes (Owner: Alex)
 
         ## Open Questions
         - Do we need ffmpeg?

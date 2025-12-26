@@ -9,7 +9,7 @@ final class MeetingExtractionDecodingTests: XCTestCase {
           "date": "2025-12-19",
           "summary": "We aligned on next steps.",
           "decisions": ["Ship v1"],
-          "action_items": [{"owner":"Alex","task":"Draft release notes","due":""}],
+          "action_items": [{"owner":"Alex","task":"Draft release notes"}],
           "open_questions": ["Do we need ffmpeg?"],
           "key_points": ["Local-only processing"]
         }
@@ -22,7 +22,7 @@ final class MeetingExtractionDecodingTests: XCTestCase {
         XCTAssertEqual(extraction.date, "2025-12-19")
         XCTAssertEqual(extraction.summary, "We aligned on next steps.")
         XCTAssertEqual(extraction.decisions, ["Ship v1"])
-        XCTAssertEqual(extraction.actionItems, [ActionItem(owner: "Alex", task: "Draft release notes", due: "")])
+        XCTAssertEqual(extraction.actionItems, [ActionItem(owner: "Alex", task: "Draft release notes")])
         XCTAssertEqual(extraction.openQuestions, ["Do we need ffmpeg?"])
         XCTAssertEqual(extraction.keyPoints, ["Local-only processing"])
     }

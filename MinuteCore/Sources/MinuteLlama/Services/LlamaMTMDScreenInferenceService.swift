@@ -143,8 +143,16 @@ private extension LlamaMTMDScreenInferenceService {
     }
 
     func dumpImageIfNeeded(imageURL: URL, windowTitle: String) {
+        #if !DEBUG
+        return
+        #else
         let environment = ProcessInfo.processInfo.environment
-        guard let flag = environment["MINUTE_MTMD_DUMP_IMAGES"], !flag.isEmpty else { return }
+        let rawFlag = environment["MINUTE_MTMD_DUMP_IMAGES"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let flag = rawFlag, !flag.isEmpty else { return }
+
+        let normalizedFlag = flag.lowercased()
+        let truthyValues: Set<String> = ["1", "true", "yes", "y", "on"]
+        guard truthyValues.contains(normalizedFlag) else { return }
 
         let dumpDir: URL
         if let override = environment["MINUTE_MTMD_DUMP_DIR"], !override.isEmpty {
@@ -166,6 +174,7 @@ private extension LlamaMTMDScreenInferenceService {
         } catch {
             logger.error("Failed to dump screen frame: \(String(describing: error), privacy: .public)")
         }
+        #endif
     }
     
     func combinedOutput(from result: ProcessResult) -> String {
@@ -191,7 +200,8 @@ private extension LlamaMTMDScreenInferenceService {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .filter { !shouldIgnoreLine($0) }
-        return cleaned.last ?? ""
+        guard !cleaned.isEmpty else { return "" }
+        return cleaned.joined(separator: " ")
     }
 
     func shouldIgnoreLine(_ line: String) -> Bool {
@@ -200,9 +210,6 @@ private extension LlamaMTMDScreenInferenceService {
             return true
         }
         if lower.hasPrefix("warn") || lower.hasPrefix("error") || lower.hasPrefix("info") {
-            return true
-        }
-        if lower.contains("ggml") || lower.contains("llama") {
             return true
         }
         if lower.contains("recommendedmaxworkingsetsize") || lower.contains("metal") {
@@ -234,6 +241,7 @@ private enum PromptBuilder {
         - Output a single, plain-text line.
         - Max 400 characters.
         - Use this compact format: "[Screen Content], Participating: [Participant Names]"
+        - When participants are visible, use: "[Screen Content], Participating: [Participant Names]". If no participants are visible, output just "[Screen Content]" or "[Screen Content], Participating: None".
         - Do not describe physical appearances.
         - If the screen is blank, minimized, or irrelevant, output "No meaningful screen content".
 

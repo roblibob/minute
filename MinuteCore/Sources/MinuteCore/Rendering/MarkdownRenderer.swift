@@ -88,15 +88,19 @@ public struct MarkdownRenderer: Sendable {
 
     private func appendActionItems(_ items: [ActionItem], to lines: inout [String]) {
         let cleaned = items
-            .map { ActionItem(owner: normalizeInline($0.owner), task: normalizeInline($0.task), due: normalizeInline($0.due)) }
-            .filter { !$0.task.isEmpty || !$0.owner.isEmpty || !$0.due.isEmpty }
+            .map { ActionItem(owner: normalizeInline($0.owner), task: normalizeInline($0.task)) }
+            .filter { !$0.task.isEmpty || !$0.owner.isEmpty }
 
         if cleaned.isEmpty {
             return
         }
 
         for item in cleaned {
-            lines.append("- [ ] \(item.task) (Owner: \(item.owner)) (Due: \(item.due))")
+            if item.owner.isEmpty {
+                lines.append("- [ ] \(item.task)")
+            } else {
+                lines.append("- [ ] \(item.task) (Owner: \(item.owner))")
+            }
         }
     }
 

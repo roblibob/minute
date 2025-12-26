@@ -191,10 +191,24 @@ private extension ScreenContextAggregator {
 
     static func isLikelyName(_ line: String) -> Bool {
         if line.count > 40 { return false }
-        if line.rangeOfCharacter(from: .decimalDigits) != nil { return false }
         let letters = line.filter { $0.isLetter }
         if letters.count < 2 { return false }
-        return line.range(of: #"^\p{L}[\p{L}\-\s']+$"#, options: .regularExpression) != nil
+        guard let first = line.first, first.isLetter else { return false }
+
+        var digitCount = 0
+        for ch in line {
+            if ch.isNumber {
+                digitCount += 1
+                continue
+            }
+            if !(ch.isLetter || ch == " " || ch == "-" || ch == "'") {
+                return false
+            }
+        }
+
+        if digitCount > 2 { return false }
+
+        return true
     }
 
     static func appendUnique(_ items: [String], to array: inout [String], limit: Int) {
@@ -218,7 +232,7 @@ private enum ScreenContextRedactor {
         options: [.caseInsensitive]
     )
     private static let phoneRegex = try? NSRegularExpression(
-        pattern: #"\+?\d[\d\-\s]{6,}\d"#,
+        pattern: #"(?x)(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3}\)?[\s-]?)\d{3}[\s-]?\d{4}"#,
         options: []
     )
 

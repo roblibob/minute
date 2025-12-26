@@ -56,7 +56,7 @@ Body template (fixed)
 - <decision 1>
 
 ## Action Items
-- [ ] <action item> (Owner: <name>) (Due: <YYYY-MM-DD or blank>)
+- [ ] <action item> (Owner: <name>)
 
 ## Open Questions
 - <question 1>
@@ -129,7 +129,7 @@ Extraction JSON schema (fixed)
   "date": "YYYY-MM-DD",
   "summary": "",
   "decisions": [""],
-  "action_items": [{"owner":"","task":"","due":""}],
+  "action_items": [{"owner":"","task":""}],
   "open_questions": [""],
   "key_points": ["" ]
 }
