@@ -22,12 +22,19 @@ final class MeetingPipelineViewModel: ObservableObject {
         var isConfigured: Bool
     }
 
+    struct ScreenInferenceStatus: Equatable {
+        var processedCount: Int
+        var skippedCount: Int
+        var isInferenceRunning: Bool
+    }
+
     @Published private(set) var state: MeetingPipelineState = .idle
     @Published private(set) var progress: Double? = nil
     @Published private(set) var vaultStatus: VaultStatus = VaultStatus(displayText: "Not selected", isConfigured: false)
     @Published private(set) var microphonePermissionGranted: Bool = false
     @Published private(set) var screenRecordingPermissionGranted: Bool = false
     @Published private(set) var audioLevelSamples: [CGFloat] = Array(repeating: 0, count: 24)
+    @Published private(set) var screenInferenceStatus: ScreenInferenceStatus? = nil
 
     private let audioService: any AudioServicing
     private let mediaImportService: any MediaImporting
@@ -48,7 +55,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     private var defaultsObserver: AnyCancellable?
     private var processingTask: Task<Void, Never>?
     private var lastAudioLevelUpdate: CFTimeInterval = 0
-    private var screenContextSummary: ScreenContextSummary?
+    private var screenContextEvents: [ScreenContextEvent] = []
 
     private let audioLevelBucketCount = 24
     private let audioLevelUpdateInterval: CFTimeInterval = 1.0 / 24.0
@@ -103,8 +110,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             diarizationService: MockDiarizationService(),
             summarizationServiceProvider: { MockSummarizationService() },
             modelManager: MockModelManager(),
-            screenContextCaptureService: ScreenContextCaptureService(),
-            screenContextVideoExtractor: ScreenContextVideoFrameExtractor(),
+            screenContextCaptureService: ScreenContextCaptureService(inferencer: MockScreenContextInferenceService()),
+            screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: MockScreenContextInferenceService()),
             screenContextSettingsStore: ScreenContextSettingsStore(),
             bookmarkStore: UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark),
             vaultWriter: DefaultVaultWriter()
@@ -117,6 +124,9 @@ final class MeetingPipelineViewModel: ObservableObject {
             LlamaLibrarySummarizationService.liveDefault(selectionStore: selectionStore)
         }
         let transcriptionService: any TranscriptionServicing = WhisperXPCTranscriptionService.liveDefault()
+        let screenInferencer: any ScreenContextInferencing = LlamaMTMDScreenInferenceService
+            .liveDefault(selectionStore: selectionStore)
+            ?? MissingScreenContextInferenceService()
 
         return MeetingPipelineViewModel(
             audioService: DefaultAudioService(),
@@ -125,8 +135,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             diarizationService: FluidAudioDiarizationService.meetingDefault(),
             summarizationServiceProvider: summarizationServiceProvider,
             modelManager: DefaultModelManager(selectionStore: selectionStore),
-            screenContextCaptureService: ScreenContextCaptureService(),
-            screenContextVideoExtractor: ScreenContextVideoFrameExtractor(),
+            screenContextCaptureService: ScreenContextCaptureService(inferencer: screenInferencer),
+            screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: screenInferencer),
             screenContextSettingsStore: ScreenContextSettingsStore(),
             bookmarkStore: UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark),
             vaultWriter: DefaultVaultWriter()
@@ -145,7 +155,9 @@ final class MeetingPipelineViewModel: ObservableObject {
     func send(_ action: MeetingPipelineAction) {
         switch action {
         case .startRecording:
-            startRecordingIfAllowed()
+            startRecordingIfAllowed(selection: nil)
+        case .startRecordingWithWindow(let selection):
+            startRecordingIfAllowed(selection: selection)
         case .stopRecording:
             stopRecordingIfAllowed()
         case .process:
@@ -161,7 +173,7 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     // MARK: - Actions
 
-    private func startRecordingIfAllowed() {
+    private func startRecordingIfAllowed(selection: ScreenContextWindowSelection?) {
         guard state.canStartRecording else { return }
 
         Task {
@@ -197,19 +209,24 @@ final class MeetingPipelineViewModel: ObservableObject {
                     }
                 }
 
-                screenContextSummary = nil
+                screenContextEvents = []
+                screenInferenceStatus = nil
                 try await audioService.startRecording()
-                await startScreenContextCaptureIfNeeded()
+                await startScreenContextCaptureIfNeeded(selection: selection)
                 await startAudioLevelMonitoring()
                 resetAudioLevelSamples()
                 state = .recording(session: RecordingSession())
             } catch let minuteError as MinuteError {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
+                screenInferenceStatus = nil
+                screenContextEvents = []
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
             } catch {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
+                screenInferenceStatus = nil
+                screenContextEvents = []
                 state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
             }
         }
@@ -223,7 +240,14 @@ final class MeetingPipelineViewModel: ObservableObject {
         Task {
             do {
                 let result = try await audioService.stopRecording()
-                screenContextSummary = await stopScreenContextCapture()
+                if let captureResult = await stopScreenContextCapture() {
+                    screenContextEvents = captureResult.events
+                    screenInferenceStatus = ScreenInferenceStatus(
+                        processedCount: captureResult.processedCount,
+                        skippedCount: captureResult.skippedCount,
+                        isInferenceRunning: false
+                    )
+                }
                 await stopAudioLevelMonitoring()
                 resetAudioLevelSamples()
                 state = .recorded(
@@ -235,10 +259,14 @@ final class MeetingPipelineViewModel: ObservableObject {
             } catch let minuteError as MinuteError {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
+                screenInferenceStatus = nil
+                screenContextEvents = []
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
             } catch {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
+                screenInferenceStatus = nil
+                screenContextEvents = []
                 state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
             }
         }
@@ -249,14 +277,25 @@ final class MeetingPipelineViewModel: ObservableObject {
 
         processingTask?.cancel()
         progress = nil
-        screenContextSummary = nil
+        screenContextEvents = []
+        screenInferenceStatus = nil
         state = .importing(sourceURL: url)
 
         processingTask = Task(priority: .userInitiated) { [weak self] in
             guard let self else { return }
             do {
                 let result = try await mediaImportService.importMedia(from: url)
-                screenContextSummary = await extractScreenContextForImport(sourceURL: url)
+                screenInferenceStatus = ScreenInferenceStatus(processedCount: 0, skippedCount: 0, isInferenceRunning: true)
+                if let inferenceResult = await extractScreenContextForImport(sourceURL: url) {
+                    screenContextEvents = inferenceResult.events
+                    screenInferenceStatus = ScreenInferenceStatus(
+                        processedCount: inferenceResult.processedCount,
+                        skippedCount: 0,
+                        isInferenceRunning: false
+                    )
+                } else {
+                    screenInferenceStatus = ScreenInferenceStatus(processedCount: 0, skippedCount: 0, isInferenceRunning: false)
+                }
                 try Task.checkCancellation()
                 let startedAt = result.suggestedStartDate
                 let stoppedAt = startedAt.addingTimeInterval(result.duration)
@@ -268,12 +307,18 @@ final class MeetingPipelineViewModel: ObservableObject {
                 )
             } catch is CancellationError {
                 progress = nil
+                screenInferenceStatus = nil
+                screenContextEvents = []
                 state = .idle
             } catch let minuteError as MinuteError {
                 progress = nil
+                screenInferenceStatus = nil
+                screenContextEvents = []
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
             } catch {
                 progress = nil
+                screenInferenceStatus = nil
+                screenContextEvents = []
                 state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
             }
         }
@@ -288,7 +333,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             audioDurationSeconds: durationSeconds,
             startedAt: startedAt,
             stoppedAt: stoppedAt,
-            screenContextSummary: screenContextSummary
+            screenContextEvents: screenContextEvents
         ) else {
             state = .failed(error: .vaultUnavailable, debugOutput: nil)
             return
@@ -314,28 +359,41 @@ final class MeetingPipelineViewModel: ObservableObject {
         progress = nil
         state = .idle
         resetAudioLevelSamples()
-        screenContextSummary = nil
+        screenInferenceStatus = nil
+        screenContextEvents = []
     }
 
     // MARK: - Pipeline
 
-    private func startScreenContextCaptureIfNeeded() async {
+    private func startScreenContextCaptureIfNeeded(selection: ScreenContextWindowSelection?) async {
         guard screenContextSettingsStore.isEnabled else { return }
-        let selections = screenContextSettingsStore.selectedWindows()
-        guard !selections.isEmpty else { return }
+        guard let selection else { return }
+        let selections = [selection]
 
         do {
-            try await screenContextCaptureService.startCapture(selections: selections)
+            try await screenContextCaptureService.startCapture(
+                selections: selections,
+                minimumFrameInterval: 60.0,
+                statusHandler: { [weak self] status in
+                    Task { @MainActor [weak self] in
+                        self?.screenInferenceStatus = ScreenInferenceStatus(
+                            processedCount: status.processedCount,
+                            skippedCount: status.skippedCount,
+                            isInferenceRunning: status.isInferenceRunning
+                        )
+                    }
+                }
+            )
         } catch {
             logger.error("Screen context capture failed: \(String(describing: error), privacy: .public)")
         }
     }
 
-    private func stopScreenContextCapture() async -> ScreenContextSummary? {
+    private func stopScreenContextCapture() async -> ScreenContextCaptureResult? {
         await screenContextCaptureService.stopCapture()
     }
 
-    private func extractScreenContextForImport(sourceURL: URL) async -> ScreenContextSummary? {
+    private func extractScreenContextForImport(sourceURL: URL) async -> ScreenContextVideoInferenceResult? {
         guard screenContextSettingsStore.isVideoImportEnabled else { return nil }
 
         let access = sourceURL.startAccessingSecurityScopedResource()
@@ -346,7 +404,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
 
         do {
-            return try await screenContextVideoExtractor.extractSummary(from: sourceURL)
+            return try await screenContextVideoExtractor.inferEvents(from: sourceURL)
         } catch {
             logger.error("Video screen context failed: \(String(describing: error), privacy: .public)")
             return nil
@@ -380,6 +438,24 @@ final class MeetingPipelineViewModel: ObservableObject {
                 transcriptSegments: transcription.segments,
                 speakerSegments: diarizationSegments
             )
+            let timelineSegments: [AttributedTranscriptSegment]
+            if attributedSegments.isEmpty {
+                timelineSegments = transcription.segments.map { segment in
+                    AttributedTranscriptSegment(
+                        startSeconds: segment.startSeconds,
+                        endSeconds: segment.endSeconds,
+                        speakerId: 0,
+                        text: segment.text
+                    )
+                }
+            } else {
+                timelineSegments = attributedSegments
+            }
+            let timelineEntries = MeetingTimelineBuilder.build(
+                transcriptSegments: timelineSegments,
+                screenEvents: context.screenContextEvents
+            )
+            let timelineText = MeetingTimelineRenderer().render(entries: timelineEntries)
 
             // Summarize (+ repair if needed)
             state = .processing(stage: .summarizing, context: context)
@@ -389,9 +465,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             let summarizationService = summarizationServiceProvider()
             let meetingDate = context.startedAt
             let rawJSON = try await summarizationService.summarize(
-                transcript: transcription.text,
-                meetingDate: meetingDate,
-                screenContext: context.screenContextSummary
+                transcript: timelineText,
+                meetingDate: meetingDate
             )
             let extraction = try await decodeOrRepairExtraction(
                 rawJSON: rawJSON,
@@ -482,7 +557,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         audioDurationSeconds: TimeInterval,
         startedAt: Date,
         stoppedAt: Date,
-        screenContextSummary: ScreenContextSummary?
+        screenContextEvents: [ScreenContextEvent]
     ) -> PipelineContext? {
         let defaults = UserDefaults.standard
         let meetings = defaults.string(forKey: DefaultsKey.meetingsRelativePath) ?? "Meetings"
@@ -510,7 +585,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             workingDirectoryURL: workingDirectoryURL,
             saveAudio: saveAudio,
             saveTranscript: saveTranscript,
-            screenContextSummary: screenContextSummary
+            screenContextEvents: screenContextEvents
         )
     }
 

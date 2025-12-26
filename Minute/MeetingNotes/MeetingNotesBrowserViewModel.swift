@@ -5,10 +5,6 @@ import MinuteCore
 
 @MainActor
 final class MeetingNotesBrowserViewModel: ObservableObject {
-    private enum DefaultsKey {
-        static let vaultRootBookmark = "vaultRootBookmark"
-        static let meetingsRelativePath = "meetingsRelativePath"
-    }
 
     @Published private(set) var notes: [MeetingNoteItem] = []
     @Published private(set) var isRefreshing: Bool = false
@@ -130,10 +126,12 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         _ = NSWorkspace.shared.open(obsidianURL)
     }
 
-    private static func defaultBrowserProvider() -> any MeetingNotesBrowsing {
+    nonisolated private static func defaultBrowserProvider() -> any MeetingNotesBrowsing {
         let defaults = UserDefaults.standard
-        let meetingsRelativePath = defaults.string(forKey: DefaultsKey.meetingsRelativePath) ?? "Meetings"
-        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark)
+        let meetingsRelativePathKey = "meetingsRelativePath"
+        let vaultRootBookmarkKey = "vaultRootBookmark"
+        let meetingsRelativePath = defaults.string(forKey: meetingsRelativePathKey) ?? "Meetings"
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: vaultRootBookmarkKey)
         let access = VaultAccess(bookmarkStore: bookmarkStore)
         return VaultMeetingNotesBrowser(vaultAccess: access, meetingsRelativePath: meetingsRelativePath)
     }

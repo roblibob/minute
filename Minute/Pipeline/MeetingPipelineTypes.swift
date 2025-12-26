@@ -26,7 +26,7 @@ struct PipelineContext: Sendable {
     var workingDirectoryURL: URL
     var saveAudio: Bool
     var saveTranscript: Bool
-    var screenContextSummary: ScreenContextSummary?
+    var screenContextEvents: [ScreenContextEvent]
 
     init(
         vaultFolders: MeetingFileContract.VaultFolders,
@@ -37,7 +37,7 @@ struct PipelineContext: Sendable {
         workingDirectoryURL: URL,
         saveAudio: Bool,
         saveTranscript: Bool,
-        screenContextSummary: ScreenContextSummary? = nil
+        screenContextEvents: [ScreenContextEvent] = []
     ) {
         self.vaultFolders = vaultFolders
         self.audioTempURL = audioTempURL
@@ -47,7 +47,7 @@ struct PipelineContext: Sendable {
         self.workingDirectoryURL = workingDirectoryURL
         self.saveAudio = saveAudio
         self.saveTranscript = saveTranscript
-        self.screenContextSummary = screenContextSummary
+        self.screenContextEvents = screenContextEvents
     }
 }
 
@@ -147,6 +147,7 @@ enum MeetingPipelineState {
 
 enum MeetingPipelineAction: Sendable {
     case startRecording
+    case startRecordingWithWindow(ScreenContextWindowSelection)
     case stopRecording
     case process
     case importFile(URL)

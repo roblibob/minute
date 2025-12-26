@@ -57,16 +57,11 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         )
     }
 
-    public func summarize(
-        transcript: String,
-        meetingDate: Date,
-        screenContext: ScreenContextSummary?
-    ) async throws -> String {
+    public func summarize(transcript: String, meetingDate: Date) async throws -> String {
         try await runLlama(
             prompt: PromptBuilder.summarizationPrompt(
                 transcript: transcript,
-                meetingDate: meetingDate,
-                screenContext: screenContext
+                meetingDate: meetingDate
             )
         )
     }
@@ -307,26 +302,15 @@ private enum PromptBuilder {
     private static let logger = Logger(subsystem: "roblibob.Minute", category: "prompt-builder")
     static func summarizationPrompt(
         transcript: String,
-        meetingDate: Date,
-        screenContext: ScreenContextSummary?
+        meetingDate: Date
     ) -> String {
-        let screenContextAppendix = screenContext?.promptAppendix()
-
-        let screenContextBlock: String
-        if let screenContextAppendix {
-            screenContextBlock = """
-            ### SCREEN CONTEXT
-            The following text is extracted from user-selected windows. Use it to enhance the summary where relevant.
-
-            \(screenContextAppendix)
-
-            """
-        } else {
-            screenContextBlock = ""
-        }
-
         let systemPrompt: String = """
-        You are an expert automated meeting secretary. Your goal is to analyze a raw meeting transcript and generate a structured, factual summary in strict JSON format.
+        You are an expert automated meeting secretary. Your goal is to analyze a chronological meeting timeline and generate a structured, factual summary in strict JSON format.
+
+        The timeline includes:
+        - Spoken transcript entries, prefixed like: [MM:SS] Speaker N: ...
+        - Screen context entries, prefixed like: [MM:SS] Screen (Window Title): ...
+        Use screen entries only as supplemental context (agenda, slide content, participants). Do not invent decisions or action items based solely on screen entries.
 
         ### CORE INSTRUCTIONS
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript. Do not infer feelings, motives, or details not explicitly spoken. If a point is ambiguous, omit it rather than guessing.
@@ -359,9 +343,7 @@ private enum PromptBuilder {
         - **Action Item Specificity:** Only list an action item if there is a clear commitment to perform a task. Do not list general suggestions as action items.
         - **Formatting:** Ensure the JSON is minified or properly escaped so it can be parsed programmatically.
 
-        \(screenContextBlock)
-        
-        Transcript follows:
+        Timeline follows:
         \(transcript)
         """
 

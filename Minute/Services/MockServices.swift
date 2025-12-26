@@ -86,14 +86,9 @@ struct MissingTranscriptionService: TranscriptionServicing {
 
 /// Used by the live pipeline when the llama executable is not yet bundled / configured.
 struct MissingSummarizationService: SummarizationServicing {
-    func summarize(
-        transcript: String,
-        meetingDate: Date,
-        screenContext: ScreenContextSummary?
-    ) async throws -> String {
+    func summarize(transcript: String, meetingDate: Date) async throws -> String {
         _ = transcript
         _ = meetingDate
-        _ = screenContext
         throw MinuteError.llamaMissing
     }
 
@@ -102,17 +97,27 @@ struct MissingSummarizationService: SummarizationServicing {
     }
 }
 
+struct MissingScreenContextInferenceService: ScreenContextInferencing {
+    func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        _ = windowTitle
+        throw MinuteError.llamaMTMDMissing
+    }
+}
+
+struct MockScreenContextInferenceService: ScreenContextInferencing {
+    func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        return ScreenContextInference(text: "Mock screen context from \(windowTitle).")
+    }
+}
+
 struct MockSummarizationService: SummarizationServicing {
-    func summarize(
-        transcript: String,
-        meetingDate: Date,
-        screenContext: ScreenContextSummary?
-    ) async throws -> String {
+    func summarize(transcript: String, meetingDate: Date) async throws -> String {
         try await Task.sleep(nanoseconds: 800_000_000)
 
         // Do NOT include the transcript in outputs.
         _ = transcript
-        _ = screenContext
         let iso = MinuteISODate.format(meetingDate)
         let title = "Meeting \(iso)"
 

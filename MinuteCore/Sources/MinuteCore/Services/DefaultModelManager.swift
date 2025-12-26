@@ -232,7 +232,7 @@ public actor DefaultModelManager: ModelManaging {
         let whisperCoreMLEncoderURL = WhisperModelPaths.defaultBaseEncoderCoreMLURL
         let summarizationModel = SummarizationModelCatalog.model(for: selectedSummarizationModelID) ?? SummarizationModelCatalog.defaultModel
 
-        return [
+        var models: [ModelSpec] = [
             // Whisper (multilingual)
             ModelSpec(
                 id: "whisper/base",
@@ -259,6 +259,22 @@ public actor DefaultModelManager: ModelManaging {
                 expectedFileSizeBytes: summarizationModel.expectedFileSizeBytes
             ),
         ]
+
+        if let mmprojURL = summarizationModel.mmprojDestinationURL,
+           let mmprojSourceURL = summarizationModel.mmprojSourceURL,
+           let mmprojExpectedSHA256Hex = summarizationModel.mmprojExpectedSHA256Hex {
+            models.append(
+                ModelSpec(
+                    id: "\(summarizationModel.id)/mmproj",
+                    destinationURL: mmprojURL,
+                    sourceURL: mmprojSourceURL,
+                    expectedSHA256Hex: mmprojExpectedSHA256Hex,
+                    expectedFileSizeBytes: summarizationModel.mmprojExpectedFileSizeBytes
+                )
+            )
+        }
+
+        return models
     }
 
     private func resolvedRequiredModels() -> [ModelSpec] {

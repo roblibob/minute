@@ -3,15 +3,43 @@ import Foundation
 @preconcurrency import ScreenCaptureKit
 import os
 
+public struct ScreenContextCaptureStatus: Sendable, Equatable {
+    public var processedCount: Int
+    public var skippedCount: Int
+    public var isInferenceRunning: Bool
+
+    public init(processedCount: Int, skippedCount: Int, isInferenceRunning: Bool) {
+        self.processedCount = processedCount
+        self.skippedCount = skippedCount
+        self.isInferenceRunning = isInferenceRunning
+    }
+}
+
+public struct ScreenContextCaptureResult: Sendable, Equatable {
+    public var events: [ScreenContextEvent]
+    public var processedCount: Int
+    public var skippedCount: Int
+
+    public init(events: [ScreenContextEvent], processedCount: Int, skippedCount: Int) {
+        self.events = events
+        self.processedCount = processedCount
+        self.skippedCount = skippedCount
+    }
+}
+
 public actor ScreenContextCaptureService {
     private let logger = Logger(subsystem: "roblibob.Minute", category: "screen-context")
+    private let inferencer: any ScreenContextInferencing
     private var session: ScreenContextCaptureSession?
 
-    public init() {}
+    public init(inferencer: any ScreenContextInferencing) {
+        self.inferencer = inferencer
+    }
 
     public func startCapture(
         selections: [ScreenContextWindowSelection],
-        minimumFrameInterval: TimeInterval = 1.0
+        minimumFrameInterval: TimeInterval = 10.0,
+        statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)? = nil
     ) async throws {
         guard session == nil else { return }
         guard !selections.isEmpty else { return }
@@ -25,12 +53,14 @@ public actor ScreenContextCaptureService {
 
         session = try await ScreenContextCaptureSession.start(
             windows: resolved,
+            inferencer: inferencer,
             minimumFrameInterval: minimumFrameInterval,
-            logger: logger
+            logger: logger,
+            statusHandler: statusHandler
         )
     }
 
-    public func stopCapture() async -> ScreenContextSummary? {
+    public func stopCapture() async -> ScreenContextCaptureResult? {
         guard let session else { return nil }
         self.session = nil
         return await session.stop()
@@ -46,29 +76,39 @@ public actor ScreenContextCaptureService {
 private final class ScreenContextCaptureSession: @unchecked Sendable {
     private let logger: Logger
     private let captures: [WindowCapture]
-    private let collector: ScreenContextSnapshotCollector
+    private let collector: ScreenContextEventCollector
+    private let statusReporter: ScreenContextStatusReporter
 
-    private init(captures: [WindowCapture], collector: ScreenContextSnapshotCollector, logger: Logger) {
+    private init(
+        captures: [WindowCapture],
+        collector: ScreenContextEventCollector,
+        statusReporter: ScreenContextStatusReporter,
+        logger: Logger
+    ) {
         self.captures = captures
         self.collector = collector
+        self.statusReporter = statusReporter
         self.logger = logger
     }
 
     static func start(
         windows: [ResolvedWindow],
+        inferencer: any ScreenContextInferencing,
         minimumFrameInterval: TimeInterval,
-        logger: Logger
+        logger: Logger,
+        statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)?
     ) async throws -> ScreenContextCaptureSession {
-        let collector = ScreenContextSnapshotCollector(maxSnapshots: 90)
-        let recognizer = ScreenContextTextRecognizer()
+        let collector = ScreenContextEventCollector(maxEvents: 120)
+        let statusReporter = ScreenContextStatusReporter(statusHandler: statusHandler)
 
         var captures: [WindowCapture] = []
         for resolved in windows {
             let capture = try WindowCapture(
                 window: resolved.window,
                 windowTitle: resolved.selection.windowTitle,
+                inferencer: inferencer,
                 collector: collector,
-                recognizer: recognizer,
+                statusReporter: statusReporter,
                 minimumFrameInterval: minimumFrameInterval,
                 logger: logger
             )
@@ -77,24 +117,32 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
         }
 
         logger.info("Screen context capture started with \(captures.count, privacy: .public) window(s).")
-        return ScreenContextCaptureSession(captures: captures, collector: collector, logger: logger)
+        return ScreenContextCaptureSession(
+            captures: captures,
+            collector: collector,
+            statusReporter: statusReporter,
+            logger: logger
+        )
     }
 
-    func stop() async -> ScreenContextSummary? {
+    func stop() async -> ScreenContextCaptureResult? {
         for capture in captures {
             await capture.stop()
         }
 
-        let (summary, stats) = await collector.summaryAndStats()
+        await statusReporter.waitForIdle()
+        let events = await collector.sortedEvents()
+        let status = statusReporter.snapshot()
+
         logger.info(
-            "Screen context capture finished. Snapshots: \(stats.snapshotCount, privacy: .public), lines: \(stats.totalLineCount, privacy: .public)."
+            "Screen context capture finished. Events: \(events.count, privacy: .public), processed: \(status.processedCount, privacy: .public), skipped: \(status.skippedCount, privacy: .public)."
         )
-        if let summary {
-            logger.info(
-                "Screen context summary counts: agenda=\(summary.agendaItems.count, privacy: .public), participants=\(summary.participantNames.count, privacy: .public), artifacts=\(summary.sharedArtifacts.count, privacy: .public), headings=\(summary.keyHeadings.count, privacy: .public), notes=\(summary.notes.count, privacy: .public)."
-            )
-        }
-        return summary
+
+        return ScreenContextCaptureResult(
+            events: events,
+            processedCount: status.processedCount,
+            skippedCount: status.skippedCount
+        )
     }
 
     func cancel() async {
@@ -111,19 +159,25 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
         for selection in selections {
             let matches = content.windows.filter { window in
                 guard let app = window.owningApplication else { return false }
-                guard app.bundleIdentifier == selection.bundleIdentifier else { return false }
-                let title = window.title ?? ""
-                return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                return app.bundleIdentifier == selection.bundleIdentifier
             }
 
-            let selectionTitle = selection.windowTitle.lowercased()
-            let exact = matches.first { ($0.title ?? "").lowercased() == selectionTitle }
-            let contains = matches.first {
-                let windowTitle = ($0.title ?? "").lowercased()
-                return windowTitle.contains(selectionTitle) || selectionTitle.contains(windowTitle)
+            let selectionTitle = selection.windowTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let resolvedWindow: SCWindow?
+            if selectionTitle.isEmpty {
+                resolvedWindow = matches.first {
+                    ($0.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+            } else {
+                let exact = matches.first { ($0.title ?? "").lowercased() == selectionTitle }
+                let contains = matches.first {
+                    let windowTitle = ($0.title ?? "").lowercased()
+                    return windowTitle.contains(selectionTitle) || selectionTitle.contains(windowTitle)
+                }
+                resolvedWindow = exact ?? contains
             }
 
-            if let window = exact ?? contains, !usedIDs.contains(window.windowID) {
+            if let window = resolvedWindow, !usedIDs.contains(window.windowID) {
                 usedIDs.insert(window.windowID)
                 resolved.append(ResolvedWindow(window: window, selection: selection))
             }
@@ -134,7 +188,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
 
     private static func fetchShareableContent() async throws -> SCShareableContent {
         try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
+            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let content {
@@ -159,8 +213,9 @@ private final class WindowCapture: NSObject, @unchecked Sendable {
     init(
         window: SCWindow,
         windowTitle: String,
-        collector: ScreenContextSnapshotCollector,
-        recognizer: ScreenContextTextRecognizer,
+        inferencer: any ScreenContextInferencing,
+        collector: ScreenContextEventCollector,
+        statusReporter: ScreenContextStatusReporter,
         minimumFrameInterval: TimeInterval,
         logger: Logger
     ) throws {
@@ -174,8 +229,9 @@ private final class WindowCapture: NSObject, @unchecked Sendable {
         let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
         let output = ScreenContextStreamOutput(
             windowTitle: windowTitle,
+            inferencer: inferencer,
             collector: collector,
-            recognizer: recognizer,
+            statusReporter: statusReporter,
             minimumFrameInterval: minimumFrameInterval,
             logger: logger
         )
@@ -216,15 +272,17 @@ private final class ScreenContextStreamOutput: NSObject, SCStreamOutput {
 
     init(
         windowTitle: String,
-        collector: ScreenContextSnapshotCollector,
-        recognizer: ScreenContextTextRecognizer,
+        inferencer: any ScreenContextInferencing,
+        collector: ScreenContextEventCollector,
+        statusReporter: ScreenContextStatusReporter,
         minimumFrameInterval: TimeInterval,
         logger: Logger
     ) {
         self.processor = ScreenContextFrameProcessor(
             windowTitle: windowTitle,
+            inferencer: inferencer,
             collector: collector,
-            recognizer: recognizer,
+            statusReporter: statusReporter,
             minimumFrameInterval: minimumFrameInterval,
             logger: logger
         )
@@ -240,141 +298,161 @@ private final class ScreenContextStreamOutput: NSObject, SCStreamOutput {
 
 private final class ScreenContextFrameProcessor {
     private let windowTitle: String
-    private let collector: ScreenContextSnapshotCollector
-    private let recognizer: ScreenContextTextRecognizer
+    private let inferencer: any ScreenContextInferencing
+    private let collector: ScreenContextEventCollector
+    private let statusReporter: ScreenContextStatusReporter
     private let minimumFrameInterval: TimeInterval
     private let logger: Logger
 
-    private var lastProcessedAt = Date.distantPast
-    private var isProcessing = false
-    private var loggedFirstCapture = false
+    private var lastCaptureAt: CFAbsoluteTime = 0
+    private var firstTimestampSeconds: Double?
 
     init(
         windowTitle: String,
-        collector: ScreenContextSnapshotCollector,
-        recognizer: ScreenContextTextRecognizer,
+        inferencer: any ScreenContextInferencing,
+        collector: ScreenContextEventCollector,
+        statusReporter: ScreenContextStatusReporter,
         minimumFrameInterval: TimeInterval,
         logger: Logger
     ) {
         self.windowTitle = windowTitle
+        self.inferencer = inferencer
         self.collector = collector
-        self.recognizer = recognizer
+        self.statusReporter = statusReporter
         self.minimumFrameInterval = minimumFrameInterval
         self.logger = logger
     }
 
     func process(sampleBuffer: CMSampleBuffer) {
-        guard !isProcessing else { return }
-        let now = Date()
-        guard now.timeIntervalSince(lastProcessedAt) >= minimumFrameInterval else { return }
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastCaptureAt >= minimumFrameInterval else { return }
+        if statusReporter.snapshot().isInferenceRunning {
+            lastCaptureAt = now
+            statusReporter.markSkipped()
+            return
+        }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard let imageData = ScreenContextImageEncoder.pngData(from: pixelBuffer) else { return }
 
-        isProcessing = true
-        defer {
-            lastProcessedAt = Date()
-            isProcessing = false
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let rawSeconds = CMTimeGetSeconds(timestamp)
+        if firstTimestampSeconds == nil {
+            firstTimestampSeconds = rawSeconds
         }
+        let timestampSeconds = max(0, rawSeconds - (firstTimestampSeconds ?? rawSeconds))
 
-        do {
-            let lines = try recognizer.recognizeText(from: pixelBuffer)
-            guard !lines.isEmpty else { return }
-            let snapshot = ScreenContextSnapshot(
-                capturedAt: now,
-                windowTitle: windowTitle,
-                extractedLines: lines
-            )
-            let collector = collector
-            Task {
-                await collector.append(snapshot)
-            }
-            if !loggedFirstCapture {
-                loggedFirstCapture = true
-                logger.info(
-                    "Screen context captured text for window. Lines: \(lines.count, privacy: .public)."
+        lastCaptureAt = now
+        statusReporter.markInferenceStarted()
+
+        let windowTitle = windowTitle
+        let inferencer = inferencer
+        let collector = collector
+        let statusReporter = statusReporter
+        let logger = logger
+        Task {
+            defer { statusReporter.markInferenceFinished() }
+
+            do {
+                let inference = try await inferencer.inferScreenContext(from: imageData, windowTitle: windowTitle)
+                #if DEBUG
+                let summary = inference.summaryLine()
+                let clipped = summary.isEmpty ? "(empty)" : String(summary.prefix(240))
+                logger.info("Screen inference @ \(timestampSeconds, privacy: .public)s: \(clipped, privacy: .private)")
+                #endif
+                guard !inference.isEmpty else { return }
+                let event = ScreenContextEvent(
+                    timestampSeconds: timestampSeconds,
+                    windowTitle: windowTitle,
+                    inference: inference
                 )
+                await collector.append(event)
+            } catch {
+                logger.error("Screen inference failed: \(String(describing: error), privacy: .public)")
             }
-#if DEBUG
-            let redacted = ScreenContextDebugRedactor.redact(lines)
-            if !redacted.isEmpty {
-                let sample = redacted.prefix(3).map { ScreenContextDebugRedactor.truncate($0, maxLength: 120) }
-                let combined = sample.joined(separator: " | ")
-                logger.debug(
-                    "Screen OCR sample (\(redacted.count, privacy: .public) lines): \(combined, privacy: .public)"
-                )
-            }
-#endif
-        } catch {
-            logger.error("Screen OCR failed: \(String(describing: error), privacy: .public)")
         }
     }
 }
 
-private actor ScreenContextSnapshotCollector {
-    private let maxSnapshots: Int
-    private var snapshots: [ScreenContextSnapshot] = []
-    private var totalLineCount: Int = 0
+private actor ScreenContextEventCollector {
+    private let maxEvents: Int
+    private var events: [ScreenContextEvent] = []
 
-    init(maxSnapshots: Int) {
-        self.maxSnapshots = maxSnapshots
+    init(maxEvents: Int) {
+        self.maxEvents = maxEvents
     }
 
-    func append(_ snapshot: ScreenContextSnapshot) {
-        guard snapshots.count < maxSnapshots else { return }
-        snapshots.append(snapshot)
-        totalLineCount += snapshot.extractedLines.count
+    func append(_ event: ScreenContextEvent) {
+        guard events.count < maxEvents else { return }
+        events.append(event)
     }
 
-    func summaryAndStats() -> (ScreenContextSummary?, ScreenContextCaptureStats) {
-        let summary = ScreenContextAggregator.summarize(snapshots: snapshots)
-        let stats = ScreenContextCaptureStats(
-            snapshotCount: snapshots.count,
-            totalLineCount: totalLineCount
+    func sortedEvents() -> [ScreenContextEvent] {
+        events.sorted { $0.timestampSeconds < $1.timestampSeconds }
+    }
+}
+
+private final class ScreenContextStatusReporter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var processedCount: Int = 0
+    private var skippedCount: Int = 0
+    private var inFlightCount: Int = 0
+    private let statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)?
+
+    init(statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)?) {
+        self.statusHandler = statusHandler
+    }
+
+    func markInferenceStarted() {
+        lock.lock()
+        inFlightCount += 1
+        let status = snapshotLocked()
+        lock.unlock()
+        statusHandler?(status)
+    }
+
+    func markInferenceFinished() {
+        lock.lock()
+        inFlightCount = max(0, inFlightCount - 1)
+        processedCount += 1
+        let status = snapshotLocked()
+        lock.unlock()
+        statusHandler?(status)
+    }
+
+    func markSkipped() {
+        lock.lock()
+        skippedCount += 1
+        let status = snapshotLocked()
+        lock.unlock()
+        statusHandler?(status)
+    }
+
+    func snapshot() -> ScreenContextCaptureStatus {
+        lock.lock()
+        let status = snapshotLocked()
+        lock.unlock()
+        return status
+    }
+
+    func waitForIdle(maximumWaitSeconds: TimeInterval = 5.0) async {
+        let deadline = Date().addingTimeInterval(maximumWaitSeconds)
+        while true {
+            let status = snapshot()
+            if !status.isInferenceRunning {
+                return
+            }
+            if Date() >= deadline {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+    }
+
+    private func snapshotLocked() -> ScreenContextCaptureStatus {
+        ScreenContextCaptureStatus(
+            processedCount: processedCount,
+            skippedCount: skippedCount,
+            isInferenceRunning: inFlightCount > 0
         )
-        return (summary.isEmpty ? nil : summary, stats)
-    }
-}
-
-private struct ScreenContextCaptureStats: Sendable {
-    let snapshotCount: Int
-    let totalLineCount: Int
-}
-
-private enum ScreenContextDebugRedactor {
-    private static let emailRegex = try? NSRegularExpression(
-        pattern: #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#,
-        options: [.caseInsensitive]
-    )
-    private static let phoneRegex = try? NSRegularExpression(
-        pattern: #"\+?\d[\d\-\s]{6,}\d"#,
-        options: []
-    )
-
-    static func redact(_ lines: [String]) -> [String] {
-        lines.compactMap { line in
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return nil }
-            var output = trimmed
-            if let emailRegex {
-                output = emailRegex.stringByReplacingMatches(
-                    in: output,
-                    range: NSRange(output.startIndex..., in: output),
-                    withTemplate: "[redacted]"
-                )
-            }
-            if let phoneRegex {
-                output = phoneRegex.stringByReplacingMatches(
-                    in: output,
-                    range: NSRange(output.startIndex..., in: output),
-                    withTemplate: "[redacted]"
-                )
-            }
-            return output
-        }
-    }
-
-    static func truncate(_ line: String, maxLength: Int) -> String {
-        guard line.count > maxLength else { return line }
-        let prefix = line.prefix(maxLength)
-        return "\(prefix)..."
     }
 }

@@ -72,12 +72,15 @@ public protocol SummarizationServicing: Sendable {
     /// Returns raw JSON produced by the model.
     func summarize(
         transcript: String,
-        meetingDate: Date,
-        screenContext: ScreenContextSummary?
+        meetingDate: Date
     ) async throws -> String
 
     /// Attempts to repair invalid JSON to match the schema.
     func repairJSON(_ invalidJSON: String) async throws -> String
+}
+
+public protocol ScreenContextInferencing: Sendable {
+    func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference
 }
 
 // MARK: - Models

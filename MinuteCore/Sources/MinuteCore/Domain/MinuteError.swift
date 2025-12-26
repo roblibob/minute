@@ -18,11 +18,15 @@ public enum MinuteError: Error, LocalizedError, Sendable {
     case llamaFailed(exitCode: Int32, output: String)
 
     case modelMissing
+    case mmprojMissing
     case modelChecksumMismatch
     case modelDownloadFailed(underlyingDescription: String)
 
     case jsonInvalid
     case vaultWriteFailed
+
+    case llamaMTMDMissing
+    case llamaMTMDFailed(exitCode: Int32, output: String)
 
     public var errorDescription: String? {
         switch self {
@@ -51,6 +55,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
 
         case .modelMissing:
             return "Required model files are missing."
+        case .mmprojMissing:
+            return "Required multimodal projector is missing."
         case .modelChecksumMismatch:
             return "Downloaded model file failed verification."
         case .modelDownloadFailed:
@@ -60,6 +66,10 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "Failed to structure the meeting note."
         case .vaultWriteFailed:
             return "Failed to write meeting files to the vault."
+        case .llamaMTMDMissing:
+            return "Multimodal inference component is missing."
+        case .llamaMTMDFailed:
+            return "Multimodal inference failed."
         }
     }
 
@@ -75,6 +85,12 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "model download failed\n\(underlyingDescription)"
         case .ffmpegMissing:
             return "ffmpeg missing: ensure the ffmpeg binary is bundled with the app."
+        case .mmprojMissing:
+            return "mmproj missing: ensure the multimodal projector file is downloaded."
+        case .llamaMTMDMissing:
+            return "llama-mtmd-cli missing: ensure the CLI binary is bundled with the app."
+        case .llamaMTMDFailed(let exitCode, let output):
+            return "llama-mtmd-cli failed (exitCode=\(exitCode))\n\(output)"
         default:
             return String(describing: self)
         }

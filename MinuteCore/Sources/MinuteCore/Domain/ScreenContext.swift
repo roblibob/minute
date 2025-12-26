@@ -98,3 +98,31 @@ public struct ScreenContextWindowSelection: Sendable, Equatable, Codable {
         self.windowTitle = windowTitle
     }
 }
+
+public struct ScreenContextInference: Sendable, Equatable {
+    public var text: String
+
+    public init(text: String) {
+        self.text = text
+    }
+
+    public var isEmpty: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    public func summaryLine() -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+public struct ScreenContextEvent: Sendable, Equatable {
+    public var timestampSeconds: Double
+    public var windowTitle: String
+    public var inference: ScreenContextInference
+
+    public init(timestampSeconds: Double, windowTitle: String, inference: ScreenContextInference) {
+        self.timestampSeconds = timestampSeconds
+        self.windowTitle = windowTitle
+        self.inference = inference
+    }
+}
