@@ -11,6 +11,30 @@ struct ScreenContextRecordingPickerView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
 
+    private let excludedBundleIdentifiers: Set<String> = [
+        "com.apple.WindowServer",
+        "com.apple.SystemUIServer",
+        "com.apple.dock",
+        "com.apple.notificationcenterui",
+        "com.apple.controlcenter",
+        "com.apple.Spotlight",
+        "com.apple.loginwindow",
+        "com.apple.CoreServicesUIServer",
+        "com.apple.ScreenCapture",
+    ]
+
+    private let excludedApplicationNames: Set<String> = [
+        "Window Server",
+        "SystemUIServer",
+        "Dock",
+        "Notification Center",
+        "Control Center",
+        "Spotlight",
+        "loginwindow",
+    ]
+
+    private let minimumWindowSize = CGSize(width: 120, height: 80)
+
     var body: some View {
         VStack(spacing: 16) {
             HStack {
@@ -86,15 +110,31 @@ struct ScreenContextRecordingPickerView: View {
         isLoading = true
         errorMessage = nil
 
+        let permissionGranted = await ScreenRecordingPermission.refresh()
+        guard permissionGranted else {
+            windows = []
+            selectedID = nil
+            errorMessage = "Screen recording permission is required to list windows. Grant access in Settings."
+            isLoading = false
+            return
+        }
+
         do {
             let content = try await fetchShareableContent()
-            let items: [RecordingWindowItem] = content.windows.compactMap { window in
+            let items: [RecordingWindowItem] = content.windows.compactMap { window -> RecordingWindowItem? in
                 guard let app = window.owningApplication else { return nil }
+                let title = (window.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard shouldIncludeWindow(
+                    bundleIdentifier: app.bundleIdentifier,
+                    applicationName: app.applicationName,
+                    title: title,
+                    frame: window.frame
+                ) else { return nil }
                 return RecordingWindowItem(
                     id: window.windowID,
                     bundleIdentifier: app.bundleIdentifier,
                     applicationName: app.applicationName,
-                    windowTitle: window.title ?? ""
+                    windowTitle: title,
                 )
             }
             .sorted { lhs, rhs in
@@ -115,6 +155,29 @@ struct ScreenContextRecordingPickerView: View {
         isLoading = false
     }
 
+    private func shouldIncludeWindow(
+        bundleIdentifier: String?,
+        applicationName: String,
+        title: String,
+        frame: CGRect
+    ) -> Bool {
+        guard !title.isEmpty else { return false }
+        guard frame.width >= minimumWindowSize.width,
+              frame.height >= minimumWindowSize.height
+        else {
+            return false
+        }
+
+        if let bundleIdentifier, excludedBundleIdentifiers.contains(bundleIdentifier) {
+            return false
+        }
+        if excludedApplicationNames.contains(applicationName) {
+            return false
+        }
+
+        return true
+    }
+
     private func selectedWindowSelection() -> ScreenContextWindowSelection? {
         guard let selectedID else { return nil }
         guard let window = windows.first(where: { $0.id == selectedID }) else { return nil }
@@ -127,7 +190,7 @@ struct ScreenContextRecordingPickerView: View {
 
     private func fetchShareableContent() async throws -> SCShareableContent {
         try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
+            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: false) { content, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let content {

@@ -43,7 +43,7 @@ public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unch
     public static func liveDefault() -> WhisperXPCTranscriptionService {
         WhisperXPCTranscriptionService(
             configuration: WhisperXPCTranscriptionConfiguration(
-                serviceName: "roblibob.Minute.WhisperService",
+                serviceName: "com.roblibob.Minute.WhisperService",
                 modelURL: WhisperModelPaths.defaultBaseModelURL,
                 detectLanguage: true,
                 language: "auto",

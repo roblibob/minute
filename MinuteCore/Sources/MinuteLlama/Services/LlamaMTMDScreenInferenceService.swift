@@ -239,7 +239,7 @@ private enum PromptBuilder {
 
         ### OUTPUT RULES
         - Output a single, plain-text line.
-        - Max 400 characters.
+        - Be as detailed but consise as possible for screen content.
         - Use this compact format: "[Screen Content], Participating: [Participant Names]"
         - When participants are visible, use: "[Screen Content], Participating: [Participant Names]". If no participants are visible, output just "[Screen Content]" or "[Screen Content], Participating: None".
         - Do not describe physical appearances.

@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import CoreGraphics
+@preconcurrency import ScreenCaptureKit
 import SwiftUI
 
 struct PermissionsSettingsSection: View {
@@ -40,7 +41,10 @@ struct PermissionsSettingsSection: View {
     private func refreshPermissions() {
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
         microphonePermissionGranted = (status == .authorized)
-        screenRecordingPermissionGranted = CGPreflightScreenCaptureAccess()
+        Task {
+            let granted = await ScreenRecordingPermission.refresh()
+            screenRecordingPermissionGranted = granted
+        }
     }
 
     private func requestMicrophonePermission() {
@@ -51,8 +55,10 @@ struct PermissionsSettingsSection: View {
     }
 
     private func requestScreenRecordingPermission() {
-        let granted = CGRequestScreenCaptureAccess()
-        screenRecordingPermissionGranted = granted || CGPreflightScreenCaptureAccess()
+        Task {
+            let granted = await ScreenRecordingPermission.request()
+            screenRecordingPermissionGranted = granted
+        }
     }
 }
 
@@ -95,5 +101,37 @@ private struct PermissionStatusIcon: View {
             .foregroundStyle(isReady ? Color.green : Color.red)
             .font(.title3)
             .accessibilityLabel(isReady ? "Ready" : "Needs attention")
+    }
+}
+
+@MainActor
+enum ScreenRecordingPermission {
+    static func refresh() async -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
+    static func request() async -> Bool {
+        if CGPreflightScreenCaptureAccess() {
+            return true
+        }
+
+        let granted = CGRequestScreenCaptureAccess()
+        if granted {
+            return true
+        }
+
+        return await canAccessShareableContent()
+    }
+
+    private static func canAccessShareableContent() async -> Bool {
+        await withCheckedContinuation { continuation in
+            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
+                if error != nil {
+                    continuation.resume(returning: false)
+                } else {
+                    continuation.resume(returning: content != nil)
+                }
+            }
+        }
     }
 }

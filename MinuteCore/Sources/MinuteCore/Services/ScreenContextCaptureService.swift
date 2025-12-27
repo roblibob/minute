@@ -188,7 +188,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
 
     private static func fetchShareableContent() async throws -> SCShareableContent {
         try await withCheckedThrowingContinuation { continuation in
-            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: true) { content, error in
+            SCShareableContent.getExcludingDesktopWindows(true, onScreenWindowsOnly: false) { content, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let content {

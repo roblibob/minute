@@ -87,7 +87,10 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     deinit {
         processingTask?.cancel()
-        Task { await screenContextCaptureService.cancelCapture() }
+        let captureService = screenContextCaptureService
+        Task { [captureService] in
+            await captureService.cancelCapture()
+        }
     }
 
     static func mock() -> MeetingPipelineViewModel {
@@ -200,15 +203,10 @@ final class MeetingPipelineViewModel: ObservableObject {
                     throw MinuteError.permissionDenied
                 }
 
-                let screenGranted = CGPreflightScreenCaptureAccess()
-                if screenGranted {
-                    screenRecordingPermissionGranted = true
-                } else {
-                    let granted = CGRequestScreenCaptureAccess()
-                    screenRecordingPermissionGranted = granted
-                    if !granted {
-                        throw MinuteError.screenRecordingPermissionDenied
-                    }
+                let screenGranted = await ScreenRecordingPermission.refresh()
+                screenRecordingPermissionGranted = screenGranted
+                if !screenGranted {
+                    throw MinuteError.screenRecordingPermissionDenied
                 }
 
                 screenContextEvents = []
@@ -551,9 +549,9 @@ final class MeetingPipelineViewModel: ObservableObject {
     }
 
     func requestScreenRecordingPermission() {
-        Task {
-            let granted = CGRequestScreenCaptureAccess()
-            screenRecordingPermissionGranted = granted
+        Task { @MainActor [weak self] in
+            let granted = await ScreenRecordingPermission.request()
+            self?.screenRecordingPermissionGranted = granted
         }
     }
 
@@ -563,7 +561,10 @@ final class MeetingPipelineViewModel: ObservableObject {
     }
 
     private func refreshScreenRecordingPermission() {
-        screenRecordingPermissionGranted = CGPreflightScreenCaptureAccess()
+        Task { @MainActor [weak self] in
+            let granted = await ScreenRecordingPermission.refresh()
+            self?.screenRecordingPermissionGranted = granted
+        }
     }
 
     // MARK: - UI helpers

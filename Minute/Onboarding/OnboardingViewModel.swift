@@ -147,9 +147,11 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     func requestScreenRecordingPermission() {
-        let granted = CGRequestScreenCaptureAccess()
-        screenRecordingPermissionGranted = granted || CGPreflightScreenCaptureAccess()
-        updateCurrentStepIfNeeded()
+        Task {
+            let granted = await ScreenRecordingPermission.request()
+            screenRecordingPermissionGranted = granted
+            updateCurrentStepIfNeeded()
+        }
     }
 
     func startModelDownload() {
@@ -212,7 +214,11 @@ final class OnboardingViewModel: ObservableObject {
     private func refreshPermissions() {
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
         microphonePermissionGranted = (status == .authorized)
-        screenRecordingPermissionGranted = CGPreflightScreenCaptureAccess()
+        Task {
+            let granted = await ScreenRecordingPermission.refresh()
+            screenRecordingPermissionGranted = granted
+            updateCurrentStepIfNeeded()
+        }
     }
 
     private func refreshVaultStatus() {

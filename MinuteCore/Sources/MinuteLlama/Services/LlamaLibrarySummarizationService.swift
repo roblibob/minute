@@ -310,7 +310,6 @@ private enum PromptBuilder {
         The timeline includes:
         - Spoken transcript entries, prefixed like: [MM:SS] Speaker N: ...
         - Screen context entries, prefixed like: [MM:SS] Screen (Window Title): ...
-        Use screen entries only as supplemental context (agenda, slide content, participants). Do not invent decisions or action items based solely on screen entries.
 
         ### CORE INSTRUCTIONS
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript. Do not infer feelings, motives, or details not explicitly spoken. If a point is ambiguous, omit it rather than guessing.
