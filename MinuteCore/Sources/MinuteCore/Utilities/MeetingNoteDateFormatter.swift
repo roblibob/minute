@@ -1,16 +1,24 @@
 import Foundation
 
 public enum MeetingNoteDateFormatter {
+    private static let lock = NSLock()
+    private static let formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     public static func format(
         _ date: Date,
         locale: Locale = .autoupdatingCurrent,
         timeZone: TimeZone = .autoupdatingCurrent
     ) -> String {
-        let formatter = DateFormatter()
+        lock.lock()
+        defer { lock.unlock() }
+
         formatter.locale = locale
         formatter.timeZone = timeZone
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
         return formatter.string(from: date)
     }
 }

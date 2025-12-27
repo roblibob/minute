@@ -56,7 +56,7 @@ Clean Code Principles
 - Testability: Code structure that facilitates testing
 
 Comment Only What the Code Cannot Say
-- Apply the principle: "Comment what the code cannot say, not simply what it  does not say"
+- Apply the principle: "Comment what the code cannot say, not simply what it does not say"
 - Remove redundant comments that simply repeat what the code already expresses
 - Keep only comments that provide valuable context that cannot be expressed through code structure
 - Ensure code is self-explanatory through clear naming and structure rather than excessive commenting

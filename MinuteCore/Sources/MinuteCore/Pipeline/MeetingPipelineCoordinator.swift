@@ -102,10 +102,10 @@ public actor MeetingPipelineCoordinator {
             logger.info("Pipeline cancelled")
             throw CancellationError()
         } catch {
-            if !(error is MinuteError) {
-                logger.error("Pipeline failed: \(String(describing: error), privacy: .public)")
-            } else if let minuteError = error as? MinuteError {
+            if let minuteError = error as? MinuteError {
                 logger.error("Pipeline failed: \(minuteError.debugSummary, privacy: .public)")
+            } else {
+                logger.error("Pipeline failed: \(String(describing: error), privacy: .public)")
             }
             cleanupTemporaryArtifacts(for: context)
             throw error
