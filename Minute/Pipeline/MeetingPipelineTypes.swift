@@ -17,40 +17,6 @@ struct RecordingSession: Sendable {
     }
 }
 
-struct PipelineContext: Sendable {
-    var vaultFolders: MeetingFileContract.VaultFolders
-    var audioTempURL: URL
-    var audioDurationSeconds: TimeInterval
-    var startedAt: Date
-    var stoppedAt: Date
-    var workingDirectoryURL: URL
-    var saveAudio: Bool
-    var saveTranscript: Bool
-    var screenContextEvents: [ScreenContextEvent]
-
-    init(
-        vaultFolders: MeetingFileContract.VaultFolders,
-        audioTempURL: URL,
-        audioDurationSeconds: TimeInterval,
-        startedAt: Date,
-        stoppedAt: Date,
-        workingDirectoryURL: URL,
-        saveAudio: Bool,
-        saveTranscript: Bool,
-        screenContextEvents: [ScreenContextEvent] = []
-    ) {
-        self.vaultFolders = vaultFolders
-        self.audioTempURL = audioTempURL
-        self.audioDurationSeconds = audioDurationSeconds
-        self.startedAt = startedAt
-        self.stoppedAt = stoppedAt
-        self.workingDirectoryURL = workingDirectoryURL
-        self.saveAudio = saveAudio
-        self.saveTranscript = saveTranscript
-        self.screenContextEvents = screenContextEvents
-    }
-}
-
 enum MeetingPipelineState {
     case idle
     case importing(sourceURL: URL)

@@ -17,6 +17,7 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         let transcript = "Meetings/_transcripts/2025-12-19 - Weekly Sync.md"
         let markdown = MarkdownRenderer().render(
             extraction: extraction,
+            noteDateTime: "2025-12-19 09:00",
             audioRelativePath: audio,
             transcriptRelativePath: transcript
         )
@@ -24,7 +25,7 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         let expected = """
         ---
         type: meeting
-        date: 2025-12-19
+        date: 2025-12-19 09:00
         title: \"Weekly Sync\"
         audio: \"Meetings/_audio/2025-12-19 - Weekly Sync.wav\"
         transcript: \"Meetings/_transcripts/2025-12-19 - Weekly Sync.md\"

@@ -8,11 +8,12 @@ public struct MarkdownRenderer: Sendable {
 
     public func render(
         extraction: MeetingExtraction,
+        noteDateTime: String,
         audioRelativePath: String?,
         transcriptRelativePath: String?
     ) -> String {
         let title = normalizedTitle(extraction.title)
-        let date = extraction.date
+        let date = noteDateTime
 
         var lines: [String] = []
         lines.reserveCapacity(64)

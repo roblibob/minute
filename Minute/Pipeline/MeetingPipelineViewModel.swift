@@ -38,17 +38,12 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private let audioService: any AudioServicing
     private let mediaImportService: any MediaImporting
-    private let transcriptionService: any TranscriptionServicing
-    private let diarizationService: any DiarizationServicing
-    private let summarizationServiceProvider: () -> any SummarizationServicing
-    private let modelManager: any ModelManaging
+    private let pipelineCoordinator: MeetingPipelineCoordinator
     private let screenContextCaptureService: ScreenContextCaptureService
     private let screenContextVideoExtractor: ScreenContextVideoFrameExtractor
     private let screenContextSettingsStore: ScreenContextSettingsStore
 
-    private let bookmarkStore: UserDefaultsVaultBookmarkStore
     private let vaultAccess: VaultAccess
-    private let vaultWriter: any VaultWriting
 
     private let logger = Logger(subsystem: "roblibob.Minute", category: "pipeline")
 
@@ -65,28 +60,19 @@ final class MeetingPipelineViewModel: ObservableObject {
     init(
         audioService: some AudioServicing,
         mediaImportService: some MediaImporting,
-        transcriptionService: some TranscriptionServicing,
-        diarizationService: some DiarizationServicing,
-        summarizationServiceProvider: @escaping () -> any SummarizationServicing,
-        modelManager: some ModelManaging,
+        pipelineCoordinator: MeetingPipelineCoordinator,
         screenContextCaptureService: ScreenContextCaptureService,
         screenContextVideoExtractor: ScreenContextVideoFrameExtractor,
         screenContextSettingsStore: ScreenContextSettingsStore,
-        bookmarkStore: UserDefaultsVaultBookmarkStore,
-        vaultWriter: some VaultWriting
+        vaultAccess: VaultAccess
     ) {
         self.audioService = audioService
         self.mediaImportService = mediaImportService
-        self.transcriptionService = transcriptionService
-        self.diarizationService = diarizationService
-        self.summarizationServiceProvider = summarizationServiceProvider
-        self.modelManager = modelManager
+        self.pipelineCoordinator = pipelineCoordinator
         self.screenContextCaptureService = screenContextCaptureService
         self.screenContextVideoExtractor = screenContextVideoExtractor
         self.screenContextSettingsStore = screenContextSettingsStore
-        self.bookmarkStore = bookmarkStore
-        self.vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
-        self.vaultWriter = vaultWriter
+        self.vaultAccess = vaultAccess
 
         refreshVaultStatus()
         refreshMicrophonePermission()
@@ -105,18 +91,25 @@ final class MeetingPipelineViewModel: ObservableObject {
     }
 
     static func mock() -> MeetingPipelineViewModel {
-        MeetingPipelineViewModel(
-            audioService: MockAudioService(),
-            mediaImportService: MockMediaImportService(),
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark)
+        let vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
+        let coordinator = MeetingPipelineCoordinator(
             transcriptionService: MockTranscriptionService(),
             diarizationService: MockDiarizationService(),
             summarizationServiceProvider: { MockSummarizationService() },
             modelManager: MockModelManager(),
+            vaultAccess: vaultAccess,
+            vaultWriter: DefaultVaultWriter()
+        )
+
+        return MeetingPipelineViewModel(
+            audioService: MockAudioService(),
+            mediaImportService: MockMediaImportService(),
+            pipelineCoordinator: coordinator,
             screenContextCaptureService: ScreenContextCaptureService(inferencer: MockScreenContextInferenceService()),
             screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: MockScreenContextInferenceService()),
             screenContextSettingsStore: ScreenContextSettingsStore(),
-            bookmarkStore: UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark),
-            vaultWriter: DefaultVaultWriter()
+            vaultAccess: vaultAccess
         )
     }
 
@@ -130,18 +123,25 @@ final class MeetingPipelineViewModel: ObservableObject {
             .liveDefault(selectionStore: selectionStore)
             ?? MissingScreenContextInferenceService()
 
-        return MeetingPipelineViewModel(
-            audioService: DefaultAudioService(),
-            mediaImportService: DefaultMediaImportService(),
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark)
+        let vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
+        let coordinator = MeetingPipelineCoordinator(
             transcriptionService: transcriptionService,
             diarizationService: FluidAudioDiarizationService.meetingDefault(),
             summarizationServiceProvider: summarizationServiceProvider,
             modelManager: DefaultModelManager(selectionStore: selectionStore),
+            vaultAccess: vaultAccess,
+            vaultWriter: DefaultVaultWriter()
+        )
+
+        return MeetingPipelineViewModel(
+            audioService: DefaultAudioService(),
+            mediaImportService: DefaultMediaImportService(),
+            pipelineCoordinator: coordinator,
             screenContextCaptureService: ScreenContextCaptureService(inferencer: screenInferencer),
             screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: screenInferencer),
             screenContextSettingsStore: ScreenContextSettingsStore(),
-            bookmarkStore: UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark),
-            vaultWriter: DefaultVaultWriter()
+            vaultAccess: vaultAccess
         )
     }
 
@@ -347,6 +347,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         // One active task at a time.
         processingTask?.cancel()
         progress = 0
+        state = .processing(stage: .downloadingModels, context: context)
 
         processingTask = Task(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -418,84 +419,17 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private func runPipeline(context: PipelineContext) async {
         do {
-            try Task.checkCancellation()
-
-            // Download models (task 09)
-            state = .processing(stage: .downloadingModels, context: context)
-            progress = 0
-
-            logger.info("Ensuring models are present")
-            try await modelManager.ensureModelsPresent { [weak self] update in
-                // Allocate the first 10% of the overall pipeline progress to model downloads.
-                Task { @MainActor [weak self] in
-                    self?.progress = min(max(update.fractionCompleted, 0), 1) * 0.1
-                }
-            }
-
-            // Transcribe
-            state = .processing(stage: .transcribing, context: context)
-            progress = 0.1
-            try Task.checkCancellation()
-
-            let transcription = try await transcriptionService.transcribe(wavURL: context.audioTempURL)
-            let diarizationSegments = await diarizeIfPossible(wavURL: context.audioTempURL)
-            let attributedSegments = SpeakerAttribution.attribute(
-                transcriptSegments: transcription.segments,
-                speakerSegments: diarizationSegments
-            )
-            let timelineSegments: [AttributedTranscriptSegment]
-            if attributedSegments.isEmpty {
-                timelineSegments = transcription.segments.map { segment in
-                    AttributedTranscriptSegment(
-                        startSeconds: segment.startSeconds,
-                        endSeconds: segment.endSeconds,
-                        speakerId: 0,
-                        text: segment.text
-                    )
-                }
-            } else {
-                timelineSegments = attributedSegments
-            }
-            let timelineEntries = MeetingTimelineBuilder.build(
-                transcriptSegments: timelineSegments,
-                screenEvents: context.screenContextEvents
-            )
-            let timelineText = MeetingTimelineRenderer().render(entries: timelineEntries)
-
-            // Summarize (+ repair if needed)
-            state = .processing(stage: .summarizing, context: context)
-            progress = 0.5
-            try Task.checkCancellation()
-
-            let summarizationService = summarizationServiceProvider()
-            let meetingDate = context.startedAt
-            let rawJSON = try await summarizationService.summarize(
-                transcript: timelineText,
-                meetingDate: meetingDate
-            )
-            let extraction = try await decodeOrRepairExtraction(
-                rawJSON: rawJSON,
-                meetingDate: meetingDate,
-                summarizationService: summarizationService
-            )
-
-            // Write
-            state = .writing(context: context, extraction: extraction)
-            progress = 0.85
-            try Task.checkCancellation()
-
-            let outputs = try writeOutputsToVault(
+            let outputs = try await pipelineCoordinator.execute(
                 context: context,
-                extraction: extraction,
-                transcription: transcription,
-                attributedSegments: attributedSegments
+                progress: { [weak self] update in
+                    Task { @MainActor [weak self] in
+                        self?.applyPipelineProgress(update, context: context)
+                    }
+                }
             )
-
             progress = nil
             state = .done(noteURL: outputs.noteURL, audioURL: outputs.audioURL)
-            cleanupTemporaryArtifacts(for: context)
         } catch is CancellationError {
-            logger.info("Pipeline cancelled")
             progress = nil
 
             if let recorded = state.recordedContextIfAvailable {
@@ -509,54 +443,27 @@ final class MeetingPipelineViewModel: ObservableObject {
                 state = .idle
             }
         } catch let minuteError as MinuteError {
-            logger.error("Pipeline failed: \(minuteError.debugSummary, privacy: .public)")
             progress = nil
             state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
-            cleanupTemporaryArtifacts(for: context)
         } catch {
-            logger.error("Pipeline failed: \(String(describing: error), privacy: .public)")
             progress = nil
             state = .failed(error: .vaultWriteFailed, debugOutput: String(describing: error))
-            cleanupTemporaryArtifacts(for: context)
         }
     }
 
-    private func decodeOrRepairExtraction(
-        rawJSON: String,
-        meetingDate: Date,
-        summarizationService: any SummarizationServicing
-    ) async throws -> MeetingExtraction {
-        do {
-            let decoded = try decodeExtractionStrict(from: rawJSON)
-            return MeetingExtractionValidation.validated(decoded, recordingDate: meetingDate)
-        } catch {
-            logger.info("Extraction JSON invalid; attempting repair")
+    private func applyPipelineProgress(_ update: PipelineProgress, context: PipelineContext) {
+        progress = min(max(update.fractionCompleted, 0), 1)
 
-            let repaired = try await summarizationService.repairJSON(rawJSON)
-
-            do {
-                let decoded = try decodeExtractionStrict(from: repaired)
-                return MeetingExtractionValidation.validated(decoded, recordingDate: meetingDate)
-            } catch {
-                // Task 07: proceed with a fallback extraction rather than failing the entire pipeline.
-                logger.error("Extraction still invalid after repair; proceeding with fallback")
-                return MeetingExtractionValidation.fallback(recordingDate: meetingDate)
-            }
-        }
-    }
-
-    /// Strictly decodes the first top-level JSON object and rejects any non-whitespace outside it.
-    private func decodeExtractionStrict(from rawOutput: String) throws -> MeetingExtraction {
-        let trimmed = rawOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let extracted = JSONFirstObjectExtractor.extractFirstJSONObject(from: trimmed) else {
-            throw MinuteError.jsonInvalid
-        }
-
-        do {
-            return try JSONDecoder().decode(MeetingExtraction.self, from: Data(extracted.jsonObject.utf8))
-        } catch {
-            throw MinuteError.jsonInvalid
+        switch update.stage {
+        case .downloadingModels:
+            state = .processing(stage: .downloadingModels, context: context)
+        case .transcribing:
+            state = .processing(stage: .transcribing, context: context)
+        case .summarizing:
+            state = .processing(stage: .summarizing, context: context)
+        case .writing:
+            guard let extraction = update.extraction else { return }
+            state = .writing(context: context, extraction: extraction)
         }
     }
 
@@ -597,93 +504,6 @@ final class MeetingPipelineViewModel: ObservableObject {
         )
     }
 
-    private func cleanupTemporaryArtifacts(for context: PipelineContext) {
-        let fileManager = FileManager.default
-        let tempRootURL = fileManager.temporaryDirectory.standardizedFileURL
-        let tempRootPath = tempRootURL.path.hasSuffix("/") ? tempRootURL.path : tempRootURL.path + "/"
-
-        let audioTempDir = context.audioTempURL.deletingLastPathComponent().standardizedFileURL.path
-        if audioTempDir.hasPrefix(tempRootPath) {
-            try? fileManager.removeItem(atPath: audioTempDir)
-        }
-
-        let workingDir = context.workingDirectoryURL.standardizedFileURL.path
-        if workingDir.hasPrefix(tempRootPath) {
-            try? fileManager.removeItem(atPath: workingDir)
-        }
-    }
-
-    private func writeOutputsToVault(
-        context: PipelineContext,
-        extraction: MeetingExtraction,
-        transcription: TranscriptionResult,
-        attributedSegments: [AttributedTranscriptSegment]
-    ) throws -> (noteURL: URL, audioURL: URL?) {
-        let recordingDate = context.startedAt
-        // Use extraction.date if parseable, otherwise fall back to the recording date.
-        let meetingDate = MinuteISODate.parse(extraction.date) ?? recordingDate
-        let meetingDateISO = MinuteISODate.format(meetingDate)
-
-        let contract = MeetingFileContract(folders: context.vaultFolders)
-        let noteRelativePath = contract.noteRelativePath(date: recordingDate, title: extraction.title)
-        let audioRelativePath = context.saveAudio ? contract.audioRelativePath(date: recordingDate, title: extraction.title) : nil
-        let transcriptRelativePath = context.saveTranscript ? contract.transcriptRelativePath(date: recordingDate, title: extraction.title) : nil
-
-        let transcriptData: Data?
-        if context.saveTranscript, let transcriptRelativePath {
-            let transcriptMarkdown = TranscriptMarkdownRenderer().render(
-                title: extraction.title,
-                dateISO: meetingDateISO,
-                transcript: transcription.text,
-                attributedSegments: attributedSegments
-            )
-            transcriptData = Data(transcriptMarkdown.utf8)
-        } else {
-            transcriptData = nil
-        }
-
-        let noteMarkdown = MarkdownRenderer().render(
-            extraction: extraction,
-            audioRelativePath: audioRelativePath,
-            transcriptRelativePath: transcriptRelativePath
-        )
-        let noteData = Data(noteMarkdown.utf8)
-
-        return try vaultAccess.withVaultAccess { vaultRootURL in
-            let noteURL = vaultRootURL.appendingPathComponent(noteRelativePath)
-
-            // Transcript
-            if let transcriptRelativePath, let transcriptData {
-                let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
-                try vaultWriter.writeAtomically(data: transcriptData, to: transcriptURL)
-            }
-
-            // Note
-            try vaultWriter.writeAtomically(data: noteData, to: noteURL)
-
-            // Audio (temporary implementation reads into memory; task 08 will stream/copy atomically).
-            let audioURL: URL?
-            if let audioRelativePath {
-                let audioData = try Data(contentsOf: context.audioTempURL)
-                let resolvedURL = vaultRootURL.appendingPathComponent(audioRelativePath)
-                try vaultWriter.writeAtomically(data: audioData, to: resolvedURL)
-                audioURL = resolvedURL
-            } else {
-                audioURL = nil
-            }
-
-            return (noteURL: noteURL, audioURL: audioURL)
-        }
-    }
-
-    private func diarizeIfPossible(wavURL: URL) async -> [SpeakerSegment] {
-        do {
-            return try await diarizationService.diarize(wavURL: wavURL)
-        } catch {
-            logger.error("Diarization failed: \(String(describing: error), privacy: .public)")
-            return []
-        }
-    }
 
     // MARK: - Audio levels
 
