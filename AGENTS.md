@@ -42,6 +42,25 @@ Suggested module boundaries (inside `MinuteCore`):
 - Services (audio, transcription, summarization, vault access, model management)
 - Rendering (Markdown renderer)
 
+## Development guidelines
+SOLID Principles
+- Single Responsibility: One responsibility to one actor
+- Open/Closed: Open for extension, closed for modification
+- Liskov Substitution: Subtypes must be substitutable
+- Interface Segregation: No forced implementation of unused methods
+- Dependency Inversion: Depend on abstractions, not concretions
+
+Clean Code Principles
+- Comments: Code should be self-documenting
+- Boundaries: Clear interfaces between modules
+- Testability: Code structure that facilitates testing
+
+Comment Only What the Code Cannot Say
+- Apply the principle: "Comment what the code cannot say, not simply what it does not say"
+- Remove redundant comments that simply repeat what the code already expresses
+- Keep only comments that provide valuable context that cannot be expressed through code structure
+- Ensure code is self-explanatory through clear naming and structure rather than excessive commenting
+
 ## Concurrency
 - Prefer Swift Concurrency (`async`/`await`).
 - Use `@MainActor` only for UI state updates.
@@ -77,6 +96,7 @@ Add tests in `MinuteCore` for:
 - Filename sanitization
 - File contract path generation
 - JSON decoding + validation behavior
+- Always add tests for new features
 
 ### Integration tests (recommended)
 - Mock the process runner (or library wrapper) to test whisper/llama output handling.

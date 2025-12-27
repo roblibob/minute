@@ -16,6 +16,7 @@ final class MarkdownRendererEscapingTests: XCTestCase {
         let audio = "Meetings/_audio/2025-12-19 - Anything.wav"
         let markdown = MarkdownRenderer().render(
             extraction: extraction,
+            noteDateTime: "2025-12-19 10:00",
             audioRelativePath: audio,
             transcriptRelativePath: nil
         )
