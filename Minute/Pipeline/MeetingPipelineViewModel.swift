@@ -493,6 +493,7 @@ final class MeetingPipelineViewModel: ObservableObject {
 
             progress = nil
             state = .done(noteURL: outputs.noteURL, audioURL: outputs.audioURL)
+            cleanupTemporaryArtifacts(for: context)
         } catch is CancellationError {
             logger.info("Pipeline cancelled")
             progress = nil
@@ -511,10 +512,12 @@ final class MeetingPipelineViewModel: ObservableObject {
             logger.error("Pipeline failed: \(minuteError.debugSummary, privacy: .public)")
             progress = nil
             state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
+            cleanupTemporaryArtifacts(for: context)
         } catch {
             logger.error("Pipeline failed: \(String(describing: error), privacy: .public)")
             progress = nil
             state = .failed(error: .vaultWriteFailed, debugOutput: String(describing: error))
+            cleanupTemporaryArtifacts(for: context)
         }
     }
 
@@ -592,6 +595,22 @@ final class MeetingPipelineViewModel: ObservableObject {
             saveTranscript: saveTranscript,
             screenContextEvents: screenContextEvents
         )
+    }
+
+    private func cleanupTemporaryArtifacts(for context: PipelineContext) {
+        let fileManager = FileManager.default
+        let tempRootURL = fileManager.temporaryDirectory.standardizedFileURL
+        let tempRootPath = tempRootURL.path.hasSuffix("/") ? tempRootURL.path : tempRootURL.path + "/"
+
+        let audioTempDir = context.audioTempURL.deletingLastPathComponent().standardizedFileURL.path
+        if audioTempDir.hasPrefix(tempRootPath) {
+            try? fileManager.removeItem(atPath: audioTempDir)
+        }
+
+        let workingDir = context.workingDirectoryURL.standardizedFileURL.path
+        if workingDir.hasPrefix(tempRootPath) {
+            try? fileManager.removeItem(atPath: workingDir)
+        }
     }
 
     private func writeOutputsToVault(
