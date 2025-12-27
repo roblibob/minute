@@ -58,7 +58,12 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
     }
 
     public func summarize(transcript: String, meetingDate: Date) async throws -> String {
-        try await runLlama(prompt: PromptBuilder.summarizationPrompt(transcript: transcript, meetingDate: meetingDate))
+        try await runLlama(
+            prompt: PromptBuilder.summarizationPrompt(
+                transcript: transcript,
+                meetingDate: meetingDate
+            )
+        )
     }
 
     public func repairJSON(_ invalidJSON: String) async throws -> String {
@@ -294,11 +299,18 @@ private enum LlamaLibraryRuntime {
 }
 
 private enum PromptBuilder {
-    static func summarizationPrompt(transcript: String, meetingDate: Date) -> String {
-        let isoDate = MeetingFileContract.isoDate(meetingDate)
+    private static let logger = Logger(subsystem: "roblibob.Minute", category: "prompt-builder")
+    static func summarizationPrompt(
+        transcript: String,
+        meetingDate: Date
+    ) -> String {
+        let systemPrompt: String = """
+        You are an expert automated meeting secretary. Your goal is to analyze a chronological meeting timeline and generate a structured, factual summary in strict JSON format.
 
-        return """
-        You are an expert automated meeting secretary. Your goal is to analyze a raw meeting transcript and generate a structured, factual summary in strict JSON format.
+        The timeline includes:
+        - Spoken transcript entries, prefixed like: [MM:SS] Speaker N: ...
+        - Screen context entries, prefixed like: [MM:SS] Screen (Window Title): ...
+        Use screen entries only as supplemental context (agenda, slide content, participants). Do not invent decisions or action items based solely on screen entries.
 
         ### CORE INSTRUCTIONS
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript. Do not infer feelings, motives, or details not explicitly spoken. If a point is ambiguous, omit it rather than guessing.
@@ -313,13 +325,12 @@ private enum PromptBuilder {
         {
             "title": "string (3-8 words, filename-safe, summarizes the main topic)",
             "date": "YYYY-MM-DD (use provided date unless transcript explicitly mentions a different meeting date)",
-            "summary": "string (A concise executive summary of 2-5 sentences. Focus on the 'what' and 'why' of the meeting outcomes.)",
+            "summary": "string (A concise executive summary of 2-5 sentences. Focus on the 'what' and 'why' of the meeting outcomes. Also a summary of the full names of the main participants )",
             "decisions": ["string (Explicit agreements or conclusions reached. Empty if none.)"],
             "action_items": [
                 {
                 "owner": "string (Name of the person assigned. Use 'Unassigned' if clear task but no owner. Do not guess names.)",
-                "task": "string (Start with a verb. Be specific.)",
-                "due": "YYYY-MM-DD (ISO format if mentioned, otherwise empty string)"
+                "task": "string (Start with a verb. Be specific.)"
                 }
             ],
             "open_questions": ["string (Unresolved issues or topics tabled for later. Empty if none.)"],
@@ -331,9 +342,14 @@ private enum PromptBuilder {
         - **Action Item Specificity:** Only list an action item if there is a clear commitment to perform a task. Do not list general suggestions as action items.
         - **Formatting:** Ensure the JSON is minified or properly escaped so it can be parsed programmatically.
 
-        Transcript follows:
+        Timeline follows:
         \(transcript)
         """
+
+        #if DEBUG
+        logger.info("System prompt: \(systemPrompt)")
+        #endif
+        return systemPrompt
     }
 
     static func repairPrompt(invalidOutput: String) -> String {
@@ -347,7 +363,7 @@ private enum PromptBuilder {
             "date": "YYYY-MM-DD",
             "summary": "string",
             "decisions": ["string"],
-            "action_items": [{"owner": "string", "task": "string", "due": "string"}],
+            "action_items": [{"owner": "string", "task": "string"}],
             "open_questions": ["string"],
             "key_points": ["string"]
         }

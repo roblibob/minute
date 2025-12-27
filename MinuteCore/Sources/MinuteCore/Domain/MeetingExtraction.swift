@@ -45,12 +45,9 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
 public struct ActionItem: Codable, Equatable, Sendable {
     public var owner: String
     public var task: String
-    /// `YYYY-MM-DD` or empty string.
-    public var due: String
 
-    public init(owner: String, task: String, due: String) {
+    public init(owner: String, task: String) {
         self.owner = owner
         self.task = task
-        self.due = due
     }
 }

@@ -43,6 +43,8 @@ private struct PipelineContentView: View {
     @State private var isImportingFile = false
     @State private var isDropTargeted = false
     @State private var isRecordButtonHovered = false
+    @State private var isRecordingWindowPickerPresented = false
+    @AppStorage(AppDefaultsKey.screenContextEnabled) private var screenContextEnabled: Bool = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -96,6 +98,11 @@ private struct PipelineContentView: View {
                 importFile(url)
             case .failure:
                 break
+            }
+        }
+        .sheet(isPresented: $isRecordingWindowPickerPresented) {
+            ScreenContextRecordingPickerView { selection in
+                model.send(.startRecordingWithWindow(selection))
             }
         }
     }
@@ -232,8 +239,33 @@ private struct PipelineContentView: View {
                     Spacer()
                 }
             }
+
+            if shouldShowScreenInferenceStatus, let status = model.screenInferenceStatus {
+                HStack(spacing: 12) {
+                    Text("Screen inference")
+                        .foregroundStyle(.secondary)
+
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .frame(width: 220)
+
+                    Text("Processed \(status.processedCount), skipped \(status.skippedCount)")
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var shouldShowScreenInferenceStatus: Bool {
+        switch model.state {
+        case .recording, .importing:
+            return true
+        default:
+            return false
+        }
     }
 
     private var recordButtonState: RecordButtonState {
@@ -321,19 +353,26 @@ private struct PipelineContentView: View {
     private func handleRecordButtonTap() {
         switch model.state {
         case .idle:
-            model.send(.startRecording)
+            requestStartRecording()
         case .recording:
             model.send(.stopRecording)
         case .recorded:
             model.send(.process)
         case .done, .failed:
             model.send(.reset)
-            model.send(.startRecording)
+            requestStartRecording()
         default:
             break
         }
     }
 
+    private func requestStartRecording() {
+        if screenContextEnabled {
+            isRecordingWindowPickerPresented = true
+        } else {
+            model.send(.startRecording)
+        }
+    }
 }
 
 private enum RecordButtonState {

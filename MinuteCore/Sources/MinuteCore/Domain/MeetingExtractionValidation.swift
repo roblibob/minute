@@ -29,8 +29,8 @@ public enum MeetingExtractionValidation {
         copy.keyPoints = copy.keyPoints.map(normalizeInline).filter { !$0.isEmpty }
 
         copy.actionItems = copy.actionItems
-            .map { ActionItem(owner: normalizeInline($0.owner), task: normalizeInline($0.task), due: normalizeInline($0.due)) }
-            .filter { !$0.owner.isEmpty || !$0.task.isEmpty || !$0.due.isEmpty }
+            .map { ActionItem(owner: normalizeInline($0.owner), task: normalizeInline($0.task)) }
+            .filter { !$0.owner.isEmpty || !$0.task.isEmpty }
 
         return copy
     }

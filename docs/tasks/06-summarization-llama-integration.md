@@ -45,9 +45,6 @@ Represent the schema as `Codable` models in `MinuteCore`:
 - `ActionItem`
   - `owner: String`
   - `task: String`
-  - `due: String`
-
-Keep `due` as a string to preserve blank values per v1 (`""`). Date validation happens in phase 07.
 
 ## Deterministic llama invocation
 Define stable parameters:

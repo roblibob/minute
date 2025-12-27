@@ -87,6 +87,8 @@ struct MissingTranscriptionService: TranscriptionServicing {
 /// Used by the live pipeline when the llama executable is not yet bundled / configured.
 struct MissingSummarizationService: SummarizationServicing {
     func summarize(transcript: String, meetingDate: Date) async throws -> String {
+        _ = transcript
+        _ = meetingDate
         throw MinuteError.llamaMissing
     }
 
@@ -95,11 +97,27 @@ struct MissingSummarizationService: SummarizationServicing {
     }
 }
 
+struct MissingScreenContextInferenceService: ScreenContextInferencing {
+    func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        _ = windowTitle
+        throw MinuteError.llamaMTMDMissing
+    }
+}
+
+struct MockScreenContextInferenceService: ScreenContextInferencing {
+    func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        return ScreenContextInference(text: "Mock screen context from \(windowTitle).")
+    }
+}
+
 struct MockSummarizationService: SummarizationServicing {
     func summarize(transcript: String, meetingDate: Date) async throws -> String {
         try await Task.sleep(nanoseconds: 800_000_000)
 
         // Do NOT include the transcript in outputs.
+        _ = transcript
         let iso = MinuteISODate.format(meetingDate)
         let title = "Meeting \(iso)"
 
@@ -109,7 +127,7 @@ struct MockSummarizationService: SummarizationServicing {
           \"date\": \"\(iso)\",
           \"summary\": \"Mock summary.\",
           \"decisions\": [\"Mock decision\"],
-          \"action_items\": [{\"owner\": \"\", \"task\": \"Mock action\", \"due\": \"\"}],
+          \"action_items\": [{\"owner\": \"\", \"task\": \"Mock action\"}],
           \"open_questions\": [\"Mock question\"],
           \"key_points\": [\"Mock key point\"]
         }

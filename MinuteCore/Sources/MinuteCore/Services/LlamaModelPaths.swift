@@ -14,6 +14,14 @@ public enum LlamaModelPaths {
             .appendingPathComponent(fileName)
     }
 
+    public static func mmprojURL(fileName: String) -> URL {
+        applicationSupportRoot
+            .appendingPathComponent("Minute", isDirectory: true)
+            .appendingPathComponent("models", isDirectory: true)
+            .appendingPathComponent("llama", isDirectory: true)
+            .appendingPathComponent(fileName)
+    }
+
     /// Default LLM model location (GGUF).
     public static var defaultLLMModelURL: URL {
         // ~/Library/Application Support/Minute/models/llama/gemma-3-27b-it-Q4_K_M.gguf

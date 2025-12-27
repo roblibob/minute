@@ -115,6 +115,7 @@
 				58B694EC2EF54B130068FAA7 /* Frameworks */,
 				5A7F52092F1F0D0A00D8E124 /* CopyFiles */,
 				9A6F94BA4705E396A48A93FB /* Bundle ffmpeg */,
+				9A6F94BB4705E396A48A93FB /* Bundle llama-mtmd-cli */,
 				58B694ED2EF54B130068FAA7 /* Resources */,
 			);
 			buildRules = (
@@ -242,6 +243,45 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -e\n/bin/sh \"$SRCROOT/scripts/bundle-ffmpeg.sh\"\n";
+		};
+		9A6F94BB4705E396A48A93FB /* Bundle llama-mtmd-cli */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/scripts/bundle-llama-mtmd.sh",
+				"$(SRCROOT)/../llama-b7489/llama-mtmd-cli",
+				"$(SRCROOT)/../llama-b7489/libggml-base.0.dylib",
+				"$(SRCROOT)/../llama-b7489/libggml-blas.0.dylib",
+				"$(SRCROOT)/../llama-b7489/libggml-cpu.0.dylib",
+				"$(SRCROOT)/../llama-b7489/libggml-metal.0.dylib",
+				"$(SRCROOT)/../llama-b7489/libggml-rpc.0.dylib",
+				"$(SRCROOT)/../llama-b7489/libggml.0.dylib",
+				"$(SRCROOT)/../llama-b7489/libllama.0.dylib",
+				"$(SRCROOT)/../llama-b7489/libmtmd.0.dylib",
+				"$(SRCROOT)/../llama-b7489/ggml-metal.metal",
+			);
+			name = "Bundle llama-mtmd-cli";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/llama-mtmd-cli",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libggml-base.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libggml-blas.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libggml-cpu.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libggml-metal.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libggml-rpc.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libggml.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libllama.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/libmtmd.0.dylib",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Resources/ggml-metal.metal",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n/bin/sh \"$SRCROOT/scripts/bundle-llama-mtmd.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

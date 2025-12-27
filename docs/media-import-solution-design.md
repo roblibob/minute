@@ -19,6 +19,14 @@ Allow users to drop or choose an existing audio/video file in the main UI and ru
 ## Proposed Architecture
 Add a media import path that produces the same `recorded` pipeline state as the recorder.
 
+### Screen Context (Video Imports)
+If the imported file contains video, optionally sample frames and run the same screen-context extraction pipeline used for live capture:
+- Extract frames at low FPS (e.g., 0.5–1 fps) with change detection.
+- Run OCR (Vision) and heuristics to produce a compact `ScreenContextSummary`.
+- Feed the summary into the summarization prompt (text-only mode), keeping output JSON-only.
+- Never store frames; only the aggregated text summary is retained in memory for summarization.
+- Opt-in toggle for “Enhance notes with video frames.”
+
 ### New Service (MinuteCore)
 `MediaImportService`
 - Input: source file URL (audio or video).
