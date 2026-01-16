@@ -27,9 +27,8 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         type: meeting
         date: 2025-12-19 09:00
         title: \"Weekly Sync\"
-        audio: \"Meetings/_audio/2025-12-19 - Weekly Sync.wav\"
-        transcript: \"Meetings/_transcripts/2025-12-19 - Weekly Sync.md\"
         source: \"Minute\"
+        tags:
         ---
 
         # Weekly Sync

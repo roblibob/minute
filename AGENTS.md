@@ -123,8 +123,12 @@ If you add these tools, also add:
 Common patterns (adjust scheme names as they evolve):
 - Build:
   - `xcodebuild -project Minute.xcodeproj -scheme Minute -configuration Debug build`
+- Build (workspace):
+  - `xcodebuild -workspace Minute.xcworkspace -scheme Minute -configuration Debug build`
 - Test:
   - `xcodebuild -project Minute.xcodeproj -scheme Minute -configuration Debug test`
+- Test (MinuteCore package):
+  - `xcodebuild -workspace Minute.xcworkspace -scheme MinuteCore -configuration Debug test -destination 'platform=macOS'`
 
 If CI is added, prefer using `xcodebuild` so it matches local behavior.
 

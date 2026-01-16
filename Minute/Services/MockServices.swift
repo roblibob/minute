@@ -16,8 +16,10 @@ struct DefaultVaultWriter: VaultWriting {
 // MARK: - Mocks (used until tasks 04–09 replace them)
 
 @preconcurrency
-final class MockAudioService: AudioServicing, AudioLevelMetering, @unchecked Sendable {
+final class MockAudioService: AudioServicing, AudioLevelMetering, AudioCaptureControlling, @unchecked Sendable {
     private var isRecording = false
+    private var microphoneEnabled = true
+    private var systemAudioEnabled = true
 
     func startRecording() async throws {
         isRecording = true
@@ -47,6 +49,14 @@ final class MockAudioService: AudioServicing, AudioLevelMetering, @unchecked Sen
 
     func setLevelHandler(_ handler: (@Sendable (Float) -> Void)?) async {
         _ = handler
+    }
+
+    func setMicrophoneEnabled(_ enabled: Bool) async {
+        microphoneEnabled = enabled
+    }
+
+    func setSystemAudioEnabled(_ enabled: Bool) async {
+        systemAudioEnabled = enabled
     }
 }
 

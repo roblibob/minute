@@ -6,7 +6,7 @@ import os
 ///
 /// This implementation uses an AudioToolbox `ExtAudioFile` conversion step for deterministic output.
 /// Task 09 may introduce an `ffmpeg`-backed conversion path.
-public actor DefaultAudioService: AudioServicing, AudioLevelMetering {
+public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptureControlling {
     private let logger = Logger(subsystem: "roblibob.Minute", category: "audio")
     private let levelMixer = AudioLevelMixer()
 
@@ -16,11 +16,29 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering {
     private var sessionDirectoryURL: URL?
     private var captureURL: URL?
     private var systemCaptureURL: URL?
+    private var microphoneEnabled = true
+    private var systemAudioEnabled = true
 
     public init() {}
 
     public func setLevelHandler(_ handler: (@Sendable (Float) -> Void)?) async {
         levelMixer.setHandler(handler)
+    }
+
+    public func setMicrophoneEnabled(_ enabled: Bool) async {
+        microphoneEnabled = enabled
+        tapWriter?.setEnabled(enabled)
+        if !enabled {
+            levelMixer.updateMic(0)
+        }
+    }
+
+    public func setSystemAudioEnabled(_ enabled: Bool) async {
+        systemAudioEnabled = enabled
+        systemCapture?.setEnabled(enabled)
+        if !enabled {
+            levelMixer.updateSystem(0)
+        }
     }
 
     private struct CaptureComponents: @unchecked Sendable {
@@ -46,12 +64,14 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering {
         // Capture with AVAudioEngine tap to avoid silent recordings on macOS.
         let levelMixer = levelMixer
 
+        let micEnabled = microphoneEnabled
         let components: CaptureComponents = try await MainActor.run {
             let engine = AVAudioEngine()
             let inputNode = engine.inputNode
             let format = inputNode.inputFormat(forBus: 0)
             let file = try AVAudioFile(forWriting: captureURL, settings: format.settings)
             let tapWriter = AudioTapWriter(file: file, logger: logger)
+            tapWriter.setEnabled(micEnabled)
 
             inputNode.installTap(onBus: 0, bufferSize: 4_096, format: format) { @Sendable [tapWriter] buffer, _ in
                 tapWriter.write(buffer)
@@ -75,7 +95,8 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering {
                 logger: logger,
                 levelHandler: { level in
                     levelMixer.updateSystem(level)
-                }
+                },
+                isEnabled: systemAudioEnabled
             )
         } catch {
             await MainActor.run {
@@ -196,6 +217,7 @@ private final class AudioTapWriter: @unchecked Sendable {
     private let logger: Logger
     private let lock = NSLock()
     private var writeError: Error?
+    private var isEnabled = true
 
     init(file: AVAudioFile, logger: Logger) {
         self.file = file
@@ -204,6 +226,12 @@ private final class AudioTapWriter: @unchecked Sendable {
 
     func write(_ buffer: AVAudioPCMBuffer) {
         do {
+            lock.lock()
+            let currentEnabled = isEnabled
+            lock.unlock()
+            if !currentEnabled {
+                Self.silence(buffer)
+            }
             try file.write(from: buffer)
         } catch {
             lock.lock()
@@ -218,10 +246,36 @@ private final class AudioTapWriter: @unchecked Sendable {
         }
     }
 
+    func setEnabled(_ enabled: Bool) {
+        lock.lock()
+        isEnabled = enabled
+        lock.unlock()
+    }
+
     func takeError() -> Error? {
         lock.lock()
         defer { lock.unlock() }
         return writeError
+    }
+
+    private static func silence(_ buffer: AVAudioPCMBuffer) {
+        let frames = Int(buffer.frameLength)
+        guard frames > 0 else { return }
+
+        if let channelData = buffer.floatChannelData {
+            let channelCount = Int(buffer.format.channelCount)
+            for channel in 0..<channelCount {
+                memset(channelData[channel], 0, frames * MemoryLayout<Float>.size)
+            }
+            return
+        }
+
+        if let channelData = buffer.int16ChannelData {
+            let channelCount = Int(buffer.format.channelCount)
+            for channel in 0..<channelCount {
+                memset(channelData[channel], 0, frames * MemoryLayout<Int16>.size)
+            }
+        }
     }
 }
 

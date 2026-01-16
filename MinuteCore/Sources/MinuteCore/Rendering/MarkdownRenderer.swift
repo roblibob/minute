@@ -23,13 +23,8 @@ public struct MarkdownRenderer: Sendable {
         lines.append("type: meeting")
         lines.append("date: \(date)")
         lines.append("title: \(yamlDoubleQuoted(title))")
-        if let audioRelativePath {
-            lines.append("audio: \(yamlDoubleQuoted(audioRelativePath))")
-        }
-        if let transcriptRelativePath {
-            lines.append("transcript: \(yamlDoubleQuoted(transcriptRelativePath))")
-        }
         lines.append("source: \"Minute\"")
+        lines.append("tags:")
         lines.append("---")
         lines.append("")
 

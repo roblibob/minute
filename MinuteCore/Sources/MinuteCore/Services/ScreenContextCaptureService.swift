@@ -39,6 +39,7 @@ public actor ScreenContextCaptureService {
     public func startCapture(
         selections: [ScreenContextWindowSelection],
         minimumFrameInterval: TimeInterval = 10.0,
+        timestampOffsetSeconds: TimeInterval = 0,
         statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)? = nil
     ) async throws {
         guard session == nil else { return }
@@ -55,6 +56,7 @@ public actor ScreenContextCaptureService {
             windows: resolved,
             inferencer: inferencer,
             minimumFrameInterval: minimumFrameInterval,
+            timestampOffsetSeconds: timestampOffsetSeconds,
             logger: logger,
             statusHandler: statusHandler
         )
@@ -95,6 +97,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
         windows: [ResolvedWindow],
         inferencer: any ScreenContextInferencing,
         minimumFrameInterval: TimeInterval,
+        timestampOffsetSeconds: TimeInterval,
         logger: Logger,
         statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)?
     ) async throws -> ScreenContextCaptureSession {
@@ -110,6 +113,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                 collector: collector,
                 statusReporter: statusReporter,
                 minimumFrameInterval: minimumFrameInterval,
+                timestampOffsetSeconds: timestampOffsetSeconds,
                 logger: logger
             )
             try await capture.start()
@@ -217,6 +221,7 @@ private final class WindowCapture: NSObject, @unchecked Sendable {
         collector: ScreenContextEventCollector,
         statusReporter: ScreenContextStatusReporter,
         minimumFrameInterval: TimeInterval,
+        timestampOffsetSeconds: TimeInterval,
         logger: Logger
     ) throws {
         let filter = SCContentFilter(desktopIndependentWindow: window)
@@ -233,6 +238,7 @@ private final class WindowCapture: NSObject, @unchecked Sendable {
             collector: collector,
             statusReporter: statusReporter,
             minimumFrameInterval: minimumFrameInterval,
+            timestampOffsetSeconds: timestampOffsetSeconds,
             logger: logger
         )
         self.stream = stream
@@ -276,6 +282,7 @@ private final class ScreenContextStreamOutput: NSObject, SCStreamOutput {
         collector: ScreenContextEventCollector,
         statusReporter: ScreenContextStatusReporter,
         minimumFrameInterval: TimeInterval,
+        timestampOffsetSeconds: TimeInterval,
         logger: Logger
     ) {
         self.processor = ScreenContextFrameProcessor(
@@ -284,6 +291,7 @@ private final class ScreenContextStreamOutput: NSObject, SCStreamOutput {
             collector: collector,
             statusReporter: statusReporter,
             minimumFrameInterval: minimumFrameInterval,
+            timestampOffsetSeconds: timestampOffsetSeconds,
             logger: logger
         )
         super.init()
@@ -302,6 +310,7 @@ private final class ScreenContextFrameProcessor {
     private let collector: ScreenContextEventCollector
     private let statusReporter: ScreenContextStatusReporter
     private let minimumFrameInterval: TimeInterval
+    private let timestampOffsetSeconds: TimeInterval
     private let logger: Logger
 
     private var lastCaptureAt: CFAbsoluteTime = 0
@@ -313,6 +322,7 @@ private final class ScreenContextFrameProcessor {
         collector: ScreenContextEventCollector,
         statusReporter: ScreenContextStatusReporter,
         minimumFrameInterval: TimeInterval,
+        timestampOffsetSeconds: TimeInterval,
         logger: Logger
     ) {
         self.windowTitle = windowTitle
@@ -320,6 +330,7 @@ private final class ScreenContextFrameProcessor {
         self.collector = collector
         self.statusReporter = statusReporter
         self.minimumFrameInterval = minimumFrameInterval
+        self.timestampOffsetSeconds = timestampOffsetSeconds
         self.logger = logger
     }
 
@@ -339,7 +350,11 @@ private final class ScreenContextFrameProcessor {
         if firstTimestampSeconds == nil {
             firstTimestampSeconds = rawSeconds
         }
-        let timestampSeconds = max(0, rawSeconds - (firstTimestampSeconds ?? rawSeconds))
+        let timestampSeconds = ScreenContextTimestampNormalizer.normalize(
+            rawSeconds: rawSeconds,
+            firstTimestampSeconds: firstTimestampSeconds,
+            offsetSeconds: timestampOffsetSeconds
+        )
 
         lastCaptureAt = now
         statusReporter.markInferenceStarted()
