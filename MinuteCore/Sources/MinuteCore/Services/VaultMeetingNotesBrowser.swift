@@ -18,6 +18,7 @@ public struct MeetingNoteItem: Sendable, Identifiable, Equatable {
 public protocol MeetingNotesBrowsing: Sendable {
     func listNotes() async throws -> [MeetingNoteItem]
     func loadNoteContent(for item: MeetingNoteItem) async throws -> String
+    func deleteNoteFiles(for item: MeetingNoteItem) async throws
 }
 
 public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendable {
@@ -28,15 +29,26 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
 
     private let vaultAccess: VaultAccess
     private let meetingsRelativePath: String
+    private let audioRelativePath: String
+    private let transcriptsRelativePath: String
 
-    public init(vaultAccess: VaultAccess, meetingsRelativePath: String = "Meetings") {
+    public init(
+        vaultAccess: VaultAccess,
+        meetingsRelativePath: String = "Meetings",
+        audioRelativePath: String = "Meetings/_audio",
+        transcriptsRelativePath: String = "Meetings/_transcripts"
+    ) {
         self.vaultAccess = vaultAccess
         self.meetingsRelativePath = meetingsRelativePath
+        self.audioRelativePath = audioRelativePath
+        self.transcriptsRelativePath = transcriptsRelativePath
     }
 
     public init(vaultAccess: VaultAccess, configuration: VaultConfiguration) {
         self.vaultAccess = vaultAccess
         self.meetingsRelativePath = configuration.meetingsRelativePath
+        self.audioRelativePath = configuration.audioRelativePath
+        self.transcriptsRelativePath = configuration.transcriptsRelativePath
     }
 
     public func listNotes() async throws -> [MeetingNoteItem] {
@@ -106,8 +118,46 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
         }
     }
 
+    public func deleteNoteFiles(for item: MeetingNoteItem) async throws {
+        try Task.checkCancellation()
+
+        return try vaultAccess.withVaultAccess { vaultRootURL in
+            let baseName = item.fileURL.deletingPathExtension().lastPathComponent
+            let audioRootURL = Self.directoryURL(from: vaultRootURL, relativePath: audioRelativePath)
+            let transcriptRootURL = Self.directoryURL(from: vaultRootURL, relativePath: transcriptsRelativePath)
+
+            let audioURL = audioRootURL.appendingPathComponent("\(baseName).wav")
+            let transcriptURL = transcriptRootURL.appendingPathComponent("\(baseName).md")
+
+            let urls = [item.fileURL, audioURL, transcriptURL]
+            var firstError: Error?
+
+            for url in urls {
+                guard FileManager.default.fileExists(atPath: url.path) else { continue }
+                do {
+                    try FileManager.default.removeItem(at: url)
+                } catch {
+                    if firstError == nil {
+                        firstError = error
+                    }
+                }
+            }
+
+            if let firstError {
+                throw firstError
+            }
+        }
+    }
+
     private static func meetingsRootURL(from vaultRootURL: URL, meetingsRelativePath: String) -> URL {
         let components = normalizedRelative(meetingsRelativePath)
+        return components.reduce(vaultRootURL) { partial, component in
+            partial.appendingPathComponent(component, isDirectory: true)
+        }
+    }
+
+    private static func directoryURL(from vaultRootURL: URL, relativePath: String) -> URL {
+        let components = normalizedRelative(relativePath)
         return components.reduce(vaultRootURL) { partial, component in
             partial.appendingPathComponent(component, isDirectory: true)
         }

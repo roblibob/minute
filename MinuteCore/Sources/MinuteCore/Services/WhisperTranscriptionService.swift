@@ -8,13 +8,13 @@ public struct WhisperTranscriptionConfiguration: Sendable, Equatable {
     /// Whisper model file location (downloaded under Application Support; task 09).
     public var modelURL: URL
 
-    /// Fixed language to reduce variability.
+    /// Whisper language hint. Use "auto" for auto-detection.
     public var language: String
 
     /// Optional fixed thread count.
     public var threads: Int?
 
-    public init(executableURL: URL, modelURL: URL, language: String = "en", threads: Int? = nil) {
+    public init(executableURL: URL, modelURL: URL, language: String = "auto", threads: Int? = nil) {
         self.executableURL = executableURL
         self.modelURL = modelURL
         self.language = language

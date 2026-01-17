@@ -11,9 +11,9 @@ public struct WhisperXPCTranscriptionConfiguration: Sendable, Equatable {
     public init(
         serviceName: String,
         modelURL: URL,
-        detectLanguage: Bool,
-        language: String,
-        threads: Int
+        detectLanguage: Bool = true,
+        language: String = "auto",
+        threads: Int = 4
     ) {
         self.serviceName = serviceName
         self.modelURL = modelURL

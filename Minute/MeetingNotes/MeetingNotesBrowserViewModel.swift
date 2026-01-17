@@ -20,6 +20,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     private let browserProvider: @Sendable () -> any MeetingNotesBrowsing
     private var listTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
+    private var deleteTask: Task<Void, Never>?
     private var defaultsObserver: AnyCancellable?
 
     init(browserProvider: @escaping @Sendable () -> any MeetingNotesBrowsing = MeetingNotesBrowserViewModel.defaultBrowserProvider) {
@@ -35,6 +36,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     deinit {
         listTask?.cancel()
         loadTask?.cancel()
+        deleteTask?.cancel()
     }
 
     func refresh() {
@@ -114,6 +116,32 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         isLoadingContent = false
     }
 
+    func delete(_ item: MeetingNoteItem) {
+        deleteTask?.cancel()
+        sidebarErrorMessage = nil
+
+        let provider = browserProvider
+        deleteTask = Task { [weak self] in
+            do {
+                try await provider().deleteNoteFiles(for: item)
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    if self.selectedItem?.id == item.id {
+                        self.dismissOverlay()
+                    }
+                    self.refresh()
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                let message = (error as? MinuteError)?.errorDescription ?? "Failed to delete note."
+                await MainActor.run { [weak self] in
+                    self?.sidebarErrorMessage = message
+                }
+            }
+        }
+    }
+
     func openInObsidian() {
         guard let fileURL = selectedItem?.fileURL else { return }
         let path = fileURL.path
@@ -129,11 +157,20 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     nonisolated private static func defaultBrowserProvider() -> any MeetingNotesBrowsing {
         let defaults = UserDefaults.standard
         let meetingsRelativePathKey = "meetingsRelativePath"
+        let audioRelativePathKey = "audioRelativePath"
+        let transcriptsRelativePathKey = "transcriptsRelativePath"
         let vaultRootBookmarkKey = "vaultRootBookmark"
         let meetingsRelativePath = defaults.string(forKey: meetingsRelativePathKey) ?? "Meetings"
+        let audioRelativePath = defaults.string(forKey: audioRelativePathKey) ?? "Meetings/_audio"
+        let transcriptsRelativePath = defaults.string(forKey: transcriptsRelativePathKey) ?? "Meetings/_transcripts"
         let bookmarkStore = UserDefaultsVaultBookmarkStore(key: vaultRootBookmarkKey)
         let access = VaultAccess(bookmarkStore: bookmarkStore)
-        return VaultMeetingNotesBrowser(vaultAccess: access, meetingsRelativePath: meetingsRelativePath)
+        return VaultMeetingNotesBrowser(
+            vaultAccess: access,
+            meetingsRelativePath: meetingsRelativePath,
+            audioRelativePath: audioRelativePath,
+            transcriptsRelativePath: transcriptsRelativePath
+        )
     }
 
     private static func shouldRenderPlainText(_ content: String) -> Bool {

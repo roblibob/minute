@@ -16,10 +16,9 @@ public struct WhisperLibraryTranscriptionConfiguration: Sendable, Equatable {
 
     public init(
         modelURL: URL,
-        /// For v1 determinism, default to a fixed language.
-        /// Set `detectLanguage = true` to enable Whisper's auto-detection.
-        detectLanguage: Bool = false,
-        language: String = "sv",
+        /// Default to auto-detection for multilingual models.
+        detectLanguage: Bool = true,
+        language: String = "auto",
         threads: Int = 4
     ) {
         self.modelURL = modelURL

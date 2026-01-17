@@ -64,22 +64,37 @@ struct MeetingNotesSidebarView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             List(model.notes) { item in
-                Button {
-                    model.select(item)
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(dateLabel(for: item))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Button {
+                        model.select(item)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(dateLabel(for: item))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
 
-                        Text(item.title)
-                            .font(.callout)
-                            .foregroundStyle(.primary)
-                            .lineLimit(2)
+                            Text(item.title)
+                                .font(.callout)
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
+                        }
+                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 4)
+                    .buttonStyle(.plain)
+
+                    Button {
+                        model.delete(item)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete note")
+                    .accessibilityLabel("Delete note")
                 }
-                .buttonStyle(.plain)
                 .listRowBackground(rowBackground(for: item))
             }
             .listStyle(.sidebar)

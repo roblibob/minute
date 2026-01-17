@@ -265,42 +265,46 @@ private struct PipelineContentView: View {
     }
 
     private var captureToggles: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Listen on microphone", isOn: microphoneToggleBinding)
-            Toggle("Listen on system audio", isOn: systemAudioToggleBinding)
-            Toggle("View screen", isOn: screenToggleBinding)
+        HStack(spacing: 12) {
+            CaptureToggleButton(
+                label: "Microphone",
+                isOn: model.microphoneCaptureEnabled,
+                onSymbol: "mic.fill",
+                offSymbol: "mic.slash.fill"
+            ) {
+                model.setMicrophoneCaptureEnabled(!model.microphoneCaptureEnabled)
+            }
+
+            CaptureToggleButton(
+                label: "System audio",
+                isOn: model.systemAudioCaptureEnabled,
+                onSymbol: "speaker.wave.2.fill",
+                offSymbol: "speaker.slash.fill"
+            ) {
+                model.setSystemAudioCaptureEnabled(!model.systemAudioCaptureEnabled)
+            }
+
+            CaptureToggleButton(
+                label: "Screen",
+                isOn: isScreenToggleOn,
+                onSymbol: "display",
+                offSymbol: "rectangle.slash"
+            ) {
+                handleScreenToggleChange(!isScreenToggleOn)
+            }
         }
-        .toggleStyle(.switch)
-        .tint(.accentColor)
         .disabled(!captureTogglesEnabled)
         .opacity(captureTogglesEnabled ? 1 : 0.6)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var microphoneToggleBinding: Binding<Bool> {
-        Binding(
-            get: { model.microphoneCaptureEnabled },
-            set: { model.setMicrophoneCaptureEnabled($0) }
-        )
-    }
-
-    private var systemAudioToggleBinding: Binding<Bool> {
-        Binding(
-            get: { model.systemAudioCaptureEnabled },
-            set: { model.setSystemAudioCaptureEnabled($0) }
-        )
-    }
-
-    private var screenToggleBinding: Binding<Bool> {
-        Binding(
-            get: { model.screenCaptureEnabled || screenTogglePending },
-            set: handleScreenToggleChange
-        )
+    private var isScreenToggleOn: Bool {
+        model.screenCaptureEnabled || screenTogglePending
     }
 
     private var captureTogglesEnabled: Bool {
         switch model.state {
-        case .idle, .recording:
+        case .idle, .recording, .recorded, .done, .failed:
             return true
         default:
             return false
@@ -479,6 +483,31 @@ private enum RecordButtonState {
 private enum ScreenPickerPurpose {
     case startRecording
     case enableDuringRecording
+}
+
+private struct CaptureToggleButton: View {
+    let label: String
+    let isOn: Bool
+    let onSymbol: String
+    let offSymbol: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isOn ? onSymbol : offSymbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(isOn ? Color.white : Color.primary)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(isOn ? Color.accentColor : Color.gray.opacity(0.2))
+                )
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(Text(label))
+        .accessibilityValue(Text(isOn ? "On" : "Off"))
+    }
 }
 
 private struct AudioWaveformView: View {

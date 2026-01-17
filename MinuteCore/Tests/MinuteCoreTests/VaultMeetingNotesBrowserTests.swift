@@ -70,6 +70,29 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         XCTAssertEqual(notes.first?.title, "Loose")
         XCTAssertNil(notes.first?.date)
     }
+
+    func testDeleteRemovesNoteAudioTranscriptWhenPresent() async throws {
+        let rootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let noteURL = rootURL.appendingPathComponent("Meetings/2025/01/2025-01-10 10.00 - Team Sync.md")
+        let audioURL = rootURL.appendingPathComponent("Meetings/_audio/2025-01-10 10.00 - Team Sync.wav")
+        let transcriptURL = rootURL.appendingPathComponent("Meetings/_transcripts/2025-01-10 10.00 - Team Sync.md")
+
+        try createFile(at: noteURL, contents: "# Team Sync")
+        try createFile(at: audioURL, contents: "audio")
+        try createFile(at: transcriptURL, contents: "transcript")
+
+        let browser = try makeBrowser(vaultRootURL: rootURL)
+        let notes = try await browser.listNotes()
+        let note = try XCTUnwrap(notes.first)
+
+        try await browser.deleteNoteFiles(for: note)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: noteURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: transcriptURL.path))
+    }
 }
 
 private final class InMemoryBookmarkStore: VaultBookmarkStoring {
