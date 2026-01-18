@@ -2,5 +2,6 @@
 xcuserdata/
 build/
 updates/
+Minute.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 *.xcbkptlist
 *.dSYM/
