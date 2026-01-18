@@ -8,6 +8,7 @@ DMG_NAME=""
 BACKGROUND_PATH="build/dmg/background.png"
 STAGING="build/dmg/staging"
 DMG_RW=""
+UPDATES_DIR="updates"
 
 if [ -z "$ARCHIVE_PATH" ]; then
   cat <<EOF
@@ -43,6 +44,7 @@ FILE_VERSION="${VERSION// /-}"
 VOL_NAME="Minute $VERSION"
 DMG_NAME="Minute-$FILE_VERSION.dmg"
 DMG_RW="build/dmg/Minute-$FILE_VERSION-rw.dmg"
+DMG_FINAL="$UPDATES_DIR/$DMG_NAME"
 
 if [ ! -f "$BACKGROUND_PATH" ]; then
   mkdir -p "$(dirname "$BACKGROUND_PATH")"
@@ -94,7 +96,8 @@ if [ -d "/Volumes/${VOL_NAME}" ]; then
   hdiutil detach "/Volumes/${VOL_NAME}" >/dev/null || true
 fi
 
-rm -f "$DMG_RW" "$DMG_NAME"
+mkdir -p "$UPDATES_DIR"
+rm -f "$DMG_RW" "$DMG_FINAL"
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
 cp -R "$APP_PATH" "$STAGING/Minute.app"
@@ -125,7 +128,7 @@ osascript <<EOF
 EOF
 
 hdiutil detach "$MOUNT_POINT" >/dev/null
-hdiutil convert "$DMG_RW" -format UDZO -o "$DMG_NAME" -ov >/dev/null
+hdiutil convert "$DMG_RW" -format UDZO -o "$DMG_FINAL" -ov >/dev/null
 rm -f "$DMG_RW"
 
-echo "Created $DMG_NAME from $APP_PATH"
+echo "Created $DMG_FINAL from $APP_PATH"
