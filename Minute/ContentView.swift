@@ -245,6 +245,23 @@ private struct PipelineContentView: View {
                 }
             }
 
+            if case .recording = model.state {
+                RollingTickerText(text: model.liveTranscriptionLine.isEmpty ? "Listening..." : model.liveTranscriptionLine)
+            }
+
+            if case .recording = model.state, let image = model.latestScreenCaptureImage {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 320, maxHeight: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                    )
+                    .accessibilityLabel(Text("Latest screen capture"))
+            }
+
             if shouldShowScreenInferenceStatus, let status = model.screenInferenceStatus {
                 HStack(spacing: 12) {
                     Text("Screen inference")
@@ -483,6 +500,20 @@ private enum RecordButtonState {
 private enum ScreenPickerPurpose {
     case startRecording
     case enableDuringRecording
+}
+
+private struct RollingTickerText: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.head)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel(Text(text))
+    }
 }
 
 private struct CaptureToggleButton: View {

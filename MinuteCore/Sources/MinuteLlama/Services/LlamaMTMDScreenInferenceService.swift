@@ -233,13 +233,13 @@ private enum PromptBuilder {
         Analyze the provided screenshot and the window title.
 
         ### EXTRACTION PRIORITIES (Order of importance)
-        1. **Presentation Content:** If a slide or document is shared, capture the Main Title and key bullet points.
+        1. **Presentation Content:** If a slide or document is shared, capture the the content in great detail.
         2. **Context:** If no slide is visible, describe the active activity (e.g., "Live Coding in Xcode", "Reviewing Jira Board").
         3. **Participants:** List visible names of active speakers or attendees (up to 3). Ignore "mute" icons or UI chrome.
 
         ### OUTPUT RULES
         - Output a single, plain-text line.
-        - Be as detailed but consise as possible for screen content.
+        - Be as detailed as possible for screen content.
         - Use this compact format: "[Screen Content], Participating: [Participant Names]"
         - When participants are visible, use: "[Screen Content], Participating: [Participant Names]". If no participants are visible, output just "[Screen Content]" or "[Screen Content], Participating: None".
         - Do not describe physical appearances.

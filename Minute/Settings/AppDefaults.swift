@@ -4,4 +4,5 @@ enum AppDefaultsKey {
     static let screenContextEnabled = "screenContextEnabled"
     static let screenContextSelectedWindows = "screenContextSelectedWindows"
     static let screenContextVideoImportEnabled = "screenContextVideoImportEnabled"
+    static let screenContextCaptureIntervalSeconds = "screenContextCaptureIntervalSeconds"
 }

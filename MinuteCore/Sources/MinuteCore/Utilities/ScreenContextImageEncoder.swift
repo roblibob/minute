@@ -3,6 +3,7 @@ import CoreImage
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
+import VideoToolbox
 
 public enum ScreenContextImageEncoder {
     public static func pngData(
@@ -10,7 +11,19 @@ public enum ScreenContextImageEncoder {
         maxDimension: CGFloat = 1024
     ) -> Data? {
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        return pngData(from: ciImage, maxDimension: maxDimension)
+        if let data = pngData(from: ciImage, maxDimension: maxDimension) {
+            return data
+        }
+
+        var cgImage: CGImage?
+        let status = VTCreateCGImageFromCVPixelBuffer(pixelBuffer, options: nil, imageOut: &cgImage)
+        guard status == noErr, let cgImage else { return nil }
+
+        if let data = pngData(from: CIImage(cgImage: cgImage), maxDimension: maxDimension) {
+            return data
+        }
+
+        return pngData(from: cgImage)
     }
 
     public static func pngData(
@@ -23,23 +36,12 @@ public enum ScreenContextImageEncoder {
 }
 
 private extension ScreenContextImageEncoder {
+    static let sharedContext = CIContext(options: nil)
+
     static func pngData(from ciImage: CIImage, maxDimension: CGFloat) -> Data? {
         let scaled = scale(ciImage: ciImage, maxDimension: maxDimension)
-        let context = CIContext(options: nil)
-        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
-
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            data,
-            UTType.png.identifier as CFString,
-            1,
-            nil
-        ) else {
-            return nil
-        }
-        CGImageDestinationAddImage(destination, cgImage, nil)
-        guard CGImageDestinationFinalize(destination) else { return nil }
-        return data as Data
+        guard let cgImage = sharedContext.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return pngData(from: cgImage)
     }
 
     static func scale(ciImage: CIImage, maxDimension: CGFloat) -> CIImage {
@@ -55,5 +57,20 @@ private extension ScreenContextImageEncoder {
         filter.setValue(scale, forKey: kCIInputScaleKey)
         filter.setValue(1.0, forKey: kCIInputAspectRatioKey)
         return filter.outputImage ?? ciImage
+    }
+
+    static func pngData(from cgImage: CGImage) -> Data? {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return nil
+        }
+        CGImageDestinationAddImage(destination, cgImage, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return data as Data
     }
 }

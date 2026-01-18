@@ -5,17 +5,20 @@ public final class ScreenContextSettingsStore {
     private let enabledKey: String
     private let selectedWindowsKey: String
     private let videoImportEnabledKey: String
+    private let captureIntervalSecondsKey: String
 
     public init(
         defaults: UserDefaults = .standard,
         enabledKey: String = "screenContextEnabled",
         selectedWindowsKey: String = "screenContextSelectedWindows",
-        videoImportEnabledKey: String = "screenContextVideoImportEnabled"
+        videoImportEnabledKey: String = "screenContextVideoImportEnabled",
+        captureIntervalSecondsKey: String = "screenContextCaptureIntervalSeconds"
     ) {
         self.defaults = defaults
         self.enabledKey = enabledKey
         self.selectedWindowsKey = selectedWindowsKey
         self.videoImportEnabledKey = videoImportEnabledKey
+        self.captureIntervalSecondsKey = captureIntervalSecondsKey
     }
 
     public var isEnabled: Bool {
@@ -32,6 +35,15 @@ public final class ScreenContextSettingsStore {
 
     public func setVideoImportEnabled(_ value: Bool) {
         defaults.set(value, forKey: videoImportEnabledKey)
+    }
+
+    public var captureIntervalSeconds: TimeInterval {
+        let value = defaults.object(forKey: captureIntervalSecondsKey) as? Double
+        return (value ?? 60.0) > 0 ? (value ?? 60.0) : 60.0
+    }
+
+    public func setCaptureIntervalSeconds(_ value: TimeInterval) {
+        defaults.set(value, forKey: captureIntervalSecondsKey)
     }
 
     public func selectedWindows() -> [ScreenContextWindowSelection] {

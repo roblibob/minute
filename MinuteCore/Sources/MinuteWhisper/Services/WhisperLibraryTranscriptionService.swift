@@ -118,12 +118,16 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
                     params.language = nil
                 } else {
                     params.detect_language = false
-
-                    // C string must stay alive for the duration of whisper_full.
-                    let langCString = strdup(language ?? "en")
-                    defer { free(langCString) }
-                    if let langCString {
-                        params.language = UnsafePointer(langCString)
+                    let normalized = (language ?? "en").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let langID = whisper_lang_id(normalized)
+                    let fallbackID = whisper_lang_id("en")
+                    if langID >= 0, let langPtr = whisper_lang_str(langID) {
+                        params.language = langPtr
+                    } else if fallbackID >= 0, let langPtr = whisper_lang_str(fallbackID) {
+                        params.language = langPtr
+                    } else {
+                        params.language = nil
+                        params.detect_language = true
                     }
                 }
 
@@ -131,7 +135,7 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
                 params.abort_callback = minute_ggml_abort_callback
                 params.abort_callback_user_data = Unmanaged.passUnretained(cancellationBox).toOpaque()
 
-                let languageLabel = language ?? "auto"
+                let languageLabel = detectLanguage ? "auto" : (language ?? "en")
                 logger.info("Running whisper (library): model=\(self.configuration.modelURL.lastPathComponent, privacy: .public) detectLanguage=\(detectLanguage, privacy: .public) language=\(languageLabel, privacy: .public)")
 
                 let rc: Int32 = samples.withUnsafeBufferPointer { buf in
@@ -193,16 +197,16 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
                 return TranscriptionResult(text: normalized, segments: transcriptSegments)
             }
 
-            var result = try runWhisper(detectLanguage: configuration.detectLanguage, language: configuration.detectLanguage ? nil : configuration.language)
-            if result.text.isEmpty, configuration.detectLanguage {
-                // Retry with an explicit English hint for better results on English-only audio.
+            var result = try runWhisper(detectLanguage: true, language: nil)
+
+            if result.text.isEmpty {
                 result = try runWhisper(detectLanguage: false, language: "en")
             }
 
             if result.text.isEmpty {
                 throw MinuteError.whisperFailed(
                     exitCode: 0,
-                    output: "whisper returned empty transcript (duration=\(stats.durationSeconds)s peak=\(stats.peak) rms=\(stats.rms)). If you are speaking English, set language='en'; for Swedish, set language='sv' and disable auto-detect."
+                    output: "whisper returned empty transcript (duration=\(stats.durationSeconds)s peak=\(stats.peak) rms=\(stats.rms))."
                 )
             }
 

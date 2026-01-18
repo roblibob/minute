@@ -68,6 +68,31 @@ final class MeetingPipelineCoordinatorTests: XCTestCase {
         let noteContents = try String(contentsOf: result.noteURL)
         XCTAssertTrue(noteContents.contains("Failed to structure output"))
     }
+
+    func testExecute_usesTranscriptionOverride() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let override = TranscriptionResult(
+            text: "Live transcript",
+            segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "Live transcript")]
+        )
+        let context = try makePipelineContext(saveAudio: false, saveTranscript: true, transcriptionOverride: override)
+        let coordinator = makeCoordinator(
+            vaultRootURL: vaultRootURL,
+            summarizationJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12"),
+            repairJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12"),
+            transcriptionService: FailingTranscriptionService()
+        )
+
+        _ = try await coordinator.execute(context: context)
+
+        let contract = MeetingFileContract(folders: context.vaultFolders)
+        let transcriptRelativePath = contract.transcriptRelativePath(date: context.startedAt, title: "Weekly Sync")
+        let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
+        let transcriptContents = try String(contentsOf: transcriptURL)
+        XCTAssertTrue(transcriptContents.contains("Live transcript"))
+    }
 }
 
 private final class ProgressStore: @unchecked Sendable {
@@ -115,6 +140,13 @@ private struct TestTranscriptionService: TranscriptionServicing {
     func transcribe(wavURL: URL) async throws -> TranscriptionResult {
         _ = wavURL
         return result
+    }
+}
+
+private struct FailingTranscriptionService: TranscriptionServicing {
+    func transcribe(wavURL: URL) async throws -> TranscriptionResult {
+        _ = wavURL
+        throw MinuteError.whisperFailed(exitCode: -1, output: "should not be called")
     }
 }
 
@@ -178,19 +210,18 @@ private func makeCoordinator(
     vaultRootURL: URL,
     summarizationJSON: String,
     repairJSON: String,
+    transcriptionService: some TranscriptionServicing = TestTranscriptionService(result: TranscriptionResult(
+        text: "Hello world",
+        segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "Hello world")]
+    )),
     dateProvider: @escaping @Sendable () -> Date = Date.init
 ) -> MeetingPipelineCoordinator {
     let bookmark = try? VaultAccess.makeBookmarkData(forVaultRootURL: vaultRootURL)
     let store = TestBookmarkStore(bookmark: bookmark)
     let access = VaultAccess(bookmarkStore: store)
 
-    let transcription = TranscriptionResult(
-        text: "Hello world",
-        segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "Hello world")]
-    )
-
     return MeetingPipelineCoordinator(
-        transcriptionService: TestTranscriptionService(result: transcription),
+        transcriptionService: transcriptionService,
         diarizationService: TestDiarizationService(segments: []),
         summarizationServiceProvider: {
             TestSummarizationService(summarizationJSON: summarizationJSON, repairJSON: repairJSON)
@@ -209,7 +240,11 @@ private func makeTemporaryVault() throws -> URL {
     return url
 }
 
-private func makePipelineContext(saveAudio: Bool, saveTranscript: Bool) throws -> PipelineContext {
+private func makePipelineContext(
+    saveAudio: Bool,
+    saveTranscript: Bool,
+    transcriptionOverride: TranscriptionResult? = nil
+) throws -> PipelineContext {
     let audioTempURL = try makeTemporaryAudioFile()
     let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
     let stoppedAt = startedAt.addingTimeInterval(60)
@@ -225,7 +260,8 @@ private func makePipelineContext(saveAudio: Bool, saveTranscript: Bool) throws -
         workingDirectoryURL: workingDirectoryURL,
         saveAudio: saveAudio,
         saveTranscript: saveTranscript,
-        screenContextEvents: []
+        screenContextEvents: [],
+        transcriptionOverride: transcriptionOverride
     )
 }
 

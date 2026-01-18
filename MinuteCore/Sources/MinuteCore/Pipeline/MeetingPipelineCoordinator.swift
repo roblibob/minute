@@ -46,7 +46,12 @@ public actor MeetingPipelineCoordinator {
             try Task.checkCancellation()
             progress?(.transcribing(fractionCompleted: 0.1))
 
-            let transcription = try await transcriptionService.transcribe(wavURL: context.audioTempURL)
+            let transcription: TranscriptionResult
+            if let override = context.transcriptionOverride, !override.text.isEmpty {
+                transcription = override
+            } else {
+                transcription = try await transcriptionService.transcribe(wavURL: context.audioTempURL)
+            }
             let diarizationSegments = await diarizeIfPossible(wavURL: context.audioTempURL)
             let attributedSegments = SpeakerAttribution.attribute(
                 transcriptSegments: transcription.segments,

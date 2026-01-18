@@ -47,6 +47,10 @@ public protocol AudioCaptureControlling: Sendable {
     func setSystemAudioEnabled(_ enabled: Bool) async
 }
 
+public protocol LiveAudioSinkConfiguring: Sendable {
+    func setLiveAudioSink(_ sink: (any LiveAudioChunkSinking)?) async
+}
+
 public struct MediaImportResult: Sendable, Equatable {
     public var wavURL: URL
     public var duration: TimeInterval
