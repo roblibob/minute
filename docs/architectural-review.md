@@ -916,7 +916,7 @@ try FileManager.default.replaceItemAt(destinationURL, withItemAt: tempURL)
 **What's Hard to Test:**
 - ❌ [`MeetingPipelineViewModel.runPipeline`](Minute/Pipeline/MeetingPipelineViewModel.swift:419) — requires mocking 10+ services
 - ❌ [`DefaultModelManager.download`](MinuteCore/Sources/MinuteCore/Services/DefaultModelManager.swift:323) — tightly coupled to `URLSession`
-- ❌ Screen context capture — depends on `SCStream` which can't run in tests
+- ❌ Screen context capture — depends on ScreenCaptureKit screenshot APIs which can't run in tests
 
 **Gap Analysis:**
 - Only ~40% of core business logic has unit tests
