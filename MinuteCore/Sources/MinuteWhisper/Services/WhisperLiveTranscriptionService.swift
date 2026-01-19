@@ -41,7 +41,16 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
             throw MinuteError.modelMissing
         }
 
-        return try runWhisper(detectLanguage: true, language: nil, samples: samples)
+        let primary = try runWhisper(
+            detectLanguage: configuration.detectLanguage,
+            language: configuration.detectLanguage ? nil : configuration.language,
+            samples: samples
+        )
+        if primary.isEmpty, configuration.detectLanguage {
+            let fallbackLanguage = configuration.language == "auto" ? "en" : configuration.language
+            return try runWhisper(detectLanguage: false, language: fallbackLanguage, samples: samples)
+        }
+        return primary
     }
 
     private func runWhisper(detectLanguage: Bool, language: String?, samples: [Float]) throws -> String {
@@ -53,7 +62,8 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
         params.n_threads = Int32(configuration.threads)
         params.translate = false
         params.no_context = true
-        params.no_timestamps = false
+        params.no_timestamps = true
+        params.single_segment = true
         params.no_speech_thold = 1.0
         params.logprob_thold = -1.0
         params.suppress_blank = false

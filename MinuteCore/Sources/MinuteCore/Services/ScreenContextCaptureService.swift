@@ -92,19 +92,33 @@ public actor ScreenContextCaptureService {
 
 private final class ScreenContextCaptureSession: @unchecked Sendable {
     private let logger: Logger
-    private let captures: [WindowCapture]
+    private let windows: [ResolvedWindow]
+    private let inferencer: any ScreenContextInferencing
     private let collector: ScreenContextEventCollector
     private let statusReporter: ScreenContextStatusReporter
+    private let minimumFrameInterval: TimeInterval
+    private let timestampOffsetSeconds: TimeInterval
+    private let frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?
+    private var captureTask: Task<Void, Never>?
+    private var firstTimestampSeconds: Double?
 
     private init(
-        captures: [WindowCapture],
+        windows: [ResolvedWindow],
+        inferencer: any ScreenContextInferencing,
         collector: ScreenContextEventCollector,
         statusReporter: ScreenContextStatusReporter,
+        minimumFrameInterval: TimeInterval,
+        timestampOffsetSeconds: TimeInterval,
+        frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?,
         logger: Logger
     ) {
-        self.captures = captures
+        self.windows = windows
+        self.inferencer = inferencer
         self.collector = collector
         self.statusReporter = statusReporter
+        self.minimumFrameInterval = minimumFrameInterval
+        self.timestampOffsetSeconds = timestampOffsetSeconds
+        self.frameHandler = frameHandler
         self.logger = logger
     }
 
@@ -120,36 +134,25 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
         let collector = ScreenContextEventCollector(maxEvents: 120)
         let statusReporter = ScreenContextStatusReporter(statusHandler: statusHandler)
 
-        var captures: [WindowCapture] = []
-        for resolved in windows {
-            let capture = try WindowCapture(
-                window: resolved.window,
-                windowTitle: resolved.selection.windowTitle,
-                inferencer: inferencer,
-                collector: collector,
-                statusReporter: statusReporter,
-                minimumFrameInterval: minimumFrameInterval,
-                timestampOffsetSeconds: timestampOffsetSeconds,
-                frameHandler: frameHandler,
-                logger: logger
-            )
-            try await capture.start()
-            captures.append(capture)
-        }
-
-        logger.info("Screen context capture started with \(captures.count, privacy: .public) window(s).")
-        return ScreenContextCaptureSession(
-            captures: captures,
+        let session = ScreenContextCaptureSession(
+            windows: windows,
+            inferencer: inferencer,
             collector: collector,
             statusReporter: statusReporter,
+            minimumFrameInterval: minimumFrameInterval,
+            timestampOffsetSeconds: timestampOffsetSeconds,
+            frameHandler: frameHandler,
             logger: logger
         )
+        session.startCaptureLoop()
+
+        logger.info("Screen context capture started with \(windows.count, privacy: .public) window(s).")
+        return session
     }
 
     func stop() async -> ScreenContextCaptureResult? {
-        for capture in captures {
-            await capture.stop()
-        }
+        captureTask?.cancel()
+        captureTask = nil
 
         await statusReporter.waitForIdle()
         let events = await collector.sortedEvents()
@@ -167,9 +170,136 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
     }
 
     func cancel() async {
-        for capture in captures {
-            await capture.stop()
+        captureTask?.cancel()
+        captureTask = nil
+    }
+
+    private func startCaptureLoop() {
+        captureTask?.cancel()
+        captureTask = Task { [weak self] in
+            guard let self else { return }
+            await self.captureLoop()
         }
+    }
+
+    private func captureLoop() async {
+        let intervalSeconds = max(minimumFrameInterval, 1.0)
+        let intervalNanos = UInt64(intervalSeconds * 1_000_000_000)
+
+        while !Task.isCancelled {
+            await captureOnce()
+            try? await Task.sleep(nanoseconds: intervalNanos)
+        }
+    }
+
+    private func captureOnce() async {
+        for resolved in windows {
+            if Task.isCancelled { return }
+            if statusReporter.snapshot().isInferenceRunning {
+                statusReporter.markSkipped()
+                continue
+            }
+
+            do {
+                let imageData = try await captureImageData(for: resolved.window)
+                let now = CFAbsoluteTimeGetCurrent()
+                if firstTimestampSeconds == nil {
+                    firstTimestampSeconds = now
+                }
+                let timestampSeconds = ScreenContextTimestampNormalizer.normalize(
+                    rawSeconds: now,
+                    firstTimestampSeconds: firstTimestampSeconds,
+                    offsetSeconds: timestampOffsetSeconds
+                )
+
+                if let frameHandler {
+                    let frame = ScreenContextCapturedFrame(
+                        imageData: imageData,
+                        timestampSeconds: timestampSeconds,
+                        windowTitle: resolved.selection.windowTitle
+                    )
+                    frameHandler(frame)
+                }
+
+                statusReporter.markInferenceStarted()
+
+                let inferencer = inferencer
+                let collector = collector
+                let statusReporter = statusReporter
+                let logger = logger
+                let windowTitle = resolved.selection.windowTitle
+                Task {
+                    defer { statusReporter.markInferenceFinished() }
+
+                    do {
+                        let inference = try await inferencer.inferScreenContext(from: imageData, windowTitle: windowTitle)
+                        #if DEBUG
+                        let summary = inference.summaryLine()
+                        let clipped = summary.isEmpty ? "(empty)" : String(summary.prefix(240))
+                        logger.info("Screen inference @ \(timestampSeconds, privacy: .public)s: \(clipped, privacy: .private)")
+                        #endif
+                        guard !inference.isEmpty else { return }
+                        let event = ScreenContextEvent(
+                            timestampSeconds: timestampSeconds,
+                            windowTitle: windowTitle,
+                            inference: inference
+                        )
+                        await collector.append(event)
+                    } catch {
+                        logger.error("Screen inference failed: \(String(describing: error), privacy: .public)")
+                    }
+                }
+            } catch {
+                statusReporter.markSkipped()
+                logger.error("Screen context capture failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    private func captureImageData(for window: SCWindow) async throws -> Data {
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+        let configuration = Self.makeScreenshotConfiguration(for: filter)
+        let image = try await Self.captureImage(filter: filter, configuration: configuration)
+        guard let data = ScreenContextImageEncoder.pngData(from: image) else {
+            throw MinuteError.screenCaptureUnavailable
+        }
+        return data
+    }
+
+    private static func captureImage(
+        filter: SCContentFilter,
+        configuration: SCStreamConfiguration
+    ) async throws -> CGImage {
+        try await withCheckedThrowingContinuation { continuation in
+            SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration) { image, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let image {
+                    continuation.resume(returning: image)
+                } else {
+                    continuation.resume(throwing: MinuteError.screenCaptureUnavailable)
+                }
+            }
+        }
+    }
+
+    private static func makeScreenshotConfiguration(for filter: SCContentFilter) -> SCStreamConfiguration {
+        let configuration = SCStreamConfiguration()
+        configuration.capturesAudio = false
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
+        configuration.showsCursor = false
+        configuration.scalesToFit = false
+
+        let rect = filter.contentRect
+        if rect.width > 0, rect.height > 0 {
+            let scale = CGFloat(filter.pointPixelScale)
+            let width = max(1, Int(rect.width * scale))
+            let height = max(1, Int(rect.height * scale))
+            configuration.width = size_t(width)
+            configuration.height = size_t(height)
+        }
+
+        return configuration
     }
 
     static func resolveWindows(for selections: [ScreenContextWindowSelection]) async throws -> [ResolvedWindow] {
@@ -225,199 +355,6 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
 private struct ResolvedWindow: Sendable {
     let window: SCWindow
     let selection: ScreenContextWindowSelection
-}
-
-private final class WindowCapture: NSObject, @unchecked Sendable {
-    private let stream: SCStream
-    private let output: ScreenContextStreamOutput
-
-    init(
-        window: SCWindow,
-        windowTitle: String,
-        inferencer: any ScreenContextInferencing,
-        collector: ScreenContextEventCollector,
-        statusReporter: ScreenContextStatusReporter,
-        minimumFrameInterval: TimeInterval,
-        timestampOffsetSeconds: TimeInterval,
-        frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?,
-        logger: Logger
-    ) throws {
-        let filter = SCContentFilter(desktopIndependentWindow: window)
-        let configuration = SCStreamConfiguration()
-        configuration.capturesAudio = false
-        configuration.minimumFrameInterval = CMTime(seconds: minimumFrameInterval, preferredTimescale: 600)
-        configuration.queueDepth = 1
-        configuration.showsCursor = false
-
-        let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
-        let output = ScreenContextStreamOutput(
-            windowTitle: windowTitle,
-            inferencer: inferencer,
-            collector: collector,
-            statusReporter: statusReporter,
-            minimumFrameInterval: minimumFrameInterval,
-            timestampOffsetSeconds: timestampOffsetSeconds,
-            frameHandler: frameHandler,
-            logger: logger
-        )
-        self.stream = stream
-        self.output = output
-
-        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: output.queue)
-    }
-
-    func start() async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            stream.startCapture { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: ())
-                }
-            }
-        }
-    }
-
-    func stop() async {
-        _ = try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            stream.stopCapture { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: ())
-                }
-            }
-        }
-    }
-}
-
-private final class ScreenContextStreamOutput: NSObject, SCStreamOutput {
-    let queue = DispatchQueue(label: "roblibob.Minute.screenContextOutput")
-    private let processor: ScreenContextFrameProcessor
-
-    init(
-        windowTitle: String,
-        inferencer: any ScreenContextInferencing,
-        collector: ScreenContextEventCollector,
-        statusReporter: ScreenContextStatusReporter,
-        minimumFrameInterval: TimeInterval,
-        timestampOffsetSeconds: TimeInterval,
-        frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?,
-        logger: Logger
-    ) {
-        self.processor = ScreenContextFrameProcessor(
-            windowTitle: windowTitle,
-            inferencer: inferencer,
-            collector: collector,
-            statusReporter: statusReporter,
-            minimumFrameInterval: minimumFrameInterval,
-            timestampOffsetSeconds: timestampOffsetSeconds,
-            frameHandler: frameHandler,
-            logger: logger
-        )
-        super.init()
-    }
-
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .screen else { return }
-        guard CMSampleBufferDataIsReady(sampleBuffer) else { return }
-        processor.process(sampleBuffer: sampleBuffer)
-    }
-}
-
-private final class ScreenContextFrameProcessor {
-    private let windowTitle: String
-    private let inferencer: any ScreenContextInferencing
-    private let collector: ScreenContextEventCollector
-    private let statusReporter: ScreenContextStatusReporter
-    private let minimumFrameInterval: TimeInterval
-    private let timestampOffsetSeconds: TimeInterval
-    private let frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?
-    private let logger: Logger
-
-    private var lastCaptureAt: CFAbsoluteTime = 0
-    private var firstTimestampSeconds: Double?
-
-    init(
-        windowTitle: String,
-        inferencer: any ScreenContextInferencing,
-        collector: ScreenContextEventCollector,
-        statusReporter: ScreenContextStatusReporter,
-        minimumFrameInterval: TimeInterval,
-        timestampOffsetSeconds: TimeInterval,
-        frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?,
-        logger: Logger
-    ) {
-        self.windowTitle = windowTitle
-        self.inferencer = inferencer
-        self.collector = collector
-        self.statusReporter = statusReporter
-        self.minimumFrameInterval = minimumFrameInterval
-        self.timestampOffsetSeconds = timestampOffsetSeconds
-        self.frameHandler = frameHandler
-        self.logger = logger
-    }
-
-    func process(sampleBuffer: CMSampleBuffer) {
-        let now = CFAbsoluteTimeGetCurrent()
-        guard now - lastCaptureAt >= minimumFrameInterval else { return }
-        if statusReporter.snapshot().isInferenceRunning {
-            lastCaptureAt = now
-            statusReporter.markSkipped()
-            return
-        }
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        guard let imageData = ScreenContextImageEncoder.pngData(from: pixelBuffer) else { return }
-
-        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        let rawSeconds = CMTimeGetSeconds(timestamp)
-        if firstTimestampSeconds == nil {
-            firstTimestampSeconds = rawSeconds
-        }
-        let timestampSeconds = ScreenContextTimestampNormalizer.normalize(
-            rawSeconds: rawSeconds,
-            firstTimestampSeconds: firstTimestampSeconds,
-            offsetSeconds: timestampOffsetSeconds
-        )
-
-        if let frameHandler {
-            frameHandler(ScreenContextCapturedFrame(
-                imageData: imageData,
-                timestampSeconds: timestampSeconds,
-                windowTitle: windowTitle
-            ))
-        }
-
-        lastCaptureAt = now
-        statusReporter.markInferenceStarted()
-
-        let windowTitle = windowTitle
-        let inferencer = inferencer
-        let collector = collector
-        let statusReporter = statusReporter
-        let logger = logger
-        Task {
-            defer { statusReporter.markInferenceFinished() }
-
-            do {
-                let inference = try await inferencer.inferScreenContext(from: imageData, windowTitle: windowTitle)
-                #if DEBUG
-                let summary = inference.summaryLine()
-                let clipped = summary.isEmpty ? "(empty)" : String(summary.prefix(240))
-                logger.info("Screen inference @ \(timestampSeconds, privacy: .public)s: \(clipped, privacy: .private)")
-                #endif
-                guard !inference.isEmpty else { return }
-                let event = ScreenContextEvent(
-                    timestampSeconds: timestampSeconds,
-                    windowTitle: windowTitle,
-                    inference: inference
-                )
-                await collector.append(event)
-            } catch {
-                logger.error("Screen inference failed: \(String(describing: error), privacy: .public)")
-            }
-        }
-    }
 }
 
 private actor ScreenContextEventCollector {

@@ -15,7 +15,6 @@
 		5A7F52082F1F0D0A00D8E124 /* MinuteCore in Frameworks */ = {isa = PBXBuildFile; productRef = 58B6950B2EF600000068FAA7 /* MinuteCore */; };
 		70055E391D7145CFA8509E54 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 0AF288CF7B9C4B81AEE5DD29 /* MarkdownUI */; };
 		9C45E2A61F1D4A7A9E4C0B11 /* MinuteWhisper in Frameworks */ = {isa = PBXBuildFile; productRef = 5A7F52132F1F0D0A00D8E124 /* MinuteWhisper */; };
-		C7A1F2B3D4E5F60718293A4D /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C7A1F2B3D4E5F60718293A4C /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,7 +64,6 @@
 				9C45E2A61F1D4A7A9E4C0B11 /* MinuteWhisper in Frameworks */,
 				0E0A182A0E8F4C1792A8B075 /* MinuteLlama in Frameworks */,
 				70055E391D7145CFA8509E54 /* MarkdownUI in Frameworks */,
-				C7A1F2B3D4E5F60718293A4D /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,7 +134,6 @@
 				5A7F52132F1F0D0A00D8E124 /* MinuteWhisper */,
 				B730481B2E3B4E5FB8E38D6E /* MinuteLlama */,
 				0AF288CF7B9C4B81AEE5DD29 /* MarkdownUI */,
-				C7A1F2B3D4E5F60718293A4C /* Sparkle */,
 			);
 			productName = Minute;
 			productReference = 58B694EF2EF54B130068FAA7 /* Minute.app */;
@@ -193,7 +190,6 @@
 			packageReferences = (
 				58B6950A2EF600000068FAA7 /* XCLocalSwiftPackageReference "MinuteCore" */,
 				95CE9161C6A34402B4933FD2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				C7A1F2B3D4E5F60718293A4B /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 58B694F02EF54B130068FAA7 /* Products */;
@@ -626,14 +622,6 @@
 				minimumVersion = 2.4.1;
 			};
 		};
-		C7A1F2B3D4E5F60718293A4B /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -656,11 +644,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 58B6950A2EF600000068FAA7 /* XCLocalSwiftPackageReference "MinuteCore" */;
 			productName = MinuteLlama;
-		};
-		C7A1F2B3D4E5F60718293A4C /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C7A1F2B3D4E5F60718293A4B /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

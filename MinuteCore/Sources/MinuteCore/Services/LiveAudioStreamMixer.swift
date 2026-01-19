@@ -83,8 +83,19 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
     }
 
     private func drainAvailableSamples() {
-        let available = max(availableSamples(offsetSamples: micOffsetSamples, queue: micQueue, start: micQueueStart),
-                            availableSamples(offsetSamples: systemOffsetSamples, queue: systemQueue, start: systemQueueStart))
+        let micAvailable = availableSamples(offsetSamples: micOffsetSamples, queue: micQueue, start: micQueueStart)
+        let systemAvailable = availableSamples(offsetSamples: systemOffsetSamples, queue: systemQueue, start: systemQueueStart)
+        let available: Int
+        switch (micOffsetSamples, systemOffsetSamples) {
+        case (.some, .some):
+            available = min(micAvailable, systemAvailable)
+        case (.some, .none):
+            available = micAvailable
+        case (.none, .some):
+            available = systemAvailable
+        case (.none, .none):
+            return
+        }
 
         guard available > mixedSampleCursor else { return }
 
