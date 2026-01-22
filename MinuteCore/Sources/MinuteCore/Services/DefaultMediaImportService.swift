@@ -35,7 +35,7 @@ public actor DefaultMediaImportService: MediaImporting {
         do {
             try await convertWithFFmpeg(sourceURL: sourceURL, tempRoot: tempRoot, outputURL: wavURL, ffmpegURL: ffmpegURL)
         } catch {
-            logger.error("ffmpeg conversion failed: \(String(describing: error), privacy: .public)")
+            logger.error("ffmpeg conversion failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             throw MinuteError.audioExportFailed
         }
 
@@ -142,7 +142,7 @@ public actor DefaultMediaImportService: MediaImporting {
                 }
             }
         } catch {
-            logger.debug("Failed to load metadata date: \(String(describing: error), privacy: .public)")
+            logger.debug("Failed to load metadata date: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
         }
 
         return nil

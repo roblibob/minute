@@ -1,3 +1,4 @@
+import MinuteCore
 import SwiftUI
 
 struct VaultConfigurationView: View {
@@ -88,7 +89,11 @@ struct VaultConfigurationView: View {
                 .minuteTextFieldStyle()
             TextField("Transcript folder (relative)", text: $model.transcriptsRelativePath)
                 .minuteTextFieldStyle()
-            Text("Defaults: Meetings, Meetings/_audio, and Meetings/_transcripts")
+            Text(
+                "Defaults: \(AppConfiguration.Defaults.defaultMeetingsRelativePath), " +
+                "\(AppConfiguration.Defaults.defaultAudioRelativePath), and " +
+                "\(AppConfiguration.Defaults.defaultTranscriptsRelativePath)"
+            )
                 .foregroundStyle(.secondary)
         }
     }

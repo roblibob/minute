@@ -77,7 +77,7 @@ public struct DefaultProcessRunner: ProcessRunning {
             do {
                 try process.run()
             } catch {
-                throw ProcessRunnerError.failedToLaunch(underlyingDescription: String(describing: error))
+                throw ProcessRunnerError.failedToLaunch(underlyingDescription: ErrorHandler.debugMessage(for: error))
             }
 
             async let terminationStatus: Int32 = waitForTermination(process)

@@ -5,36 +5,43 @@ import MinuteCore
 
 @MainActor
 final class VaultSettingsModel: ObservableObject {
-    private enum DefaultsKey {
-        static let vaultRootBookmark = "vaultRootBookmark"
-        static let meetingsRelativePath = "meetingsRelativePath"
-        static let audioRelativePath = "audioRelativePath"
-        static let transcriptsRelativePath = "transcriptsRelativePath"
-    }
-
     @Published var vaultRootPathDisplay: String = "Not selected"
     @Published var meetingsRelativePath: String {
-        didSet { UserDefaults.standard.set(meetingsRelativePath, forKey: DefaultsKey.meetingsRelativePath) }
+        didSet { UserDefaults.standard.set(meetingsRelativePath, forKey: AppConfiguration.Defaults.meetingsRelativePathKey) }
     }
 
     @Published var audioRelativePath: String {
-        didSet { UserDefaults.standard.set(audioRelativePath, forKey: DefaultsKey.audioRelativePath) }
+        didSet { UserDefaults.standard.set(audioRelativePath, forKey: AppConfiguration.Defaults.audioRelativePathKey) }
     }
 
     @Published var transcriptsRelativePath: String {
-        didSet { UserDefaults.standard.set(transcriptsRelativePath, forKey: DefaultsKey.transcriptsRelativePath) }
+        didSet {
+            UserDefaults.standard.set(
+                transcriptsRelativePath,
+                forKey: AppConfiguration.Defaults.transcriptsRelativePathKey
+            )
+        }
     }
 
     @Published var lastVerificationMessage: String?
     @Published var lastErrorMessage: String?
 
-    private let bookmarkStore = UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark)
+    private let bookmarkStore = UserDefaultsVaultBookmarkStore(key: AppConfiguration.Defaults.vaultRootBookmarkKey)
 
     init() {
         let defaults = UserDefaults.standard
-        self.meetingsRelativePath = defaults.string(forKey: DefaultsKey.meetingsRelativePath) ?? "Meetings"
-        self.audioRelativePath = defaults.string(forKey: DefaultsKey.audioRelativePath) ?? "Meetings/_audio"
-        self.transcriptsRelativePath = defaults.string(forKey: DefaultsKey.transcriptsRelativePath) ?? "Meetings/_transcripts"
+        self.meetingsRelativePath = AppConfiguration.validatedRelativePath(
+            defaults.string(forKey: AppConfiguration.Defaults.meetingsRelativePathKey),
+            fallback: AppConfiguration.Defaults.defaultMeetingsRelativePath
+        )
+        self.audioRelativePath = AppConfiguration.validatedRelativePath(
+            defaults.string(forKey: AppConfiguration.Defaults.audioRelativePathKey),
+            fallback: AppConfiguration.Defaults.defaultAudioRelativePath
+        )
+        self.transcriptsRelativePath = AppConfiguration.validatedRelativePath(
+            defaults.string(forKey: AppConfiguration.Defaults.transcriptsRelativePathKey),
+            fallback: AppConfiguration.Defaults.defaultTranscriptsRelativePath
+        )
 
         refreshVaultPathDisplay()
     }
@@ -82,10 +89,8 @@ final class VaultSettingsModel: ObservableObject {
             }
 
             lastVerificationMessage = "Vault access OK. Folders are ready."
-        } catch let minuteError as MinuteError {
-            lastErrorMessage = minuteError.errorDescription ?? minuteError.debugSummary
         } catch {
-            lastErrorMessage = error.localizedDescription
+            lastErrorMessage = ErrorHandler.userMessage(for: error, fallback: "Failed to verify vault access.")
         }
 
         refreshVaultPathDisplay()

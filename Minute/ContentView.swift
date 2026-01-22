@@ -226,7 +226,7 @@ private struct PipelineContentView: View {
                 }
 
             case .failed(let error, _):
-                Text(error.errorDescription ?? "Processing failed.")
+                Text(ErrorHandler.userMessage(for: error, fallback: "Processing failed."))
                     .foregroundStyle(.red)
 
             default:

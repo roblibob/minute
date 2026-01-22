@@ -3,9 +3,12 @@ import ScreenCaptureKit
 import SwiftUI
 
 struct ScreenContextSettingsSection: View {
-    @AppStorage(AppDefaultsKey.screenContextEnabled) private var screenContextEnabled: Bool = false
-    @AppStorage(AppDefaultsKey.screenContextVideoImportEnabled) private var videoImportEnabled: Bool = false
-    @AppStorage(AppDefaultsKey.screenContextCaptureIntervalSeconds) private var captureIntervalSeconds: Double = 60
+    @AppStorage(AppDefaultsKey.screenContextEnabled)
+    private var screenContextEnabled: Bool = AppConfiguration.Defaults.defaultScreenContextEnabled
+    @AppStorage(AppDefaultsKey.screenContextVideoImportEnabled)
+    private var videoImportEnabled: Bool = AppConfiguration.Defaults.defaultScreenContextVideoImportEnabled
+    @AppStorage(AppDefaultsKey.screenContextCaptureIntervalSeconds)
+    private var captureIntervalSeconds: Double = AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
 
     var body: some View {
         Section("Screen Context") {

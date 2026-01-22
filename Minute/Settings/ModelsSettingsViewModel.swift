@@ -68,7 +68,7 @@ final class ModelsSettingsViewModel: ObservableObject {
                 state = .checking
                 await refreshModelsStatus()
             } catch {
-                let message = (error as? MinuteError)?.errorDescription ?? String(describing: error)
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to download models.")
                 state = .needsDownload(message: message)
             }
         }
@@ -89,7 +89,7 @@ final class ModelsSettingsViewModel: ObservableObject {
                 state = .needsDownload(message: modelMessage(from: result))
             }
         } catch {
-            let message = (error as? MinuteError)?.errorDescription ?? String(describing: error)
+            let message = ErrorHandler.userMessage(for: error, fallback: "Failed to check model status.")
             state = .needsDownload(message: message)
         }
     }

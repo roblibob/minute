@@ -172,7 +172,7 @@ private extension LlamaMTMDScreenInferenceService {
             try FileManager.default.copyItem(at: imageURL, to: destination)
             logger.info("Dumped screen frame to \(destination.path, privacy: .public)")
         } catch {
-            logger.error("Failed to dump screen frame: \(String(describing: error), privacy: .public)")
+            logger.error("Failed to dump screen frame: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
         }
         #endif
     }

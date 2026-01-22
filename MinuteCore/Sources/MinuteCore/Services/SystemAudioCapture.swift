@@ -187,7 +187,7 @@ private final class SampleBufferAudioWriter {
         }
         lock.unlock()
         if shouldLog {
-            logger.error("System audio write failed: \(String(describing: error), privacy: .public)")
+            logger.error("System audio write failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
         }
     }
 

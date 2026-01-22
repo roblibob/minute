@@ -47,7 +47,6 @@ final class OnboardingViewModel: ObservableObject {
         static let didCompleteOnboarding = "didCompleteOnboarding"
         static let lastStep = "onboardingLastStep"
         static let didSkipPermissions = "didSkipOnboardingPermissions"
-        static let vaultRootBookmark = "vaultRootBookmark"
         static let debugBuildStamp = "onboardingDebugBuildStamp"
     }
 
@@ -65,7 +64,10 @@ final class OnboardingViewModel: ObservableObject {
         if store.selectedModelID() != selectedModel.id {
             store.setSelectedModelID(selectedModel.id)
         }
-        let bookmarkStore = UserDefaultsVaultBookmarkStore(defaults: defaults, key: DefaultsKey.vaultRootBookmark)
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(
+            defaults: defaults,
+            key: AppConfiguration.Defaults.vaultRootBookmarkKey
+        )
         self.vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
 
         resetForDebugBuildIfNeeded()
@@ -176,7 +178,7 @@ final class OnboardingViewModel: ObservableObject {
                 modelsState = .checking
                 await refreshModelsStatus()
             } catch {
-                let message = (error as? MinuteError)?.errorDescription ?? String(describing: error)
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to download models.")
                 modelsState = .needsDownload(message: message)
             }
         }
@@ -247,7 +249,7 @@ final class OnboardingViewModel: ObservableObject {
                 modelsState = .needsDownload(message: modelMessage(from: result))
             }
         } catch {
-            let message = (error as? MinuteError)?.errorDescription ?? String(describing: error)
+            let message = ErrorHandler.userMessage(for: error, fallback: "Failed to check model status.")
             modelsState = .needsDownload(message: message)
         }
 

@@ -11,13 +11,6 @@ import os
 
 @MainActor
 final class MeetingPipelineViewModel: ObservableObject {
-    private enum DefaultsKey {
-        static let vaultRootBookmark = "vaultRootBookmark"
-        static let meetingsRelativePath = "meetingsRelativePath"
-        static let audioRelativePath = "audioRelativePath"
-        static let transcriptsRelativePath = "transcriptsRelativePath"
-    }
-
     struct VaultStatus: Equatable {
         var displayText: String
         var isConfigured: Bool
@@ -110,7 +103,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     }
 
     static func mock() -> MeetingPipelineViewModel {
-        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark)
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: AppConfiguration.Defaults.vaultRootBookmarkKey)
         let vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
         let coordinator = MeetingPipelineCoordinator(
             transcriptionService: MockTranscriptionService(),
@@ -142,7 +135,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             .liveDefault(selectionStore: selectionStore)
             ?? MissingScreenContextInferenceService()
 
-        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: DefaultsKey.vaultRootBookmark)
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: AppConfiguration.Defaults.vaultRootBookmarkKey)
         let vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
         let coordinator = MeetingPipelineCoordinator(
             transcriptionService: transcriptionService,
@@ -314,7 +307,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureSelection = nil
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
-                state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
+                state = .failed(error: .audioExportFailed, debugOutput: ErrorHandler.debugMessage(for: error))
             }
         }
     }
@@ -358,7 +351,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureSelection = nil
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
-                state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
+                state = .failed(error: .audioExportFailed, debugOutput: ErrorHandler.debugMessage(for: error))
             }
         }
     }
@@ -424,7 +417,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenContextEvents = []
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
-                state = .failed(error: .audioExportFailed, debugOutput: String(describing: error))
+                state = .failed(error: .audioExportFailed, debugOutput: ErrorHandler.debugMessage(for: error))
             }
         }
     }
@@ -580,7 +573,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 }
             )
         } catch {
-            logger.error("Screen context capture failed: \(String(describing: error), privacy: .public)")
+            logger.error("Screen context capture failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
         }
     }
 
@@ -618,7 +611,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         do {
             return try await screenContextVideoExtractor.inferEvents(from: sourceURL)
         } catch {
-            logger.error("Video screen context failed: \(String(describing: error), privacy: .public)")
+            logger.error("Video screen context failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             return nil
         }
     }
@@ -653,7 +646,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
         } catch {
             progress = nil
-            state = .failed(error: .vaultWriteFailed, debugOutput: String(describing: error))
+            state = .failed(error: .vaultWriteFailed, debugOutput: ErrorHandler.debugMessage(for: error))
         }
     }
 
@@ -680,12 +673,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         stoppedAt: Date,
         screenContextEvents: [ScreenContextEvent]
     ) -> PipelineContext? {
-        let defaults = UserDefaults.standard
-        let meetings = defaults.string(forKey: DefaultsKey.meetingsRelativePath) ?? "Meetings"
-        let audio = defaults.string(forKey: DefaultsKey.audioRelativePath) ?? "Meetings/_audio"
-        let transcripts = defaults.string(forKey: DefaultsKey.transcriptsRelativePath) ?? "Meetings/_transcripts"
-        let saveAudio = defaults.object(forKey: AppDefaultsKey.saveAudio) as? Bool ?? true
-        let saveTranscript = defaults.object(forKey: AppDefaultsKey.saveTranscript) as? Bool ?? true
+        let configuration = AppConfiguration()
 
         // Validate vault selection.
         do {
@@ -698,14 +686,18 @@ final class MeetingPipelineViewModel: ObservableObject {
             .appendingPathComponent("minute-work-\(UUID().uuidString)", isDirectory: true)
 
         return PipelineContext(
-            vaultFolders: MeetingFileContract.VaultFolders(meetingsRoot: meetings, audioRoot: audio, transcriptsRoot: transcripts),
+            vaultFolders: MeetingFileContract.VaultFolders(
+                meetingsRoot: configuration.meetingsRelativePath,
+                audioRoot: configuration.audioRelativePath,
+                transcriptsRoot: configuration.transcriptsRelativePath
+            ),
             audioTempURL: audioTempURL,
             audioDurationSeconds: audioDurationSeconds,
             startedAt: startedAt,
             stoppedAt: stoppedAt,
             workingDirectoryURL: workingDirectoryURL,
-            saveAudio: saveAudio,
-            saveTranscript: saveTranscript,
+            saveAudio: configuration.saveAudio,
+            saveTranscript: configuration.saveTranscript,
             screenContextEvents: screenContextEvents,
             transcriptionOverride: liveTranscriptionResult
         )
@@ -787,7 +779,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         switch state {
         case .failed(let error, let debugOutput):
             var lines: [String] = []
-            lines.append(error.errorDescription ?? "Error")
+            lines.append(ErrorHandler.userMessage(for: error, fallback: "Error"))
             lines.append(error.debugSummary)
             if let debugOutput, !debugOutput.isEmpty {
                 lines.append(debugOutput)
@@ -807,11 +799,10 @@ private struct FailingTranscriptionService: TranscriptionServicing {
     let error: MinuteError
 
     init(error: Error) {
-        if let minuteError = error as? MinuteError {
-            self.error = minuteError
-        } else {
-            self.error = .whisperFailed(exitCode: -1, output: String(describing: error))
-        }
+        self.error = ErrorHandler.minuteError(
+            for: error,
+            fallback: .whisperFailed(exitCode: -1, output: ErrorHandler.debugMessage(for: error))
+        )
     }
 
     func transcribe(wavURL: URL) async throws -> TranscriptionResult {

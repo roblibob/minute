@@ -180,7 +180,7 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
             try? FileManager.default.removeItem(at: sessionDirectoryURL)
             throw CancellationError()
         } catch {
-            logger.error("Audio export failed: \(String(describing: error), privacy: .public)")
+            logger.error("Audio export failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             throw MinuteError.audioExportFailed
         }
     }
@@ -291,7 +291,7 @@ private final class AudioTapWriter: @unchecked Sendable {
             }
             lock.unlock()
             if shouldLog {
-                logger.error("Audio tap write failed: \(String(describing: error), privacy: .public)")
+                logger.error("Audio tap write failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             }
         }
     }

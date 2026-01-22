@@ -57,7 +57,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     self?.isRefreshing = false
                 }
             } catch {
-                let message = (error as? MinuteError)?.errorDescription ?? String(describing: error)
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to load notes.")
                 await MainActor.run {
                     self?.notes = []
                     self?.sidebarErrorMessage = message
@@ -92,7 +92,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     self?.isLoadingContent = false
                 }
             } catch {
-                let message = (error as? MinuteError)?.errorDescription ?? "Failed to load note."
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to load note.")
                 await MainActor.run {
                     self?.overlayErrorMessage = message
                     self?.isLoadingContent = false
@@ -134,7 +134,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             } catch is CancellationError {
                 return
             } catch {
-                let message = (error as? MinuteError)?.errorDescription ?? "Failed to delete note."
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to delete note.")
                 await MainActor.run { [weak self] in
                     self?.sidebarErrorMessage = message
                 }
@@ -156,20 +156,17 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
     nonisolated private static func defaultBrowserProvider() -> any MeetingNotesBrowsing {
         let defaults = UserDefaults.standard
-        let meetingsRelativePathKey = "meetingsRelativePath"
-        let audioRelativePathKey = "audioRelativePath"
-        let transcriptsRelativePathKey = "transcriptsRelativePath"
-        let vaultRootBookmarkKey = "vaultRootBookmark"
-        let meetingsRelativePath = defaults.string(forKey: meetingsRelativePathKey) ?? "Meetings"
-        let audioRelativePath = defaults.string(forKey: audioRelativePathKey) ?? "Meetings/_audio"
-        let transcriptsRelativePath = defaults.string(forKey: transcriptsRelativePathKey) ?? "Meetings/_transcripts"
-        let bookmarkStore = UserDefaultsVaultBookmarkStore(key: vaultRootBookmarkKey)
+        let configuration = AppConfiguration(defaults: defaults)
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(
+            defaults: defaults,
+            key: AppConfiguration.Defaults.vaultRootBookmarkKey
+        )
         let access = VaultAccess(bookmarkStore: bookmarkStore)
         return VaultMeetingNotesBrowser(
             vaultAccess: access,
-            meetingsRelativePath: meetingsRelativePath,
-            audioRelativePath: audioRelativePath,
-            transcriptsRelativePath: transcriptsRelativePath
+            meetingsRelativePath: configuration.meetingsRelativePath,
+            audioRelativePath: configuration.audioRelativePath,
+            transcriptsRelativePath: configuration.transcriptsRelativePath
         )
     }
 

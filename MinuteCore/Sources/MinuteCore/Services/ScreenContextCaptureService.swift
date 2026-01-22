@@ -246,12 +246,12 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                         )
                         await collector.append(event)
                     } catch {
-                        logger.error("Screen inference failed: \(String(describing: error), privacy: .public)")
+                        logger.error("Screen inference failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
                     }
                 }
             } catch {
                 statusReporter.markSkipped()
-                logger.error("Screen context capture failed: \(String(describing: error), privacy: .public)")
+                logger.error("Screen context capture failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             }
         }
     }

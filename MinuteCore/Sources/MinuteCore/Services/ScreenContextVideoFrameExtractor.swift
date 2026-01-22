@@ -83,7 +83,7 @@ public final class ScreenContextVideoFrameExtractor: @unchecked Sendable {
                 }
                 processedCount += 1
             } catch {
-                logger.error("Video frame inference failed: \(String(describing: error), privacy: .public)")
+                logger.error("Video frame inference failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             }
 
             currentTime += intervalSeconds

@@ -129,7 +129,7 @@ public actor DefaultModelManager: ModelManaging {
                 throw minuteError
             } catch {
                 try? fileManager.removeItem(at: tempURL)
-                throw MinuteError.modelDownloadFailed(underlyingDescription: String(describing: error))
+                throw MinuteError.modelDownloadFailed(underlyingDescription: ErrorHandler.debugMessage(for: error))
             }
         }
 

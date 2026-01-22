@@ -71,7 +71,7 @@ public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unch
             }
 
             let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-                self.logger.error("XPC error: \(String(describing: error), privacy: .public)")
+                self.logger.error("XPC error: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
                 finish(.failure(MinuteError.whisperFailed(exitCode: -1, output: error.localizedDescription)))
             }
 

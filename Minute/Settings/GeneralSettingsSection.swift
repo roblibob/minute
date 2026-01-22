@@ -1,8 +1,9 @@
+import MinuteCore
 import SwiftUI
 
 struct GeneralSettingsSection: View {
-    @AppStorage(AppDefaultsKey.saveAudio) private var saveAudio: Bool = true
-    @AppStorage(AppDefaultsKey.saveTranscript) private var saveTranscript: Bool = true
+    @AppStorage(AppDefaultsKey.saveAudio) private var saveAudio: Bool = AppConfiguration.Defaults.defaultSaveAudio
+    @AppStorage(AppDefaultsKey.saveTranscript) private var saveTranscript: Bool = AppConfiguration.Defaults.defaultSaveTranscript
 
     var body: some View {
         Section("Options") {

@@ -155,7 +155,7 @@ public actor LiveTranscriptionSession {
             lines[activeLineIndex].text = trimmed
             lines[activeLineIndex].endSeconds = endTimeSeconds
         } catch {
-            logger.error("Live transcription failed: \(String(describing: error), privacy: .public)")
+            logger.error("Live transcription failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
         }
     }
 
