@@ -44,7 +44,7 @@ public actor DefaultMediaImportService: MediaImporting {
         try Task.checkCancellation()
 
         let duration = try ContractWavVerifier.durationSeconds(ofContractWavAt: wavURL)
-        let suggestedStartDate = resolveSuggestedStartDate(asset: asset, sourceURL: sourceURL)
+        let suggestedStartDate = await resolveSuggestedStartDate(asset: asset, sourceURL: sourceURL)
 
         logger.info("Imported media to WAV: \(wavURL.path, privacy: .public)")
 
@@ -117,12 +117,9 @@ public actor DefaultMediaImportService: MediaImporting {
         }
     }
 
-    private func resolveSuggestedStartDate(asset: AVAsset, sourceURL: URL) -> Date {
-        for item in asset.commonMetadata {
-            if item.commonKey?.rawValue == AVMetadataKey.commonKeyCreationDate.rawValue,
-               let date = item.dateValue {
-                return date
-            }
+    private func resolveSuggestedStartDate(asset: AVAsset, sourceURL: URL) async -> Date {
+        if let date = await resolveDateFromMetadata(asset: asset) {
+            return date
         }
 
         if let creationDate = try? sourceURL.resourceValues(forKeys: [.creationDateKey]).creationDate {
@@ -134,5 +131,20 @@ public actor DefaultMediaImportService: MediaImporting {
         }
 
         return Date()
+    }
+
+    private func resolveDateFromMetadata(asset: AVAsset) async -> Date? {
+        do {
+            let metadata = try await asset.load(.commonMetadata)
+            for item in metadata where item.commonKey?.rawValue == AVMetadataKey.commonKeyCreationDate.rawValue {
+                if let date = try await item.load(.dateValue) {
+                    return date
+                }
+            }
+        } catch {
+            logger.debug("Failed to load metadata date: \(String(describing: error), privacy: .public)")
+        }
+
+        return nil
     }
 }

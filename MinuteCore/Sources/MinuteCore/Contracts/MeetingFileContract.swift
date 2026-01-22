@@ -11,9 +11,9 @@ public struct MeetingFileContract: Sendable {
         public var transcriptsRoot: String
 
         public init(
-            meetingsRoot: String = "Meetings",
-            audioRoot: String = "Meetings/_audio",
-            transcriptsRoot: String = "Meetings/_transcripts"
+            meetingsRoot: String = AppConfiguration.Defaults.defaultMeetingsRelativePath,
+            audioRoot: String = AppConfiguration.Defaults.defaultAudioRelativePath,
+            transcriptsRoot: String = AppConfiguration.Defaults.defaultTranscriptsRelativePath
         ) {
             self.meetingsRoot = meetingsRoot
             self.audioRoot = audioRoot

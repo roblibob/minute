@@ -9,10 +9,10 @@ public final class ScreenContextSettingsStore {
 
     public init(
         defaults: UserDefaults = .standard,
-        enabledKey: String = "screenContextEnabled",
-        selectedWindowsKey: String = "screenContextSelectedWindows",
-        videoImportEnabledKey: String = "screenContextVideoImportEnabled",
-        captureIntervalSecondsKey: String = "screenContextCaptureIntervalSeconds"
+        enabledKey: String = AppConfiguration.Defaults.screenContextEnabledKey,
+        selectedWindowsKey: String = AppConfiguration.Defaults.screenContextSelectedWindowsKey,
+        videoImportEnabledKey: String = AppConfiguration.Defaults.screenContextVideoImportEnabledKey,
+        captureIntervalSecondsKey: String = AppConfiguration.Defaults.screenContextCaptureIntervalSecondsKey
     ) {
         self.defaults = defaults
         self.enabledKey = enabledKey
@@ -22,7 +22,7 @@ public final class ScreenContextSettingsStore {
     }
 
     public var isEnabled: Bool {
-        defaults.object(forKey: enabledKey) as? Bool ?? false
+        defaults.object(forKey: enabledKey) as? Bool ?? AppConfiguration.Defaults.defaultScreenContextEnabled
     }
 
     public func setEnabled(_ value: Bool) {
@@ -30,7 +30,8 @@ public final class ScreenContextSettingsStore {
     }
 
     public var isVideoImportEnabled: Bool {
-        defaults.object(forKey: videoImportEnabledKey) as? Bool ?? false
+        defaults.object(forKey: videoImportEnabledKey) as? Bool
+            ?? AppConfiguration.Defaults.defaultScreenContextVideoImportEnabled
     }
 
     public func setVideoImportEnabled(_ value: Bool) {
@@ -39,7 +40,9 @@ public final class ScreenContextSettingsStore {
 
     public var captureIntervalSeconds: TimeInterval {
         let value = defaults.object(forKey: captureIntervalSecondsKey) as? Double
-        return (value ?? 60.0) > 0 ? (value ?? 60.0) : 60.0
+        let fallback = AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
+        let resolved = value ?? fallback
+        return resolved > 0 ? resolved : fallback
     }
 
     public func setCaptureIntervalSeconds(_ value: TimeInterval) {

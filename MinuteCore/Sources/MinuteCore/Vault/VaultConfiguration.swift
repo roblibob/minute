@@ -18,9 +18,9 @@ public struct VaultConfiguration: Codable, Equatable, Sendable {
 
     public init(
         vaultRootBookmark: Data,
-        meetingsRelativePath: String = "Meetings",
-        audioRelativePath: String = "Meetings/_audio",
-        transcriptsRelativePath: String = "Meetings/_transcripts"
+        meetingsRelativePath: String = AppConfiguration.Defaults.defaultMeetingsRelativePath,
+        audioRelativePath: String = AppConfiguration.Defaults.defaultAudioRelativePath,
+        transcriptsRelativePath: String = AppConfiguration.Defaults.defaultTranscriptsRelativePath
     ) {
         self.vaultRootBookmark = vaultRootBookmark
         self.meetingsRelativePath = meetingsRelativePath

@@ -4,7 +4,10 @@ public final class SummarizationModelSelectionStore {
     private let defaults: UserDefaults
     private let key: String
 
-    public init(defaults: UserDefaults = .standard, key: String = "summarizationModelID") {
+    public init(
+        defaults: UserDefaults = .standard,
+        key: String = AppConfiguration.Defaults.summarizationModelIDKey
+    ) {
         self.defaults = defaults
         self.key = key
     }

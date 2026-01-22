@@ -7,13 +7,10 @@ public enum MeetingExtractionValidation {
         var copy = extraction
 
         // Title: normalize to a single line; never allow empty.
-        copy.title = normalizeInline(copy.title)
-        if copy.title.isEmpty {
-            copy.title = "Untitled"
-        }
+        copy.title = StringNormalizer.normalizeTitle(copy.title)
 
         // Date: must match YYYY-MM-DD; otherwise replace with the recording date.
-        let date = normalizeInline(copy.date)
+        let date = StringNormalizer.normalizeInline(copy.date)
         if isValidISODate(date) {
             copy.date = date
         } else {
@@ -21,15 +18,20 @@ public enum MeetingExtractionValidation {
         }
 
         // Summary: normalize line endings and trim.
-        copy.summary = normalizeParagraph(copy.summary)
+        copy.summary = StringNormalizer.normalizeParagraph(copy.summary)
 
         // Arrays: normalize items.
-        copy.decisions = copy.decisions.map(normalizeInline).filter { !$0.isEmpty }
-        copy.openQuestions = copy.openQuestions.map(normalizeInline).filter { !$0.isEmpty }
-        copy.keyPoints = copy.keyPoints.map(normalizeInline).filter { !$0.isEmpty }
+        copy.decisions = copy.decisions.map(StringNormalizer.normalizeInline).filter { !$0.isEmpty }
+        copy.openQuestions = copy.openQuestions.map(StringNormalizer.normalizeInline).filter { !$0.isEmpty }
+        copy.keyPoints = copy.keyPoints.map(StringNormalizer.normalizeInline).filter { !$0.isEmpty }
 
         copy.actionItems = copy.actionItems
-            .map { ActionItem(owner: normalizeInline($0.owner), task: normalizeInline($0.task)) }
+            .map {
+                ActionItem(
+                    owner: StringNormalizer.normalizeInline($0.owner),
+                    task: StringNormalizer.normalizeInline($0.task)
+                )
+            }
             .filter { !$0.owner.isEmpty || !$0.task.isEmpty }
 
         return copy
@@ -55,21 +57,5 @@ public enum MeetingExtractionValidation {
         // YYYY-MM-DD
         let pattern = /^\d{4}-\d{2}-\d{2}$/
         return value.wholeMatch(of: pattern) != nil
-    }
-
-    private static func normalizeParagraph(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func normalizeInline(_ value: String) -> String {
-        // Normalize to a single-line, trimmed string.
-        normalizeParagraph(value)
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "\t", with: " ")
-            .replacingOccurrences(of: "  ", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

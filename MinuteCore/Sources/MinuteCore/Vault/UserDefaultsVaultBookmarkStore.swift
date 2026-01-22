@@ -4,7 +4,7 @@ public final class UserDefaultsVaultBookmarkStore: VaultBookmarkStoring {
     private let defaults: UserDefaults
     private let key: String
 
-    public init(defaults: UserDefaults = .standard, key: String = "vaultRootBookmark") {
+    public init(defaults: UserDefaults = .standard, key: String = AppConfiguration.Defaults.vaultRootBookmarkKey) {
         self.defaults = defaults
         self.key = key
     }

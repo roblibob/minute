@@ -34,9 +34,9 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
 
     public init(
         vaultAccess: VaultAccess,
-        meetingsRelativePath: String = "Meetings",
-        audioRelativePath: String = "Meetings/_audio",
-        transcriptsRelativePath: String = "Meetings/_transcripts"
+        meetingsRelativePath: String = AppConfiguration.Defaults.defaultMeetingsRelativePath,
+        audioRelativePath: String = AppConfiguration.Defaults.defaultAudioRelativePath,
+        transcriptsRelativePath: String = AppConfiguration.Defaults.defaultTranscriptsRelativePath
     ) {
         self.vaultAccess = vaultAccess
         self.meetingsRelativePath = meetingsRelativePath
