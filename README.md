@@ -23,6 +23,10 @@
   <a href="#docs">Docs</a>
 </p>
 
+<p align="center">
+  <img src="docs/minute.gif" alt="Minute demo" width="820">
+</p>
+
 ## Key Features
 - Records audio locally (mic + system audio).
 - Transcribes locally with Whisper.
