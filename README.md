@@ -1,55 +1,70 @@
-# 🕒 Minute
+<h1 align="center">
+  <br>
+  <img src="Minute/Assets.xcassets/AppIcon.appiconset/Minute-macOS-Dark-512x512@1x.png" alt="Minute" width="200">
+  <br>
+  Minute
+  <br>
+</h1>
+
+<h4 align="center">A local-first macOS meeting capture app that writes deterministic notes into your Obsidian vault.</h4>
 
 <p align="center">
-  <img src="Minute/Assets.xcassets/AppIcon.appiconset/Minute-macOS-Dark-512x512@1x.png" alt="Minute icon" width="160" />
+  <img alt="platform" src="https://img.shields.io/badge/platform-macOS%2014%2B-0B1B2B">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-2E5EAA">
+  <img alt="privacy" src="https://img.shields.io/badge/privacy-local--only-1F7A3F">
 </p>
 
-Minute is a native macOS companion for Obsidian that turns meetings into clean, structured notes. It records audio locally, transcribes with Whisper, summarizes with Llama, and writes the results directly into your vault.
+<p align="center">
+  <a href="#key-features">Key Features</a> •
+  <a href="#output-contract">Output Contract</a> •
+  <a href="#how-to-build">How to Build</a> •
+  <a href="#testing">Testing</a> •
+  <a href="#privacy">Privacy</a> •
+  <a href="#docs">Docs</a>
+</p>
 
-## ✨ What it does
-- Record or upload a meeting and process it locally.
-- Produce deterministic Markdown notes that match a fixed template.
-- Store meeting artifacts inside your Obsidian vault.
+## Key Features
+- Records audio locally (mic + system audio).
+- Transcribes locally with Whisper.
+- Summarizes locally with Llama (JSON-only output).
+- Renders deterministic Markdown using a fixed template.
+- Writes notes, audio, and transcript directly into your Obsidian vault.
+- Enriches notes with optional screen context captures during recording.
+- Live waveform and live transcript during recording.
 
-## ⚙️ How it works
-1. Record mic + system audio.
-2. Transcribe locally (Whisper).
-3. Summarize locally (Llama, JSON-only).
-4. Render deterministic Markdown.
-5. Write files atomically into the vault.
-
-## 📄 Output contract (default)
-Exactly three artifacts are written per meeting:
+## Output Contract
+Exactly three artifacts are written per processed meeting:
 - `Meetings/YYYY/MM/YYYY-MM-DD HH.MM - <Title>.md`
 - `Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav`
 - `Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md`
 
-The WAV format is mono, 16 kHz, 16-bit PCM. The note links to the audio and transcript files.
+WAV format: mono, 16 kHz, 16-bit PCM.
 
-## 🔒 Privacy and networking
+Frontmatter example:
+```
+---
+type: meeting
+date: Jan 19, 2026 at 11:39
+title: "PIE2E and 3DBanken Progress Update"
+source: "Minute"
+length: 35m
+tags:
+---
+```
+
+## Requirements
+- macOS 14+
+- Apple Silicon (M1 or newer)
+
+## Privacy
 - Audio and inference stay local.
 - No outbound network calls except model downloads.
 
-## ✅ Requirements
-- macOS 14+
-- Apple Silicon (M1 or better)
+## Contributing
+See `CONTRIBUTING.md`.
 
-## 📦 Installation (Alpha)
-1. Download the latest `.dmg` from GitHub Releases.
-2. Drag `Minute.app` into `/Applications`.
-3. Since the app is currently unsigned, approve it in System Settings → Privacy & Security the first time you launch it.
+## Security
+See `SECURITY.md`.
 
-## 🧰 Settings
-In General settings you can:
-- Choose vault folders
-- Toggle whether audio and transcript files are saved (the note omits links when disabled)
-
-## 🛠️ Build (CLI)
-```
-xcodebuild -project Minute.xcodeproj -scheme Minute -configuration Debug build
-```
-
-## 🧪 Test (CLI)
-```
-xcodebuild -project Minute.xcodeproj -scheme MinuteCore -configuration Debug test
-```
+## License
+MIT. See `LICENSE`.
