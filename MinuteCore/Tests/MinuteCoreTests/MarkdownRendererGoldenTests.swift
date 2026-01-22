@@ -18,6 +18,7 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         let markdown = MarkdownRenderer().render(
             extraction: extraction,
             noteDateTime: "2025-12-19 09:00",
+            audioDurationSeconds: 2100,
             audioRelativePath: audio,
             transcriptRelativePath: transcript
         )
@@ -28,6 +29,7 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         date: 2025-12-19 09:00
         title: \"Weekly Sync\"
         source: \"Minute\"
+        length: 35m
         tags:
         ---
 

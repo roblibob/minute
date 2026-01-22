@@ -185,6 +185,7 @@ public actor MeetingPipelineCoordinator {
         let noteMarkdown = MarkdownRenderer().render(
             extraction: extraction,
             noteDateTime: processedDateTime,
+            audioDurationSeconds: context.audioDurationSeconds,
             audioRelativePath: audioRelativePath,
             transcriptRelativePath: transcriptRelativePath
         )

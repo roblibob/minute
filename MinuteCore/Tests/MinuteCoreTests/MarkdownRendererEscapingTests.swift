@@ -17,6 +17,7 @@ final class MarkdownRendererEscapingTests: XCTestCase {
         let markdown = MarkdownRenderer().render(
             extraction: extraction,
             noteDateTime: "2025-12-19 10:00",
+            audioDurationSeconds: nil,
             audioRelativePath: audio,
             transcriptRelativePath: nil
         )

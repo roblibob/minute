@@ -33,16 +33,17 @@ The note is fully deterministic in structure and contains:
 	•	YAML frontmatter
 	•	Sections: Summary, Decisions, Action Items, Open Questions, Key Points
 	•	A link to the WAV file stored in the vault
+	•	A length field (recording duration) in the frontmatter
 
 Frontmatter (fixed schema)
 
 ---
 type: meeting
-date: YYYY-MM-DD
+date: Jan 19, 2026 at 11:39
 title: "<Title>"
-audio: "Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav"
-transcript: "Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md"
 source: "Minute"
+length: 35m
+tags:
 ---
 
 Body template (fixed)

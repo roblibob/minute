@@ -198,14 +198,21 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         previewTask?.cancel()
 
         let configuration = AppConfiguration(defaults: UserDefaults.standard)
-        previewTask = Task.detached { [notes, configuration] in
+        let provider = browserProvider
+        let vaultAccess = Self.makeVaultAccess()
+        previewTask = Task.detached { [notes, configuration, provider, vaultAccess] in
             var previews: [String: NotePreview] = [:]
             previews.reserveCapacity(notes.count)
 
+            let browser = provider()
             for item in notes {
                 if Task.isCancelled { return }
-                let summaryLine = Self.loadSummaryLine(for: item)
-                let durationSeconds = Self.loadDurationSeconds(for: item, configuration: configuration)
+                let summaryLine = await Self.loadSummaryLine(for: item, browser: browser)
+                let durationSeconds = Self.loadDurationSeconds(
+                    for: item,
+                    configuration: configuration,
+                    vaultAccess: vaultAccess
+                )
                 previews[item.id] = NotePreview(summaryLine: summaryLine, durationSeconds: durationSeconds)
             }
 
@@ -215,65 +222,87 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         }
     }
 
-    nonisolated private static func loadSummaryLine(for item: MeetingNoteItem) -> String {
-        guard let content = loadTextContent(from: item.fileURL) else {
+    nonisolated private static let summaryPreviewWordCount = 18
+
+    nonisolated private static func loadSummaryLine(
+        for item: MeetingNoteItem,
+        browser: any MeetingNotesBrowsing
+    ) async -> String {
+        guard let content = try? await browser.loadNoteContent(for: item) else {
             return "No summary yet."
         }
-        let summary = extractSummaryLine(from: content)
+        let summary = extractSummaryPreview(from: content)
         return summary.isEmpty ? "No summary yet." : summary
     }
 
-    nonisolated private static func extractSummaryLine(from content: String) -> String {
+    nonisolated private static func extractSummaryPreview(from content: String) -> String {
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
         guard let summaryIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines) == "## Summary" }) else {
             return ""
         }
 
+        var summaryLines: [String] = []
         var index = summaryIndex + 1
         while index < lines.count {
             let line = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
             if line.hasPrefix("## ") {
-                return ""
+                break
             }
             if !line.isEmpty {
-                return line
+                summaryLines.append(line)
             }
             index += 1
         }
 
-        return ""
-    }
+        guard !summaryLines.isEmpty else { return "" }
+        let summaryText = summaryLines.joined(separator: " ")
+        let words = summaryText.split(whereSeparator: { $0.isWhitespace })
+        guard !words.isEmpty else { return "" }
 
-    nonisolated private static func loadTextContent(from url: URL) -> String? {
-        if let content = try? String(contentsOf: url, encoding: .utf8) {
-            return content
+        let previewCount = min(words.count, summaryPreviewWordCount)
+        let preview = words.prefix(previewCount).joined(separator: " ")
+        if words.count > previewCount {
+            return "\(preview)..."
         }
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return String(decoding: data, as: UTF8.self)
+        return preview
     }
 
-    nonisolated private static func loadDurationSeconds(for item: MeetingNoteItem, configuration: AppConfiguration) -> TimeInterval? {
-        let audioURL = audioFileURL(for: item, configuration: configuration)
-        guard FileManager.default.fileExists(atPath: audioURL.path) else { return nil }
-        guard let file = try? AVAudioFile(forReading: audioURL) else { return nil }
-        let format = file.fileFormat
-        guard format.sampleRate > 0 else { return nil }
-        return TimeInterval(Double(file.length) / format.sampleRate)
+    nonisolated private static func loadDurationSeconds(
+        for item: MeetingNoteItem,
+        configuration: AppConfiguration,
+        vaultAccess: VaultAccess
+    ) -> TimeInterval? {
+        let duration = try? vaultAccess.withVaultAccess { vaultRootURL -> TimeInterval? in
+            let audioURL = audioFileURL(
+                for: item,
+                audioRelativePath: configuration.audioRelativePath,
+                vaultRootURL: vaultRootURL
+            )
+            guard FileManager.default.fileExists(atPath: audioURL.path) else { return nil }
+            guard let file = try? AVAudioFile(forReading: audioURL) else { return nil }
+            let format = file.fileFormat
+            guard format.sampleRate > 0 else { return nil }
+            return TimeInterval(Double(file.length) / format.sampleRate)
+        }
+        return duration ?? nil
     }
 
-    nonisolated private static func audioFileURL(for item: MeetingNoteItem, configuration: AppConfiguration) -> URL {
-        let vaultRootURL = vaultRootURL(for: item)
-        return vaultRootURL
-            .appendingPathComponent(configuration.audioRelativePath)
+    nonisolated private static func audioFileURL(
+        for item: MeetingNoteItem,
+        audioRelativePath: String,
+        vaultRootURL: URL
+    ) -> URL {
+        vaultRootURL
+            .appendingPathComponent(audioRelativePath)
             .appendingPathComponent("\(item.fileURL.deletingPathExtension().lastPathComponent).wav")
     }
 
-    nonisolated private static func vaultRootURL(for item: MeetingNoteItem) -> URL {
-        let componentCount = item.relativePath.split(separator: "/").count
-        var url = item.fileURL
-        for _ in 0..<componentCount {
-            url.deleteLastPathComponent()
-        }
-        return url
+    nonisolated private static func makeVaultAccess() -> VaultAccess {
+        let defaults = UserDefaults.standard
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(
+            defaults: defaults,
+            key: AppConfiguration.Defaults.vaultRootBookmarkKey
+        )
+        return VaultAccess(bookmarkStore: bookmarkStore)
     }
 }

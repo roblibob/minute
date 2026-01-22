@@ -9,11 +9,13 @@ public struct MarkdownRenderer: Sendable {
     public func render(
         extraction: MeetingExtraction,
         noteDateTime: String,
+        audioDurationSeconds: TimeInterval?,
         audioRelativePath: String?,
         transcriptRelativePath: String?
     ) -> String {
         let title = StringNormalizer.normalizeTitle(extraction.title)
         let date = noteDateTime
+        let length = Self.formatDuration(audioDurationSeconds)
 
         var lines: [String] = []
         lines.reserveCapacity(64)
@@ -24,6 +26,9 @@ public struct MarkdownRenderer: Sendable {
         lines.append("date: \(date)")
         lines.append("title: \(StringNormalizer.yamlDoubleQuoted(title))")
         lines.append("source: \"Minute\"")
+        if let length {
+            lines.append("length: \(length)")
+        }
         lines.append("tags:")
         lines.append("---")
         lines.append("")
@@ -103,6 +108,21 @@ public struct MarkdownRenderer: Sendable {
                 lines.append("- [ ] \(item.task) (Owner: \(item.owner))")
             }
         }
+    }
+
+    private static func formatDuration(_ seconds: TimeInterval?) -> String? {
+        guard let seconds, seconds > 0 else { return nil }
+        let totalMinutes = max(1, Int((seconds / 60.0).rounded()))
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+
+        if hours > 0 {
+            if minutes == 0 {
+                return "\(hours)h"
+            }
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(totalMinutes)m"
     }
 
 }

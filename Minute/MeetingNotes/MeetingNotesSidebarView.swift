@@ -10,6 +10,13 @@ struct MeetingNotesSidebarView: View {
         return formatter
     }()
 
+    private static let fullDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     private static let durationFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute]
@@ -163,7 +170,11 @@ struct MeetingNotesSidebarView: View {
         guard let date = item.date else {
             return "Unknown time"
         }
-        return Self.timeFormatter.string(from: date)
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) || calendar.isDateInYesterday(date) {
+            return Self.timeFormatter.string(from: date)
+        }
+        return Self.fullDateFormatter.string(from: date)
     }
 
     private func durationLabel(for preview: MeetingNotesBrowserViewModel.NotePreview?) -> String? {
