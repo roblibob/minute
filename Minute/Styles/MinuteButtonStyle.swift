@@ -4,7 +4,7 @@ struct MinuteStandardButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
-        let baseColor = Color.accentColor
+        let baseColor = Color.minuteGlow
         let fillColor: Color
         if isEnabled {
             fillColor = baseColor.opacity(configuration.isPressed ? 0.82 : 1.0)

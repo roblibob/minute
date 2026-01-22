@@ -1,14 +1,20 @@
 import AppKit
+import AVFoundation
 import Combine
 import Foundation
 import MinuteCore
 
 @MainActor
 final class MeetingNotesBrowserViewModel: ObservableObject {
+    struct NotePreview: Equatable {
+        var summaryLine: String
+        var durationSeconds: TimeInterval?
+    }
 
     @Published private(set) var notes: [MeetingNoteItem] = []
     @Published private(set) var isRefreshing: Bool = false
     @Published private(set) var sidebarErrorMessage: String?
+    @Published private(set) var notePreviews: [String: NotePreview] = [:]
 
     @Published private(set) var isLoadingContent: Bool = false
     @Published private(set) var noteContent: String?
@@ -21,6 +27,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     private var listTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var deleteTask: Task<Void, Never>?
+    private var previewTask: Task<Void, Never>?
     private var defaultsObserver: AnyCancellable?
 
     init(browserProvider: @escaping @Sendable () -> any MeetingNotesBrowsing = MeetingNotesBrowserViewModel.defaultBrowserProvider) {
@@ -37,6 +44,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         listTask?.cancel()
         loadTask?.cancel()
         deleteTask?.cancel()
+        previewTask?.cancel()
     }
 
     func refresh() {
@@ -51,6 +59,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                 await MainActor.run {
                     self?.notes = notes
                     self?.isRefreshing = false
+                    self?.refreshPreviews(for: notes)
                 }
             } catch is CancellationError {
                 await MainActor.run {
@@ -62,6 +71,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     self?.notes = []
                     self?.sidebarErrorMessage = message
                     self?.isRefreshing = false
+                    self?.notePreviews = [:]
                 }
             }
         }
@@ -116,6 +126,10 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         isLoadingContent = false
     }
 
+    func preview(for item: MeetingNoteItem) -> NotePreview? {
+        notePreviews[item.id]
+    }
+
     func delete(_ item: MeetingNoteItem) {
         deleteTask?.cancel()
         sidebarErrorMessage = nil
@@ -130,6 +144,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                         self.dismissOverlay()
                     }
                     self.refresh()
+                    self.notePreviews[item.id] = nil
                 }
             } catch is CancellationError {
                 return
@@ -177,5 +192,88 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         } catch {
             return true
         }
+    }
+
+    private func refreshPreviews(for notes: [MeetingNoteItem]) {
+        previewTask?.cancel()
+
+        let configuration = AppConfiguration(defaults: UserDefaults.standard)
+        previewTask = Task.detached { [notes, configuration] in
+            var previews: [String: NotePreview] = [:]
+            previews.reserveCapacity(notes.count)
+
+            for item in notes {
+                if Task.isCancelled { return }
+                let summaryLine = Self.loadSummaryLine(for: item)
+                let durationSeconds = Self.loadDurationSeconds(for: item, configuration: configuration)
+                previews[item.id] = NotePreview(summaryLine: summaryLine, durationSeconds: durationSeconds)
+            }
+
+            await MainActor.run { [weak self] in
+                self?.notePreviews = previews
+            }
+        }
+    }
+
+    nonisolated private static func loadSummaryLine(for item: MeetingNoteItem) -> String {
+        guard let content = loadTextContent(from: item.fileURL) else {
+            return "No summary yet."
+        }
+        let summary = extractSummaryLine(from: content)
+        return summary.isEmpty ? "No summary yet." : summary
+    }
+
+    nonisolated private static func extractSummaryLine(from content: String) -> String {
+        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        guard let summaryIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines) == "## Summary" }) else {
+            return ""
+        }
+
+        var index = summaryIndex + 1
+        while index < lines.count {
+            let line = lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.hasPrefix("## ") {
+                return ""
+            }
+            if !line.isEmpty {
+                return line
+            }
+            index += 1
+        }
+
+        return ""
+    }
+
+    nonisolated private static func loadTextContent(from url: URL) -> String? {
+        if let content = try? String(contentsOf: url, encoding: .utf8) {
+            return content
+        }
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    nonisolated private static func loadDurationSeconds(for item: MeetingNoteItem, configuration: AppConfiguration) -> TimeInterval? {
+        let audioURL = audioFileURL(for: item, configuration: configuration)
+        guard FileManager.default.fileExists(atPath: audioURL.path) else { return nil }
+        guard let file = try? AVAudioFile(forReading: audioURL) else { return nil }
+        let format = file.fileFormat
+        guard format.sampleRate > 0 else { return nil }
+        return TimeInterval(Double(file.length) / format.sampleRate)
+    }
+
+    nonisolated private static func audioFileURL(for item: MeetingNoteItem, configuration: AppConfiguration) -> URL {
+        let vaultRootURL = vaultRootURL(for: item)
+        return vaultRootURL
+            .appendingPathComponent(configuration.audioRelativePath)
+            .appendingPathComponent("\(item.fileURL.deletingPathExtension().lastPathComponent).wav")
+    }
+
+    nonisolated private static func vaultRootURL(for item: MeetingNoteItem) -> URL {
+        let componentCount = item.relativePath.split(separator: "/").count
+        var url = item.fileURL
+        for _ in 0..<componentCount {
+            url.deleteLastPathComponent()
+        }
+        return url
     }
 }

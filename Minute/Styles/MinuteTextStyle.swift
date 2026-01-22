@@ -2,25 +2,32 @@ import SwiftUI
 
 extension View {
     func minuteSectionTitle() -> some View {
-        font(.title3.bold())
+        font(.system(size: 18, weight: .semibold))
+            .tracking(-0.3)
+            .foregroundStyle(Color.minuteTextPrimary)
     }
 
     func minuteRowTitle() -> some View {
-        font(.headline)
+        font(.system(size: 15, weight: .semibold))
+            .tracking(-0.2)
+            .foregroundStyle(Color.minuteTextPrimary)
     }
 
     func minuteRowSubtitle() -> some View {
-        font(.subheadline)
-            .foregroundStyle(.secondary)
+        font(.system(size: 13, weight: .medium))
+            .tracking(-0.1)
+            .foregroundStyle(Color.minuteTextSecondary)
     }
 
     func minuteCaption() -> some View {
-        font(.callout)
-            .foregroundStyle(.secondary)
+        font(.system(size: 12, weight: .medium))
+            .tracking(-0.1)
+            .foregroundStyle(Color.minuteTextSecondary)
     }
 
     func minuteFootnote() -> some View {
-        font(.footnote)
-            .foregroundStyle(.secondary)
+        font(.system(size: 11, weight: .medium))
+            .tracking(-0.1)
+            .foregroundStyle(Color.minuteTextMuted)
     }
 }

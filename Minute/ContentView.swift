@@ -18,6 +18,9 @@ struct ContentView: View {
             contentBody
         }
         .frame(minWidth: 860, minHeight: 520)
+        .background(MinuteTheme.backgroundGradient)
+        .tint(Color.minuteGlow)
+        .colorScheme(.dark)
         .onAppear { onboardingModel.refreshAll() }
     }
 
@@ -42,35 +45,28 @@ private struct PipelineContentView: View {
     @StateObject private var notesModel = MeetingNotesBrowserViewModel()
     @State private var isImportingFile = false
     @State private var isDropTargeted = false
-    @State private var isRecordButtonHovered = false
     @State private var isRecordingWindowPickerPresented = false
     @State private var screenPickerPurpose: ScreenPickerPurpose?
     @State private var screenTogglePending = false
     @State private var screenPickerHandled = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            MeetingNotesSidebarView(model: notesModel)
+        ZStack(alignment: .bottom) {
+            HStack(spacing: 0) {
+                MeetingNotesSidebarView(model: notesModel)
 
-            Divider()
+             
 
-            if notesModel.isOverlayPresented {
-                MarkdownViewerOverlay(
-                    title: notesModel.selectedItem?.title ?? "",
-                    content: notesModel.noteContent,
-                    isLoading: notesModel.isLoadingContent,
-                    errorMessage: notesModel.overlayErrorMessage,
-                    renderPlainText: notesModel.renderPlainText,
-                    onClose: notesModel.dismissOverlay,
-                    onRetry: notesModel.retryLoadContent,
-                    onOpenInObsidian: notesModel.openInObsidian
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                pipelineBody
+                mainStage
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .background(MinuteTheme.backgroundGradient)
+            .overlay(dropOverlay)
+
+            floatingControlStack
+                .padding(.bottom, 22)
         }
+        .background(MinuteTheme.backgroundGradient)
         .onAppear {
             model.refreshVaultStatus()
             notesModel.refresh()
@@ -80,17 +76,6 @@ private struct PipelineContentView: View {
                 notesModel.refresh()
             }
         }
-    }
-
-    private var pipelineBody: some View {
-        VStack(spacing: 24) {
-            recordControl
-            captureToggles
-            statusArea
-
-            Spacer(minLength: 0)
-        }
-        .padding(24)
         .contentShape(Rectangle())
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
             handleDrop(providers)
@@ -112,64 +97,74 @@ private struct PipelineContentView: View {
         }
     }
 
-    private var recordControl: some View {
-        HStack(spacing: 0) {
-            Button(action: handleRecordButtonTap) {
-                VStack(spacing: 8) {
-                    HStack(spacing: 10) {
-                        if recordButtonShowsSpinner {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.white)
-                        } else if let iconName = recordButtonIconName {
-                            Image(systemName: iconName)
-                                .font(.title3.weight(.semibold))
-                        }
-
-                        Text(recordButtonTitle)
-                            .font(.title3.bold())
-                    }
-                    .foregroundStyle(.white)
-
-                    if recordButtonShowsWaveform {
-                        AudioWaveformView(levels: model.audioLevelSamples)
-                            .frame(height: 22)
-                    }
-                }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 20)
-            }
-            .buttonStyle(.plain)
-            .onHover { hovering in
-                isRecordButtonHovered = hovering
-            }
-            .disabled(!recordButtonEnabled)
-            .opacity(recordButtonEnabled ? 1 : 0.6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Menu {
-                Button("Upload audio file…") {
-                    isImportingFile = true
-                }
-                .disabled(!model.state.canImportMedia)
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .frame(width: 56, height: 70)
-            .contentShape(Rectangle())
+    @ViewBuilder
+    private var dropOverlay: some View {
+        if isDropTargeted, model.state.canImportMedia {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.minuteGlow.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [10]))
+                .padding(32)
+                .overlay(
+                    Text("Drop audio to import")
+                        .font(.system(size: 14, weight: .semibold))
+                        .tracking(-0.2)
+                        .foregroundStyle(Color.minuteTextPrimary)
+                        .padding(10)
+                        .background(
+                            Capsule()
+                                .fill(Color.minuteSurface)
+                        )
+                )
+                .transition(.opacity)
         }
-        .frame(height: 70)
-        .background(recordButtonBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.25), radius: 14, x: 0, y: 8)
+    }
+
+    private var mainStage: some View {
+        MainStageContainer {
+            if notesModel.isOverlayPresented {
+                MarkdownViewerOverlay(
+                    title: notesModel.selectedItem?.title ?? "",
+                    content: notesModel.noteContent,
+                    isLoading: notesModel.isLoadingContent,
+                    errorMessage: notesModel.overlayErrorMessage,
+                    renderPlainText: notesModel.renderPlainText,
+                    onClose: notesModel.dismissOverlay,
+                    onRetry: notesModel.retryLoadContent,
+                    onOpenInObsidian: notesModel.openInObsidian
+                )
+            } else {
+                MainStageView(
+                    model: model,
+                    notesModel: notesModel,
+                    bottomInset: mainStageBottomInset
+                )
+            }
+        }
+    }
+
+    private var floatingControlStack: some View {
+        VStack(spacing: 10) {
+            if let status = statusDrawerModel {
+                StatusDrawerView(model: status)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            FloatingControlBar(
+                recordState: recordButtonState,
+                recordEnabled: recordButtonEnabled,
+                isMicOn: model.microphoneCaptureEnabled,
+                isSystemAudioOn: model.systemAudioCaptureEnabled,
+                isScreenShareOn: isScreenToggleOn,
+                controlsEnabled: captureTogglesEnabled,
+                uploadEnabled: model.state.canImportMedia,
+                onRecordTap: handleRecordButtonTap,
+                onMicToggle: { model.setMicrophoneCaptureEnabled(!model.microphoneCaptureEnabled) },
+                onSystemAudioToggle: { model.setSystemAudioCaptureEnabled(!model.systemAudioCaptureEnabled) },
+                onScreenShareToggle: { handleScreenToggleChange(!isScreenToggleOn) },
+                onUploadTap: { isImportingFile = true }
+            )
+        }
+        .frame(maxWidth: 560)
+        .animation(.easeInOut(duration: 0.2), value: statusDrawerModel != nil)
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
@@ -206,115 +201,6 @@ private struct PipelineContentView: View {
         model.send(.importFile(url))
     }
 
-    private var statusArea: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Status")
-                .minuteSectionTitle()
-
-            switch model.state {
-            case .done(let noteURL, _):
-                HStack(spacing: 12) {
-                    Text("Meeting ready.")
-                        .minuteCaption()
-
-                    Button("Reveal in Finder") {
-                        model.revealInFinder(noteURL)
-                    }
-                    .minuteStandardButtonStyle()
-
-                    Spacer()
-                }
-
-            case .failed(let error, _):
-                Text(ErrorHandler.userMessage(for: error, fallback: "Processing failed."))
-                    .foregroundStyle(.red)
-
-            default:
-                HStack(spacing: 12) {
-                    Text(model.state.statusLabel)
-                        .minuteCaption()
-
-                    if let progress = model.progress {
-                        ProgressView(value: progress)
-                            .frame(width: 220)
-                    } else if model.state.canCancelProcessing {
-                        ProgressView()
-                    }
-
-                    Spacer()
-                }
-            }
-
-            if case .recording = model.state {
-                RollingTickerText(text: model.liveTranscriptionLine.isEmpty ? "Listening..." : model.liveTranscriptionLine)
-            }
-
-            if case .recording = model.state, let image = model.latestScreenCaptureImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 320, maxHeight: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-                    )
-                    .accessibilityLabel(Text("Latest screen capture"))
-            }
-
-            if shouldShowScreenInferenceStatus, let status = model.screenInferenceStatus {
-                HStack(spacing: 12) {
-                    Text("Screen inference")
-                        .minuteCaption()
-
-                    ProgressView()
-                        .progressViewStyle(.linear)
-                        .frame(width: 220)
-
-                    Text("Processed \(status.processedCount), skipped \(status.skippedCount)")
-                        .minuteCaption()
-
-                    Spacer()
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var captureToggles: some View {
-        HStack(spacing: 12) {
-            CaptureToggleButton(
-                label: "Microphone",
-                isOn: model.microphoneCaptureEnabled,
-                onSymbol: "mic.fill",
-                offSymbol: "mic.slash.fill"
-            ) {
-                model.setMicrophoneCaptureEnabled(!model.microphoneCaptureEnabled)
-            }
-
-            CaptureToggleButton(
-                label: "System audio",
-                isOn: model.systemAudioCaptureEnabled,
-                onSymbol: "speaker.wave.2.fill",
-                offSymbol: "speaker.slash.fill"
-            ) {
-                model.setSystemAudioCaptureEnabled(!model.systemAudioCaptureEnabled)
-            }
-
-            CaptureToggleButton(
-                label: "Screen",
-                isOn: isScreenToggleOn,
-                onSymbol: "display",
-                offSymbol: "rectangle.slash"
-            ) {
-                handleScreenToggleChange(!isScreenToggleOn)
-            }
-        }
-        .disabled(!captureTogglesEnabled)
-        .opacity(captureTogglesEnabled ? 1 : 0.6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var isScreenToggleOn: Bool {
         model.screenCaptureEnabled || screenTogglePending
     }
@@ -322,15 +208,6 @@ private struct PipelineContentView: View {
     private var captureTogglesEnabled: Bool {
         switch model.state {
         case .idle, .recording, .recorded, .done, .failed:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private var shouldShowScreenInferenceStatus: Bool {
-        switch model.state {
-        case .recording, .importing:
             return true
         default:
             return false
@@ -350,62 +227,6 @@ private struct PipelineContentView: View {
         }
     }
 
-    private var recordButtonTitle: String {
-        if isDropTargeted, model.state.canImportMedia {
-            return "Import audio"
-        }
-
-        switch recordButtonState {
-        case .ready:
-            return "Start recording"
-        case .recording:
-            return isRecordButtonHovered ? "Stop recording" : "Recording..."
-        case .recorded:
-            return "Process"
-        case .processing:
-            return "Processing"
-        }
-    }
-
-    private var recordButtonIconName: String? {
-        if isDropTargeted, model.state.canImportMedia {
-            return "tray.and.arrow.down.fill"
-        }
-
-        switch recordButtonState {
-        case .ready:
-            return "mic.fill"
-        case .recording:
-            return "mic.fill"
-        case .recorded:
-            return "sparkles"
-        case .processing:
-            return nil
-        }
-    }
-
-    private var recordButtonBackground: some View {
-        LinearGradient(
-            colors: [Color("AccentColor"), Color("AccentGradientEndColor")],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    private var recordButtonShowsSpinner: Bool {
-        if case .processing = recordButtonState {
-            return true
-        }
-        return false
-    }
-
-    private var recordButtonShowsWaveform: Bool {
-        if case .recording = recordButtonState {
-            return true
-        }
-        return false
-    }
-
     private var recordButtonEnabled: Bool {
         switch recordButtonState {
         case .ready:
@@ -417,6 +238,59 @@ private struct PipelineContentView: View {
         case .processing:
             return false
         }
+    }
+
+    private var statusDrawerModel: StatusDrawerModel? {
+        switch model.state {
+        case .recorded:
+            return StatusDrawerModel(
+                title: "Recording ready",
+                detail: "Tap the record button to process this meeting.",
+                progress: nil,
+                showsActivity: false,
+                isError: false,
+                actionTitle: nil,
+                action: nil
+            )
+        case .processing, .writing, .importing:
+            return StatusDrawerModel(
+                title: model.state.statusLabel,
+                detail: "Working locally. You can keep browsing notes.",
+                progress: model.progress,
+                showsActivity: model.progress == nil,
+                isError: false,
+                actionTitle: nil,
+                action: nil
+            )
+        case .done(let noteURL, _):
+            return StatusDrawerModel(
+                title: "Meeting ready",
+                detail: "Your note, transcript, and audio are in the vault.",
+                progress: nil,
+                showsActivity: false,
+                isError: false,
+                actionTitle: "Reveal in Finder",
+                action: { model.revealInFinder(noteURL) }
+            )
+        case .failed(let error, _):
+            return StatusDrawerModel(
+                title: "Processing failed",
+                detail: ErrorHandler.userMessage(for: error, fallback: "Processing failed."),
+                progress: nil,
+                showsActivity: false,
+                isError: true,
+                actionTitle: nil,
+                action: nil
+            )
+        default:
+            return nil
+        }
+    }
+
+    private var mainStageBottomInset: CGFloat {
+        let base: CGFloat = 104
+        let statusExtra: CGFloat = statusDrawerModel == nil ? 0 : 84
+        return base + statusExtra
     }
 
     private func handleRecordButtonTap() {
@@ -502,66 +376,633 @@ private enum ScreenPickerPurpose {
     case enableDuringRecording
 }
 
-private struct RollingTickerText: View {
-    let text: String
+private struct MainStageContainer<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
 
     var body: some View {
-        Text(text)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .truncationMode(.head)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel(Text(text))
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 28)
     }
 }
 
-private struct CaptureToggleButton: View {
+private struct MainStageView: View {
+    @ObservedObject var model: MeetingPipelineViewModel
+    @ObservedObject var notesModel: MeetingNotesBrowserViewModel
+    var bottomInset: CGFloat
+
+    private static let totalDurationFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter
+    }()
+
+    var body: some View {
+        Group {
+            if case .recording(let session) = model.state {
+                RecordingStageView(
+                    session: session,
+                    transcriptLine: model.liveTranscriptionLine,
+                    levels: model.audioLevelSamples
+                )
+            } else {
+                DailyBriefingView(
+                    greeting: greeting,
+                    meetingCount: notesModel.notes.count,
+                    totalMinutesText: totalMinutesText
+                )
+            }
+        }
+        .padding(.bottom, bottomInset)
+    }
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12:
+            return "Good morning."
+        case 12..<17:
+            return "Good afternoon."
+        case 17..<22:
+            return "Good evening."
+        default:
+            return "Welcome back."
+        }
+    }
+
+    private var totalMinutesText: String {
+        let durations = notesModel.notePreviews.values.compactMap(\.durationSeconds)
+        guard !durations.isEmpty else { return "--" }
+        let total = durations.reduce(0, +)
+        return Self.totalDurationFormatter.string(from: total) ?? "--"
+    }
+
+}
+
+private struct DailyBriefingView: View {
+    let greeting: String
+    let meetingCount: Int
+    let totalMinutesText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Daily Briefing")
+                    .minuteFootnote()
+                    .textCase(.uppercase)
+
+                Text(greeting)
+                    .font(.system(size: 28, weight: .semibold))
+                    .tracking(-0.6)
+                    .foregroundStyle(Color.minuteTextPrimary)
+
+                Text("\(meetingCount) sessions on record.")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color.minuteTextSecondary)
+            }
+
+            HStack(spacing: 12) {
+                StatCard(title: "Total Meetings", value: "\(meetingCount)")
+                StatCard(title: "Total Minutes", value: totalMinutesText)
+            }
+
+            EmptyStateCard(
+                title: "Select a note to view details",
+                subtitle: "Pick a meeting from the timeline to see its summary, transcript, and audio."
+            )
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct StatCard: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .minuteFootnote()
+                .textCase(.uppercase)
+
+            Text(value)
+                .font(.system(size: 22, weight: .semibold))
+                .tracking(-0.4)
+                .foregroundStyle(Color.minuteTextPrimary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .minuteGlassPanel(cornerRadius: 16, fill: Color.minuteSurface, border: Color.minuteOutline, shadowOpacity: 0.2)
+    }
+}
+
+private struct EmptyStateCard: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.minuteTextPrimary)
+
+            Text(subtitle)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.minuteTextSecondary)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 160, alignment: .topLeading)
+        .minuteGlassPanel(cornerRadius: 18, fill: Color.minuteSurface, border: Color.minuteOutline, shadowOpacity: 0.15)
+    }
+}
+
+private struct StatusDrawerModel {
+    let title: String
+    let detail: String
+    let progress: Double?
+    let showsActivity: Bool
+    let isError: Bool
+    let actionTitle: String?
+    let action: (() -> Void)?
+}
+
+private struct StatusDrawerView: View {
+    let model: StatusDrawerModel
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(model.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(model.isError ? Color.red.opacity(0.9) : Color.minuteTextPrimary)
+
+                Text(model.detail)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.minuteTextSecondary)
+
+                if let progress = model.progress {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                } else if model.showsActivity {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if let actionTitle = model.actionTitle, let action = model.action {
+                Button(actionTitle) {
+                    action()
+                }
+                .minuteStandardButtonStyle()
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .minuteGlassPanel(
+            cornerRadius: 16,
+            fill: Color.minuteSurfaceStrong,
+            border: model.isError ? Color.red.opacity(0.6) : Color.minuteOutline,
+            shadowOpacity: 0.2
+        )
+    }
+}
+
+private struct RecordingStageView: View {
+    let session: RecordingSession
+    let transcriptLine: String
+    let levels: [CGFloat]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            RecordingHeaderView(startedAt: session.startedAt)
+
+            Spacer(minLength: 0)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.minuteSurfaceStrong)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.minuteOutline, lineWidth: 1)
+                    )
+
+                WaveformRibbonView(levels: levels)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+            }
+            .frame(height: 180)
+
+            StreamingTranscriptView(text: transcriptLine)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct RecordingHeaderView: View {
+    let startedAt: Date
+
+    var body: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Recording in progress")
+                    .font(.system(size: 20, weight: .semibold))
+                    .tracking(-0.4)
+                    .foregroundStyle(Color.minuteTextPrimary)
+
+                Text("Live transcription updates below.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.minuteTextSecondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                PulsingDot()
+                RecordingTimerView(startedAt: startedAt)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color.minuteSurface)
+            )
+        }
+    }
+}
+
+private struct PulsingDot: View {
+    @State private var isPulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(Color.red)
+            .frame(width: 8, height: 8)
+            .overlay(
+                Circle()
+                    .stroke(Color.red.opacity(0.5), lineWidth: 6)
+                    .scaleEffect(isPulsing ? 1.5 : 0.6)
+                    .opacity(isPulsing ? 0 : 0.6)
+            )
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) {
+                    isPulsing = true
+                }
+            }
+    }
+}
+
+private struct RecordingTimerView: View {
+    let startedAt: Date
+
+    private static let formatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.zeroFormattingBehavior = [.pad]
+        return formatter
+    }()
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let elapsed = max(0, context.date.timeIntervalSince(startedAt))
+            let label = Self.formatter.string(from: elapsed) ?? "00:00"
+            Text(label)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color.minuteTextPrimary)
+        }
+    }
+}
+
+private struct StreamingTranscriptView: View {
+    let text: String
+
+    var body: some View {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            Text("Listening...")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color.minuteTextMuted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            let segments = TranscriptSegments(text: trimmed)
+            (Text(segments.confirmed)
+                .foregroundStyle(Color.minuteTextPrimary)
+             + Text(segments.pending)
+                .foregroundStyle(Color.minuteTextMuted))
+                .font(.system(size: 18, weight: .medium))
+                .tracking(-0.2)
+                .lineSpacing(6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private struct TranscriptSegments {
+        let confirmed: String
+        let pending: String
+
+        init(text: String) {
+            let words = text.split(separator: " ")
+            let pendingCount = min(4, words.count)
+            let confirmedWords = words.dropLast(pendingCount)
+            let pendingWords = words.suffix(pendingCount)
+
+            let confirmedText = confirmedWords.joined(separator: " ")
+            let pendingText = pendingWords.joined(separator: " ")
+
+            if confirmedText.isEmpty {
+                self.confirmed = ""
+                self.pending = pendingText
+            } else {
+                self.confirmed = "\(confirmedText) "
+                self.pending = pendingText
+            }
+        }
+    }
+}
+
+private struct WaveformRibbonView: View {
+    let levels: [CGFloat]
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            Canvas { context, size in
+                let count = max(levels.count, 1)
+                let midY = size.height / 2
+                let phase = CGFloat(timeline.date.timeIntervalSinceReferenceDate)
+
+                var path = Path()
+                for index in 0..<count {
+                    let x = size.width * CGFloat(index) / CGFloat(max(count - 1, 1))
+                    let level = max(min(levels[safe: index] ?? 0, 1), 0.05)
+                    let wave = sin(CGFloat(index) * 0.35 + phase) * level
+                    let y = midY + wave * midY * 0.9
+                    if index == 0 {
+                        path.move(to: CGPoint(x: x, y: y))
+                    } else {
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+                }
+
+                context.drawLayer { layer in
+                    layer.addFilter(.blur(radius: 8))
+                    layer.stroke(
+                        path,
+                        with: .linearGradient(
+                            MinuteTheme.waveformGradient,
+                            startPoint: .zero,
+                            endPoint: CGPoint(x: size.width, y: 0)
+                        ),
+                        lineWidth: 10
+                    )
+                }
+
+                context.stroke(
+                    path,
+                    with: .linearGradient(
+                        MinuteTheme.waveformGradient,
+                        startPoint: .zero,
+                        endPoint: CGPoint(x: size.width, y: 0)
+                    ),
+                    lineWidth: 3
+                )
+            }
+        }
+    }
+}
+
+private struct FloatingControlBar: View {
+    let recordState: RecordButtonState
+    let recordEnabled: Bool
+    let isMicOn: Bool
+    let isSystemAudioOn: Bool
+    let isScreenShareOn: Bool
+    let controlsEnabled: Bool
+    let uploadEnabled: Bool
+    let onRecordTap: () -> Void
+    let onMicToggle: () -> Void
+    let onSystemAudioToggle: () -> Void
+    let onScreenShareToggle: () -> Void
+    let onUploadTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 18) {
+            HStack(spacing: 12) {
+                ControlBarIconButton(
+                    systemName: isMicOn ? "mic.fill" : "mic.slash.fill",
+                    label: "Mic toggle",
+                    isActive: isMicOn,
+                    isEnabled: controlsEnabled,
+                    action: onMicToggle
+                )
+
+                ControlBarIconButton(
+                    systemName: isSystemAudioOn ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                    label: "System audio toggle",
+                    isActive: isSystemAudioOn,
+                    isEnabled: controlsEnabled,
+                    action: onSystemAudioToggle
+                )
+            }
+
+            Spacer(minLength: 16)
+
+            RecordControlButton(
+                state: recordState,
+                isEnabled: recordEnabled,
+                action: onRecordTap
+            )
+
+            Spacer(minLength: 16)
+
+            HStack(spacing: 12) {
+                ControlBarIconButton(
+                    systemName: isScreenShareOn ? "display" : "rectangle.slash",
+                    label: "Screen share toggle",
+                    isActive: isScreenShareOn,
+                    isEnabled: controlsEnabled,
+                    action: onScreenShareToggle
+                )
+
+                ControlBarIconButton(
+                    systemName: "tray.and.arrow.up.fill",
+                    label: "Upload file",
+                    isActive: false,
+                    isEnabled: uploadEnabled,
+                    action: onUploadTap
+                )
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .frame(maxWidth: 560)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 12)
+    }
+}
+
+private struct ControlBarIconButton: View {
+    let systemName: String
     let label: String
-    let isOn: Bool
-    let onSymbol: String
-    let offSymbol: String
+    let isActive: Bool
+    let isEnabled: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: isOn ? onSymbol : offSymbol)
+            Image(systemName: systemName)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(isOn ? Color.white : Color.primary)
-                .frame(width: 28, height: 28)
+                .foregroundStyle(isActive ? Color.white : Color.minuteTextSecondary)
+                .frame(width: 34, height: 34)
                 .background(
                     Circle()
-                        .fill(isOn ? Color.accentColor : Color.gray.opacity(0.2))
+                        .fill(isActive ? Color.minuteGlow.opacity(0.35) : Color.white.opacity(0.06))
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(isActive ? 0.4 : 0.16), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
         .help(label)
         .accessibilityLabel(Text(label))
-        .accessibilityValue(Text(isOn ? "On" : "Off"))
     }
 }
 
-private struct AudioWaveformView: View {
-    let levels: [CGFloat]
+private struct RecordControlButton: View {
+    let state: RecordButtonState
+    let isEnabled: Bool
+    let action: () -> Void
+
+    @State private var isPulsing = false
+
+    private var iconName: String {
+        switch state {
+        case .ready:
+            return "mic.fill"
+        case .recording:
+            return "stop.fill"
+        case .recorded:
+            return "sparkles"
+        case .processing:
+            return "hourglass"
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch state {
+        case .ready:
+            return Color.white
+        case .recording:
+            return Color.red
+        case .recorded:
+            return Color.minuteGlow
+        case .processing:
+            return Color.minuteSurfaceStrong
+        }
+    }
+
+    private var iconColor: Color {
+        switch state {
+        case .ready:
+            return Color.minuteMidnightDeep
+        case .recording, .recorded, .processing:
+            return Color.white
+        }
+    }
+
+    private var helpText: String {
+        switch state {
+        case .ready:
+            return "Start recording"
+        case .recording:
+            return "Stop recording"
+        case .recorded:
+            return "Process recording"
+        case .processing:
+            return "Processing"
+        }
+    }
 
     var body: some View {
-        GeometryReader { proxy in
-            let height = proxy.size.height
-            let count = max(levels.count, 1)
-            let barWidth = max((proxy.size.width / CGFloat(count)) - 4, 4)
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(backgroundColor)
+                    .frame(width: 58, height: 58)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
 
-            HStack(alignment: .center, spacing: 4) {
-                ForEach(levels.indices, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.white.opacity(0.85))
-                        .frame(
-                            width: barWidth,
-                            height: max(6, levels[index] * height)
-                        )
+                if state == .processing {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(iconColor)
+                } else {
+                    Image(systemName: iconName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(iconColor)
+                }
+
+                if state == .recording {
+                    Circle()
+                        .stroke(Color.red.opacity(0.35), lineWidth: 6)
+                        .frame(width: 58, height: 58)
+                        .scaleEffect(isPulsing ? 1.4 : 0.9)
+                        .opacity(isPulsing ? 0 : 0.8)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .frame(width: 64, height: 64)
         }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled || state == .processing)
+        .opacity(isEnabled ? 1 : 0.6)
+        .help(helpText)
+        .accessibilityLabel(Text(helpText))
+        .onAppear {
+            if state == .recording {
+                withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
+                    isPulsing = true
+                }
+            }
+        }
+        .onChange(of: state) { _, newValue in
+            if newValue == .recording {
+                withAnimation(.easeOut(duration: 1.2).repeatForever(autoreverses: false)) {
+                    isPulsing = true
+                }
+            } else {
+                isPulsing = false
+            }
+        }
+    }
+}
+
+private extension Array where Element == CGFloat {
+    subscript(safe index: Int) -> CGFloat? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
     }
 }
 
