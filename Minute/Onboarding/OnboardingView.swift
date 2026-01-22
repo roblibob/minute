@@ -7,39 +7,19 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("Minute")
-                .font(.largeTitle.bold())
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(stepTitle)
-                    .font(.title2.bold())
-                if let subtitle = stepSubtitle {
-                    Text(subtitle)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            OnboardingHeader(stepTitle: stepTitle, stepSubtitle: stepSubtitle)
 
             stepContent
 
             Spacer(minLength: 0)
 
-            Divider()
-
-            HStack {
-                if model.currentStep == .permissions && !model.permissionsReady {
-                    Button("Skip for now") {
-                        model.skipPermissions()
-                    }
-                    .minuteStandardButtonStyle()
-                }
-
-                Spacer()
-                Button(model.primaryButtonTitle) {
-                    model.advance()
-                }
-                .minuteStandardButtonStyle()
-                .disabled(!model.primaryButtonEnabled)
-            }
+            OnboardingFooter(
+                showsSkip: model.currentStep == .permissions && !model.permissionsReady,
+                primaryTitle: model.primaryButtonTitle,
+                primaryEnabled: model.primaryButtonEnabled,
+                onSkip: { model.skipPermissions() },
+                onPrimary: { model.advance() }
+            )
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -106,14 +86,14 @@ struct OnboardingView: View {
 
     private var permissionsStep: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PermissionRow(
+            PermissionButtonRow(
                 title: "Microphone Access",
                 detail: "Required to record your voice.",
                 isGranted: model.microphonePermissionGranted,
                 action: { model.requestMicrophonePermission() }
             )
 
-            PermissionRow(
+            PermissionButtonRow(
                 title: "Screen + System Audio Recording",
                 detail: "Required to capture system audio.",
                 isGranted: model.screenRecordingPermissionGranted,
@@ -121,12 +101,10 @@ struct OnboardingView: View {
             )
 
             Text("macOS may require a restart for screen recording permission to apply.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .minuteCaption()
 
             Text("You can skip this step and enable permissions later in Settings.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .minuteCaption()
         }
     }
 
@@ -137,12 +115,72 @@ struct OnboardingView: View {
                 selection: $model.selectedSummarizationModelID
             )
 
-            ModelsRow(state: model.modelsState) {
-                model.startModelDownload()
-            }
+            ModelDownloadStatusView(
+                title: "Whisper + Llama models",
+                detail: "Required for local transcription and summarization.",
+                status: modelStatus,
+                progress: modelProgressValue,
+                showsSpinner: modelShowsSpinner,
+                message: modelMessageText,
+                buttonTitle: modelButtonTitle,
+                buttonEnabled: modelButtonEnabled,
+                style: .card,
+                action: { model.startModelDownload() }
+            )
         }
     }
 
+}
+
+private struct OnboardingHeader: View {
+    let stepTitle: String
+    let stepSubtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Minute")
+                .font(.largeTitle.bold())
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(stepTitle)
+                    .font(.title2.bold())
+                if let stepSubtitle {
+                    Text(stepSubtitle)
+                        .minuteRowSubtitle()
+                }
+            }
+        }
+    }
+}
+
+private struct OnboardingFooter: View {
+    let showsSkip: Bool
+    let primaryTitle: String
+    let primaryEnabled: Bool
+    let onSkip: () -> Void
+    let onPrimary: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Divider()
+
+            HStack {
+                if showsSkip {
+                    Button("Skip for now") {
+                        onSkip()
+                    }
+                    .minuteStandardButtonStyle()
+                }
+
+                Spacer()
+                Button(primaryTitle) {
+                    onPrimary()
+                }
+                .minuteStandardButtonStyle()
+                .disabled(!primaryEnabled)
+            }
+        }
+    }
 }
 
 private struct OnboardingVaultStep: View {
@@ -153,9 +191,9 @@ private struct OnboardingVaultStep: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Vault status")
-                    .font(.headline)
+                    .minuteRowTitle()
                 Spacer()
-                StatusIcon(isReady: model.vaultConfigured, retry: false)
+                StatusIcon(isReady: model.vaultConfigured, size: .title3)
             }
 
             VaultConfigurationView(model: vaultModel, style: .wizard)
@@ -163,7 +201,7 @@ private struct OnboardingVaultStep: View {
     }
 }
 
-private struct PermissionRow: View {
+private struct PermissionButtonRow: View {
     let title: String
     let detail: String
     let isGranted: Bool
@@ -171,119 +209,53 @@ private struct PermissionRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                    Text(detail)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                StatusIcon(isReady: isGranted, retry: false)
-            }
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(.tertiary, lineWidth: 1)
+            PermissionStatusRow(
+                title: title,
+                detail: detail,
+                isGranted: isGranted,
+                iconSize: .title2
             )
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .minuteCardStyle(padding: 12)
         }
         .buttonStyle(.plain)
     }
 }
 
-private struct ModelsRow: View {
-    let state: OnboardingViewModel.ModelsState
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Whisper + Llama models")
-                        .font(.headline)
-                    Text("Required for local transcription and summarization.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                StatusIcon(isReady: isReady, retry: showsRetry)
-            }
-
-            if let progress = progressValue {
-                ProgressView(value: progress.fractionCompleted) {
-                    Text(progress.label)
-                }
-            } else if showsSpinner {
-                ProgressView("Checking models...")
-            }
-
-            if let message = messageText {
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Button(buttonTitle) {
-                    action()
-                }
-                .minuteStandardButtonStyle()
-                .disabled(!buttonEnabled)
-
-                Spacer()
-            }
+private extension OnboardingView {
+    var modelStatus: StatusIcon.State {
+        if case .ready = model.modelsState {
+            return .ready
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(.tertiary, lineWidth: 1)
-        )
+        if case .needsDownload = model.modelsState {
+            return .attention
+        }
+        return .blocked
     }
 
-    private var isReady: Bool {
-        if case .ready = state {
+    var modelShowsSpinner: Bool {
+        if case .checking = model.modelsState {
             return true
         }
         return false
     }
 
-    private var showsRetry: Bool {
-        if case .needsDownload = state {
-            return true
-        }
-        return false
-    }
-
-    private var showsSpinner: Bool {
-        if case .checking = state {
-            return true
-        }
-        return false
-    }
-
-    private var progressValue: ModelDownloadProgress? {
-        if case .downloading(let progress) = state {
+    var modelProgressValue: ModelDownloadProgress? {
+        if case .downloading(let progress) = model.modelsState {
             return progress
         }
         return nil
     }
 
-    private var messageText: String? {
-        if case .needsDownload(let message) = state {
+    var modelMessageText: String? {
+        if case .needsDownload(let message) = model.modelsState {
             return message
         }
         return nil
     }
 
-    private var buttonTitle: String {
-        switch state {
+    var modelButtonTitle: String {
+        switch model.modelsState {
         case .ready:
             return "Models Ready"
         case .downloading:
@@ -295,38 +267,12 @@ private struct ModelsRow: View {
         }
     }
 
-    private var buttonEnabled: Bool {
-        switch state {
+    var modelButtonEnabled: Bool {
+        switch model.modelsState {
         case .ready, .downloading, .checking:
             return false
         case .needsDownload:
             return true
         }
-    }
-}
-
-private struct StatusIcon: View {
-    let isReady: Bool
-    let retry: Bool
-
-    var body: some View {
-        let iconName: String
-        let color: Color
-
-        if isReady {
-            iconName = "checkmark.circle.fill"
-            color = .green
-        } else if retry {
-            iconName = "arrow.clockwise.circle.fill"
-            color = .orange
-        } else {
-            iconName = "xmark.circle.fill"
-            color = .red
-        }
-
-        return Image(systemName: iconName)
-            .foregroundStyle(color)
-            .font(.title2)
-            .accessibilityLabel(isReady ? "Ready" : "Needs attention")
     }
 }

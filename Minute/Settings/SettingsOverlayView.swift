@@ -9,14 +9,7 @@ struct SettingsOverlayView: View {
 
             MainSettingsView()
                 .frame(width: 680, height: 480)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(NSColor.windowBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
-                )
+                .minutePanelStyle()
         }
         .transition(.opacity)
     }

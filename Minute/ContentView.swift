@@ -209,13 +209,13 @@ private struct PipelineContentView: View {
     private var statusArea: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Status")
-                .font(.title3.bold())
+                .minuteSectionTitle()
 
             switch model.state {
             case .done(let noteURL, _):
                 HStack(spacing: 12) {
                     Text("Meeting ready.")
-                        .foregroundStyle(.secondary)
+                        .minuteCaption()
 
                     Button("Reveal in Finder") {
                         model.revealInFinder(noteURL)
@@ -232,7 +232,7 @@ private struct PipelineContentView: View {
             default:
                 HStack(spacing: 12) {
                     Text(model.state.statusLabel)
-                        .foregroundStyle(.secondary)
+                        .minuteCaption()
 
                     if let progress = model.progress {
                         ProgressView(value: progress)
@@ -265,14 +265,14 @@ private struct PipelineContentView: View {
             if shouldShowScreenInferenceStatus, let status = model.screenInferenceStatus {
                 HStack(spacing: 12) {
                     Text("Screen inference")
-                        .foregroundStyle(.secondary)
+                        .minuteCaption()
 
                     ProgressView()
                         .progressViewStyle(.linear)
                         .frame(width: 220)
 
                     Text("Processed \(status.processedCount), skipped \(status.skippedCount)")
-                        .foregroundStyle(.secondary)
+                        .minuteCaption()
 
                     Spacer()
                 }

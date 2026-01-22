@@ -94,7 +94,7 @@ struct VaultConfigurationView: View {
                 "\(AppConfiguration.Defaults.defaultAudioRelativePath), and " +
                 "\(AppConfiguration.Defaults.defaultTranscriptsRelativePath)"
             )
-                .foregroundStyle(.secondary)
+                .minuteCaption()
         }
     }
 }

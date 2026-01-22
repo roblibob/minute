@@ -37,71 +37,74 @@ struct ScreenContextRecordingPickerView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            HStack {
-                Text("Select Window")
-                    .font(.title3.bold())
-                Spacer()
-                Button("Refresh") {
-                    Task { await loadWindows() }
-                }
-                .disabled(isLoading)
-            }
-
-            if isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let errorMessage {
-                Text(errorMessage)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                List {
-                    SwiftUI.ForEach($windows, id: \.id) { window in
-                        let windowValue = window.wrappedValue
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(windowValue.windowTitle.isEmpty ? "Untitled Window" : windowValue.windowTitle)
-                                    .font(.body)
-                                Text(windowValue.applicationName)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if selectedID == windowValue.id {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(Color.accentColor)
-                            } else {
-                                Image(systemName: "circle")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedID = windowValue.id
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    dismiss()
-                }
-                Button("Start Recording") {
-                    guard let selection = selectedWindowSelection() else { return }
-                    onSelect(selection)
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(selectedID == nil || isLoading)
-            }
+            header
+            pickerContent
+            footer
         }
         .padding(20)
         .frame(minWidth: 560, minHeight: 460)
         .task {
             await loadWindows()
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Select Window")
+                .minuteSectionTitle()
+            Spacer()
+            Button("Refresh") {
+                Task { await loadWindows() }
+            }
+            .minuteStandardButtonStyle()
+            .disabled(isLoading)
+        }
+    }
+
+    @ViewBuilder
+    private var pickerContent: some View {
+        if isLoading {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let errorMessage {
+            Text(errorMessage)
+                .minuteCaption()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        } else {
+            List {
+                SwiftUI.ForEach($windows, id: \.id) { window in
+                    let windowValue = window.wrappedValue
+                    RecordingWindowRow(
+                        title: windowValue.windowTitle.isEmpty ? "Untitled Window" : windowValue.windowTitle,
+                        appName: windowValue.applicationName,
+                        isSelected: selectedID == windowValue.id
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedID = windowValue.id
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+            Button("Cancel") {
+                dismiss()
+            }
+            .minuteStandardButtonStyle()
+
+            Button("Start Recording") {
+                guard let selection = selectedWindowSelection() else { return }
+                onSelect(selection)
+                dismiss()
+            }
+            .minuteStandardButtonStyle()
+            .keyboardShortcut(.defaultAction)
+            .disabled(selectedID == nil || isLoading)
         }
     }
 
@@ -199,6 +202,26 @@ struct ScreenContextRecordingPickerView: View {
                     continuation.resume(throwing: MinuteError.screenCaptureUnavailable)
                 }
             }
+        }
+    }
+}
+
+private struct RecordingWindowRow: View {
+    let title: String
+    let appName: String
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body)
+                Text(appName)
+                    .minuteCaption()
+            }
+            Spacer()
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
         }
     }
 }

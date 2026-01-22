@@ -10,7 +10,7 @@ struct PermissionsSettingsSection: View {
 
     var body: some View {
         Section("Permissions") {
-            PermissionSettingsRow(
+            PermissionStatusRow(
                 title: "Microphone Access",
                 detail: "Required to record your voice.",
                 isGranted: microphonePermissionGranted,
@@ -18,7 +18,7 @@ struct PermissionsSettingsSection: View {
                 action: requestMicrophonePermission
             )
 
-            PermissionSettingsRow(
+            PermissionStatusRow(
                 title: "Screen + System Audio Recording",
                 detail: "Required to capture system audio.",
                 isGranted: screenRecordingPermissionGranted,
@@ -27,8 +27,7 @@ struct PermissionsSettingsSection: View {
             )
 
             Text("You can also grant permissions in System Settings > Privacy & Security.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .minuteFootnote()
         }
         .onAppear {
             refreshPermissions()
@@ -59,48 +58,6 @@ struct PermissionsSettingsSection: View {
             let granted = await ScreenRecordingPermission.request()
             screenRecordingPermissionGranted = granted
         }
-    }
-}
-
-private struct PermissionSettingsRow: View {
-    let title: String
-    let detail: String
-    let isGranted: Bool
-    let actionTitle: String
-    let action: () -> Void
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            PermissionStatusIcon(isReady: isGranted)
-
-            Button(actionTitle) {
-                action()
-            }
-            .minuteStandardButtonStyle()
-            .disabled(isGranted)
-        }
-        .padding(.vertical, 6)
-    }
-}
-
-private struct PermissionStatusIcon: View {
-    let isReady: Bool
-
-    var body: some View {
-        Image(systemName: isReady ? "checkmark.circle.fill" : "xmark.circle.fill")
-            .foregroundStyle(isReady ? Color.green : Color.red)
-            .font(.title3)
-            .accessibilityLabel(isReady ? "Ready" : "Needs attention")
     }
 }
 

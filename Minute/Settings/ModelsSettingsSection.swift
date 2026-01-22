@@ -12,63 +12,33 @@ struct ModelsSettingsSection: View {
                     selection: $model.selectedSummarizationModelID
                 )
 
-                HStack(alignment: .center, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Whisper + Llama models")
-                            .font(.headline)
-                        Text("Required for local transcription and summarization.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    SettingsStatusIcon(isReady: isReady, showsAttention: showsRetry)
-                }
-
-                if let progress = progressValue {
-                    ProgressView(value: progress.fractionCompleted) {
-                        Text(progress.label)
-                    }
-                } else if showsSpinner {
-                    ProgressView("Checking models...")
-                }
-
-                if let message = messageText {
-                    Text(message)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack {
-                    Button(buttonTitle) {
-                        model.startDownload()
-                    }
-                    .minuteStandardButtonStyle()
-                    .disabled(!buttonEnabled)
-
-                    Spacer()
-                }
+                ModelDownloadStatusView(
+                    title: "Whisper + Llama models",
+                    detail: "Required for local transcription and summarization.",
+                    status: statusState,
+                    progress: progressValue,
+                    showsSpinner: showsSpinner,
+                    message: messageText,
+                    buttonTitle: buttonTitle,
+                    buttonEnabled: buttonEnabled,
+                    style: .plain,
+                    action: { model.startDownload() }
+                )
             }
-            .padding(.vertical, 6)
             .onAppear {
                 model.refresh()
             }
         }
     }
 
-    private var isReady: Bool {
+    private var statusState: StatusIcon.State {
         if case .ready = model.state {
-            return true
+            return .ready
         }
-        return false
-    }
-
-    private var showsRetry: Bool {
         if case .needsDownload = model.state {
-            return true
+            return .attention
         }
-        return false
+        return .blocked
     }
 
     private var showsSpinner: Bool {
@@ -112,31 +82,5 @@ struct ModelsSettingsSection: View {
         case .needsDownload:
             return true
         }
-    }
-}
-
-private struct SettingsStatusIcon: View {
-    let isReady: Bool
-    let showsAttention: Bool
-
-    var body: some View {
-        let iconName: String
-        let color: Color
-
-        if isReady {
-            iconName = "checkmark.circle.fill"
-            color = .green
-        } else if showsAttention {
-            iconName = "arrow.clockwise.circle.fill"
-            color = .orange
-        } else {
-            iconName = "xmark.circle.fill"
-            color = .red
-        }
-
-        return Image(systemName: iconName)
-            .foregroundStyle(color)
-            .font(.title2)
-            .accessibilityLabel(isReady ? "Ready" : "Needs attention")
     }
 }

@@ -25,7 +25,7 @@ struct MeetingNotesSidebarView: View {
     private var header: some View {
         HStack {
             Text("Notes")
-                .font(.headline)
+                .minuteSectionTitle()
 
             Spacer()
         }
@@ -36,7 +36,7 @@ struct MeetingNotesSidebarView: View {
         if let message = model.sidebarErrorMessage {
             VStack(alignment: .leading, spacing: 8) {
                 Text(message)
-                    .font(.caption)
+                    .minuteCaption()
                     .foregroundStyle(.red)
 
                 Button("Retry") {
@@ -49,63 +49,29 @@ struct MeetingNotesSidebarView: View {
             VStack(alignment: .leading, spacing: 8) {
                 ProgressView()
                 Text("Loading notes…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .minuteCaption()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else if model.notes.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text("No notes yet.")
-                    .font(.subheadline.weight(.semibold))
+                    .minuteRowTitle()
                 Text("Record a meeting to create your first note.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .minuteCaption()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             List(model.notes) { item in
-                HStack(spacing: 8) {
-                    Button {
-                        model.select(item)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(dateLabel(for: item))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Text(item.title)
-                                .font(.callout)
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-                        }
-                        .padding(.vertical, 4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        model.delete(item)
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Delete note")
-                    .accessibilityLabel("Delete note")
-                }
-                .listRowBackground(rowBackground(for: item))
+                MeetingNoteRow(
+                    item: item,
+                    dateLabel: dateLabel(for: item),
+                    isSelected: model.isOverlayPresented && model.selectedItem?.id == item.id,
+                    onSelect: { model.select(item) },
+                    onDelete: { model.delete(item) }
+                )
             }
             .listStyle(.sidebar)
         }
-    }
-
-    private func rowBackground(for item: MeetingNoteItem) -> Color? {
-        guard model.isOverlayPresented, model.selectedItem?.id == item.id else {
-            return nil
-        }
-        return Color(nsColor: NSColor.selectedContentBackgroundColor)
     }
 
     private func dateLabel(for item: MeetingNoteItem) -> String {
@@ -113,6 +79,49 @@ struct MeetingNotesSidebarView: View {
             return "Unknown date"
         }
         return Self.dateFormatter.string(from: date)
+    }
+}
+
+private struct MeetingNoteRow: View {
+    let item: MeetingNoteItem
+    let dateLabel: String
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onSelect) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(dateLabel)
+                        .minuteCaption()
+
+                    Text(item.title)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                }
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Delete note")
+            .accessibilityLabel("Delete note")
+        }
+        .listRowBackground(rowBackground)
+    }
+
+    private var rowBackground: Color? {
+        guard isSelected else { return nil }
+        return Color(nsColor: NSColor.selectedContentBackgroundColor)
     }
 }
 

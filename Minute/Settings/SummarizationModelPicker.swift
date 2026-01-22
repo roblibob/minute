@@ -9,7 +9,7 @@ struct SummarizationModelPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Summarization model")
-                .font(.headline)
+                .minuteRowTitle()
 
             Menu {
                 ForEach(models) { model in
@@ -40,8 +40,7 @@ struct SummarizationModelPicker: View {
 
             if let selectedModel {
                 Text(selectedModel.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .minuteCaption()
             }
         }
     }

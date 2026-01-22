@@ -25,7 +25,7 @@ struct MarkdownViewerOverlay: View {
     private var header: some View {
         HStack {
             Text(title.isEmpty ? "Meeting Note" : title)
-                .font(.title3.bold())
+                .minuteSectionTitle()
                 .lineLimit(1)
 
             Spacer()
@@ -59,15 +59,13 @@ struct MarkdownViewerOverlay: View {
             VStack(spacing: 12) {
                 ProgressView()
                 Text("Loading note…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .minuteCaption()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(24)
         } else if let errorMessage {
             VStack(spacing: 12) {
                 Text(errorMessage)
-                    .font(.callout)
                     .foregroundStyle(.red)
 
                 Button("Retry") {
@@ -81,7 +79,6 @@ struct MarkdownViewerOverlay: View {
             ScrollView {
                 if renderPlainText {
                     Text(content)
-                        .font(.callout)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 } else {
@@ -93,8 +90,7 @@ struct MarkdownViewerOverlay: View {
             .padding(20)
         } else {
             Text("No content available.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .minuteCaption()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(24)
         }

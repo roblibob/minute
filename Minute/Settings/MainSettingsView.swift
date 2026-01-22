@@ -49,24 +49,12 @@ struct MainSettingsView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(SettingsSection.allCases) { section in
-                Button {
-                    selection = section
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: section.iconName)
-                            .frame(width: 18)
-                        Text(section.title)
-                        Spacer()
-                    }
-                    .foregroundStyle(.primary)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(selection == section ? Color.accentColor.opacity(0.16) : Color.clear)
-                    )
-                }
-                .buttonStyle(.plain)
+                SettingsSidebarRow(
+                    title: section.title,
+                    systemImage: section.iconName,
+                    isSelected: selection == section,
+                    action: { selection = section }
+                )
             }
 
             Spacer()
@@ -104,6 +92,32 @@ struct MainSettingsView: View {
 
     private var backgroundColor: Color {
         Color(NSColor.windowBackgroundColor)
+    }
+}
+
+private struct SettingsSidebarRow: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .frame(width: 18)
+                Text(title)
+                Spacer()
+            }
+            .foregroundStyle(.primary)
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

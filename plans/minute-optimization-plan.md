@@ -23,17 +23,17 @@ The app uses a state machine pattern for the meeting pipeline, which provides a 
 
 #### 1.3 Configuration Management
 - **Issue**: Configuration values are scattered across the codebase (e.g., in `DefaultsKey` and hardcoded values).
-- **Improvement**: Create a centralized configuration management system that loads values from a single source and provides type-safe access.
+- **Improvement**: Create a centralized configuration management system that loads values from a single source and provides type-safe access. [done]
 
 ## 2. Code Duplication and Refactoring
 
 ### 2.1 String Normalization
 - **Issue**: String normalization logic is duplicated in `MarkdownRenderer` and `MeetingExtractionValidation`.
-- **Improvement**: Extract common string normalization functions to a shared utility class.
+- **Improvement**: Extract common string normalization functions to a shared utility class. [done]
 
 ### 2.2 Error Handling Patterns
 - **Issue**: Error handling patterns are inconsistent across the codebase.
-- **Improvement**: Standardize error handling patterns, especially for async/await code, to reduce boilerplate and improve consistency.
+- **Improvement**: Standardize error handling patterns, especially for async/await code, to reduce boilerplate and improve consistency. [done]
 
 ### 2.3 Audio Processing
 - **Issue**: Audio processing logic is complex and spread across multiple classes.
@@ -89,15 +89,15 @@ The app uses a state machine pattern for the meeting pipeline, which provides a 
 
 ### 6.1 Component Reusability
 - **Issue**: Some UI components are tightly coupled to their specific use cases.
-- **Improvement**: Refactor UI components to be more reusable and composable.
+- **Improvement**: Refactor UI components to be more reusable and composable. [done]
 
 ### 6.2 View Hierarchy
 - **Issue**: The view hierarchy is sometimes deeply nested, making it harder to understand and maintain.
-- **Improvement**: Flatten the view hierarchy where possible and extract complex views into separate components.
+- **Improvement**: Flatten the view hierarchy where possible and extract complex views into separate components. [done]
 
 ### 6.3 Styling Consistency
 - **Issue**: Styling is sometimes inconsistent or duplicated across different views.
-- **Improvement**: Create a more comprehensive styling system with reusable modifiers and consistent application.
+- **Improvement**: Create a more comprehensive styling system with reusable modifiers and consistent application. [done]
 
 ## 7. Testing Improvements
 
@@ -130,10 +130,10 @@ The app uses a state machine pattern for the meeting pipeline, which provides a 
 ## Implementation Priority
 
 1. **High Priority**
-   - Refactor string normalization to eliminate duplication
+   - Refactor string normalization to eliminate duplication [done]
    - Split `MeetingPipelineViewModel` into smaller components
-   - Implement centralized configuration management
-   - Improve error handling consistency
+   - Implement centralized configuration management [done]
+   - Improve error handling consistency [done]
 
 2. **Medium Priority**
    - Optimize audio processing for memory efficiency
