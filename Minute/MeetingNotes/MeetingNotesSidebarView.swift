@@ -30,7 +30,6 @@ struct MeetingNotesSidebarView: View {
             header
             content
         }
-        .padding(16)
         .frame(minWidth: 260, idealWidth: 300, maxWidth: 360, maxHeight: .infinity)
         .background(Color.minuteMidnightDeep)
     }
@@ -46,6 +45,8 @@ struct MeetingNotesSidebarView: View {
                 .minuteFootnote()
                 .textCase(.uppercase)
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
     }
 
     @ViewBuilder
@@ -81,7 +82,7 @@ struct MeetingNotesSidebarView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     ForEach(timelineSections) { section in
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 16) {
                             Text(section.title)
                                 .minuteFootnote()
                                 .textCase(.uppercase)
@@ -101,8 +102,11 @@ struct MeetingNotesSidebarView: View {
                         }
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 16)
         }
     }
 
@@ -226,7 +230,7 @@ private struct MeetingNoteCard: View {
                 .tracking(-0.1)
                 .foregroundStyle(Color.minuteTextMuted)
             }
-            .padding(12)
+            .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
@@ -235,12 +239,14 @@ private struct MeetingNoteCard: View {
             cornerRadius: 12,
             fill: isSelected ? Color.minuteGlow.opacity(0.18) : Color.minuteSurface,
             border: isSelected ? Color.minuteGlow.opacity(0.7) : Color.minuteOutline,
-            shadowOpacity: 0.2
+            shadowOpacity: 0.12
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.minuteGlow.opacity(isSelected ? 0.45 : 0), lineWidth: 1.2)
         )
+        .padding(.horizontal, 2)
+        .padding(.vertical, 2)
         .contextMenu {
             Button("Rename…") {}
                 .disabled(true)
