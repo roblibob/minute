@@ -41,19 +41,47 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
             throw MinuteError.modelMissing
         }
 
-        let primary = try runWhisper(
-            detectLanguage: configuration.detectLanguage,
-            language: configuration.detectLanguage ? nil : configuration.language,
-            samples: samples
-        )
-        if primary.isEmpty, configuration.detectLanguage {
-            let fallbackLanguage = configuration.language == "auto" ? "en" : configuration.language
-            return try runWhisper(detectLanguage: false, language: fallbackLanguage, samples: samples)
+        let cancellationBox = LiveWhisperCancellationBox()
+
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+
+            let primary = try runWhisper(
+                detectLanguage: configuration.detectLanguage,
+                language: configuration.detectLanguage ? nil : configuration.language,
+                samples: samples,
+                cancellationBox: cancellationBox
+            )
+            if primary.text.isEmpty, configuration.detectLanguage {
+                if let detected = primary.detectedLanguage {
+                    return try runWhisper(
+                        detectLanguage: false,
+                        language: detected,
+                        samples: samples,
+                        cancellationBox: cancellationBox
+                    ).text
+                }
+                if configuration.language != "auto" {
+                    return try runWhisper(
+                        detectLanguage: false,
+                        language: configuration.language,
+                        samples: samples,
+                        cancellationBox: cancellationBox
+                    ).text
+                }
+            }
+            return primary.text
+        } onCancel: {
+            cancellationBox.cancel()
         }
-        return primary
     }
 
-    private func runWhisper(detectLanguage: Bool, language: String?, samples: [Float]) throws -> String {
+    private func runWhisper(
+        detectLanguage: Bool,
+        language: String?,
+        samples: [Float],
+        cancellationBox: LiveWhisperCancellationBox
+    ) throws -> LiveWhisperResult {
         lock.lock()
         defer { lock.unlock() }
         let ctx = try ensureContextLocked()
@@ -73,23 +101,28 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
         params.print_realtime = false
         params.print_timestamps = false
 
+        let normalized = (language ?? "en").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if detectLanguage {
             params.detect_language = true
             params.language = nil
         } else {
             params.detect_language = false
-            let langCString = strdup(language ?? "en")
-            defer { free(langCString) }
-            if let langCString {
-                params.language = UnsafePointer(langCString)
+            let langID = whisper_lang_id(normalized)
+            let fallbackID = whisper_lang_id("en")
+            if langID >= 0, let langPtr = whisper_lang_str(langID) {
+                params.language = langPtr
+            } else if fallbackID >= 0, let langPtr = whisper_lang_str(fallbackID) {
+                params.language = langPtr
+            } else {
+                params.language = nil
+                params.detect_language = true
             }
         }
 
-        let cancellationBox = LiveWhisperCancellationBox()
         params.abort_callback = minute_live_ggml_abort_callback
         params.abort_callback_user_data = Unmanaged.passUnretained(cancellationBox).toOpaque()
 
-        let languageLabel = language ?? "auto"
+        let languageLabel = detectLanguage ? "auto" : normalized
         logger.info("Running whisper (live): model=\(self.configuration.modelURL.lastPathComponent, privacy: .public) detectLanguage=\(detectLanguage, privacy: .public) language=\(languageLabel, privacy: .public)")
 
         let rc: Int32 = samples.withUnsafeBufferPointer { buf in
@@ -116,7 +149,22 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
             }
         }
 
-        return TranscriptNormalizer.normalizeWhisperOutput(combined)
+        let detectedLanguage: String?
+        if detectLanguage {
+            let langID = whisper_full_lang_id(ctx)
+            if langID >= 0, let langPtr = whisper_lang_str(langID) {
+                detectedLanguage = String(cString: langPtr)
+            } else {
+                detectedLanguage = nil
+            }
+        } else {
+            detectedLanguage = nil
+        }
+
+        return LiveWhisperResult(
+            text: TranscriptNormalizer.normalizeWhisperOutput(combined),
+            detectedLanguage: detectedLanguage
+        )
     }
 
     private func ensureContextLocked() throws -> OpaquePointer {
@@ -160,4 +208,9 @@ private let minute_live_ggml_abort_callback: ggml_abort_callback = { userData in
     guard let userData else { return false }
     let box = Unmanaged<LiveWhisperCancellationBox>.fromOpaque(userData).takeUnretainedValue()
     return box.isCancelled
+}
+
+private struct LiveWhisperResult {
+    let text: String
+    let detectedLanguage: String?
 }

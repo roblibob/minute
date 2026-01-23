@@ -145,9 +145,11 @@ public actor LiveTranscriptionSession {
     private func transcribeCurrentPhrase(endTimeSeconds: TimeInterval) async {
         guard let activeLineIndex else { return }
         guard !currentPhraseSamples.isEmpty else { return }
+        if Task.isCancelled { return }
 
         do {
             let text = try await service.transcribe(samples: currentPhraseSamples)
+            if Task.isCancelled { return }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
                 return

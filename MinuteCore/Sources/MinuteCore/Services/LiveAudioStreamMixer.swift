@@ -47,8 +47,10 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
     public func stop() async -> TranscriptionResult {
         drainAvailableSamples()
 
-        if let appendTask {
-            _ = await appendTask.value
+        if let pending = appendTask {
+            appendTask = nil
+            pending.cancel()
+            _ = await waitForAppendTask(pending, timeoutNanos: 1_000_000_000)
         }
 
         let endSeconds = Double(mixedSampleCursor) / config.targetSampleRateHz
@@ -117,9 +119,27 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
         let previous = appendTask
         appendTask = Task {
             if let previous {
+                if Task.isCancelled { return }
                 _ = await previous.value
             }
+            if Task.isCancelled { return }
             await session.append(samples: samples, endTimeSeconds: endTimeSeconds)
+        }
+    }
+
+    private func waitForAppendTask(_ task: Task<Void, Never>, timeoutNanos: UInt64) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                _ = await task.value
+                return true
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNanos)
+                return false
+            }
+            let completed = await group.next() ?? false
+            group.cancelAll()
+            return completed
         }
     }
 
