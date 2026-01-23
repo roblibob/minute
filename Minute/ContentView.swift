@@ -20,7 +20,6 @@ struct ContentView: View {
         .frame(minWidth: 860, minHeight: 520)
         .background(MinuteTheme.backgroundGradient)
         .tint(Color.minuteGlow)
-        .colorScheme(.dark)
         .onAppear { onboardingModel.refreshAll() }
     }
 
@@ -43,6 +42,8 @@ struct ContentView: View {
 private struct PipelineContentView: View {
     @StateObject private var model = MeetingPipelineViewModel.live()
     @StateObject private var notesModel = MeetingNotesBrowserViewModel()
+    @AppStorage(AppDefaultsKey.screenContextEnabled)
+    private var screenContextEnabled: Bool = AppConfiguration.Defaults.defaultScreenContextEnabled
     @State private var isImportingFile = false
     @State private var isDropTargeted = false
     @State private var isRecordingWindowPickerPresented = false
@@ -94,6 +95,9 @@ private struct PipelineContentView: View {
                 handleScreenSelection(selection)
             }
             .onDisappear(perform: handleScreenPickerDismiss)
+        }
+        .onChange(of: screenContextEnabled) { newValue in
+            handleScreenContextSettingChange(newValue)
         }
     }
 
@@ -151,14 +155,13 @@ private struct PipelineContentView: View {
             FloatingControlBar(
                 recordState: recordButtonState,
                 recordEnabled: recordButtonEnabled,
-                isMicOn: model.microphoneCaptureEnabled,
-                isSystemAudioOn: model.systemAudioCaptureEnabled,
+                audioMode: audioCaptureMode,
                 isScreenShareOn: isScreenToggleOn,
+                showsScreenShareControl: screenContextEnabled,
                 controlsEnabled: captureTogglesEnabled,
                 uploadEnabled: model.state.canImportMedia,
                 onRecordTap: handleRecordButtonTap,
-                onMicToggle: { model.setMicrophoneCaptureEnabled(!model.microphoneCaptureEnabled) },
-                onSystemAudioToggle: { model.setSystemAudioCaptureEnabled(!model.systemAudioCaptureEnabled) },
+                onAudioModeChange: setAudioCaptureMode,
                 onScreenShareToggle: { handleScreenToggleChange(!isScreenToggleOn) },
                 onUploadTap: { isImportingFile = true }
             )
@@ -202,7 +205,7 @@ private struct PipelineContentView: View {
     }
 
     private var isScreenToggleOn: Bool {
-        model.screenCaptureEnabled || screenTogglePending
+        screenContextEnabled && (model.screenCaptureEnabled || screenTogglePending)
     }
 
     private var captureTogglesEnabled: Bool {
@@ -212,6 +215,26 @@ private struct PipelineContentView: View {
         default:
             return false
         }
+    }
+
+    private var audioCaptureMode: AudioCaptureMode {
+        switch (model.microphoneCaptureEnabled, model.systemAudioCaptureEnabled) {
+        case (true, true):
+            return .both
+        case (true, false):
+            return .room
+        case (false, true):
+            return .online
+        case (false, false):
+            return .room
+        }
+    }
+
+    private func setAudioCaptureMode(_ mode: AudioCaptureMode) {
+        model.setAudioCaptureConfiguration(
+            microphoneEnabled: mode.microphoneEnabled,
+            systemAudioEnabled: mode.systemAudioEnabled
+        )
     }
 
     private var recordButtonState: RecordButtonState {
@@ -310,7 +333,7 @@ private struct PipelineContentView: View {
     }
 
     private func requestStartRecording() {
-        if model.screenCaptureEnabled {
+        if screenContextEnabled && model.screenCaptureEnabled {
             presentScreenPicker(for: .startRecording)
         } else {
             model.send(.startRecording)
@@ -318,6 +341,7 @@ private struct PipelineContentView: View {
     }
 
     private func handleScreenToggleChange(_ enabled: Bool) {
+        guard screenContextEnabled else { return }
         if enabled {
             if case .recording = model.state {
                 if model.hasScreenCaptureSelection {
@@ -335,6 +359,16 @@ private struct PipelineContentView: View {
         }
     }
 
+    private func handleScreenContextSettingChange(_ enabled: Bool) {
+        if !enabled {
+            screenTogglePending = false
+            isRecordingWindowPickerPresented = false
+            screenPickerPurpose = nil
+            screenPickerHandled = false
+        }
+        model.setScreenCaptureEnabled(enabled)
+    }
+
     private func presentScreenPicker(for purpose: ScreenPickerPurpose) {
         screenPickerPurpose = purpose
         screenPickerHandled = false
@@ -342,6 +376,7 @@ private struct PipelineContentView: View {
     }
 
     private func handleScreenSelection(_ selection: ScreenContextWindowSelection) {
+        guard screenContextEnabled else { return }
         guard let purpose = screenPickerPurpose else { return }
         switch purpose {
         case .startRecording:
@@ -785,64 +820,53 @@ private struct WaveformRibbonView: View {
 private struct FloatingControlBar: View {
     let recordState: RecordButtonState
     let recordEnabled: Bool
-    let isMicOn: Bool
-    let isSystemAudioOn: Bool
+    let audioMode: AudioCaptureMode
     let isScreenShareOn: Bool
+    let showsScreenShareControl: Bool
     let controlsEnabled: Bool
     let uploadEnabled: Bool
     let onRecordTap: () -> Void
-    let onMicToggle: () -> Void
-    let onSystemAudioToggle: () -> Void
+    let onAudioModeChange: (AudioCaptureMode) -> Void
     let onScreenShareToggle: () -> Void
     let onUploadTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 18) {
+        ZStack {
             HStack(spacing: 12) {
-                ControlBarIconButton(
-                    systemName: isMicOn ? "mic.fill" : "mic.slash.fill",
-                    label: "Mic toggle",
-                    isActive: isMicOn,
+                AudioModeControl(
+                    selection: audioMode,
                     isEnabled: controlsEnabled,
-                    action: onMicToggle
+                    onSelect: onAudioModeChange
                 )
 
-                ControlBarIconButton(
-                    systemName: isSystemAudioOn ? "speaker.wave.2.fill" : "speaker.slash.fill",
-                    label: "System audio toggle",
-                    isActive: isSystemAudioOn,
-                    isEnabled: controlsEnabled,
-                    action: onSystemAudioToggle
-                )
+                Spacer(minLength: 16)
+
+                HStack(spacing: 12) {
+                    if showsScreenShareControl {
+                        ControlBarIconButton(
+                            systemName: isScreenShareOn ? "display" : "rectangle.slash",
+                            label: "Screen share toggle",
+                            isActive: isScreenShareOn,
+                            isEnabled: controlsEnabled,
+                            action: onScreenShareToggle
+                        )
+                    }
+
+                    ControlBarIconButton(
+                        systemName: "tray.and.arrow.up.fill",
+                        label: "Upload file",
+                        isActive: false,
+                        isEnabled: uploadEnabled,
+                        action: onUploadTap
+                    )
+                }
             }
-
-            Spacer(minLength: 16)
 
             RecordControlButton(
                 state: recordState,
                 isEnabled: recordEnabled,
                 action: onRecordTap
             )
-
-            Spacer(minLength: 16)
-
-            HStack(spacing: 12) {
-                ControlBarIconButton(
-                    systemName: isScreenShareOn ? "display" : "rectangle.slash",
-                    label: "Screen share toggle",
-                    isActive: isScreenShareOn,
-                    isEnabled: controlsEnabled,
-                    action: onScreenShareToggle
-                )
-
-                ControlBarIconButton(
-                    systemName: "tray.and.arrow.up.fill",
-                    label: "Upload file",
-                    isActive: false,
-                    isEnabled: uploadEnabled,
-                    action: onUploadTap
-                )
-            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
@@ -856,6 +880,160 @@ private struct FloatingControlBar: View {
                 )
         )
         .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 12)
+    }
+}
+
+private enum AudioCaptureMode: String, CaseIterable, Identifiable {
+    case room
+    case online
+    case both
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .room:
+            return "Room"
+        case .online:
+            return "Online"
+        case .both:
+            return "Both"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .room:
+            return "mic.fill"
+        case .online:
+            return "speaker.wave.2.fill"
+        case .both:
+            return "dot.radiowaves.left.and.right"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .room:
+            return "Room meeting (mic only)"
+        case .online:
+            return "Online meeting (system audio only)"
+        case .both:
+            return "Record mic + system audio (use headphones to avoid echo)"
+        }
+    }
+
+    var microphoneEnabled: Bool {
+        switch self {
+        case .room, .both:
+            return true
+        case .online:
+            return false
+        }
+    }
+
+    var systemAudioEnabled: Bool {
+        switch self {
+        case .online, .both:
+            return true
+        case .room:
+            return false
+        }
+    }
+}
+
+private struct AudioModeControl: View {
+    let selection: AudioCaptureMode
+    let isEnabled: Bool
+    let onSelect: (AudioCaptureMode) -> Void
+
+    var body: some View {
+        let modes = Array(AudioCaptureMode.allCases.enumerated())
+        HStack(spacing: 0) {
+            ForEach(modes, id: \.element.id) { index, mode in
+                let isSelected = (mode == selection)
+                Button(action: { onSelect(mode) }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: mode.iconName)
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.white : Color.minuteTextSecondary)
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
+                    .background(
+                        selectionBackground(isSelected: isSelected, isLeading: index == 0, isTrailing: index == modes.count - 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help(mode.helpText)
+                .accessibilityLabel(Text(mode.helpText))
+
+                if index < modes.count - 1 {
+                    Rectangle()
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: 1, height: 18)
+                }
+            }
+        }
+        .frame(height: 34)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+        )
+        .clipShape(Capsule())
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
+    }
+
+    private func selectionBackground(isSelected: Bool, isLeading: Bool, isTrailing: Bool) -> some View {
+        let radius: CGFloat = 16
+        return Group {
+            if isSelected {
+                Rectangle()
+                    .fill(Color.minuteGlow.opacity(0.35))
+                    .mask(
+                        RoundedCornerMask(
+                            topLeft: isLeading ? radius : 0,
+                            bottomLeft: isLeading ? radius : 0,
+                            topRight: isTrailing ? radius : 0,
+                            bottomRight: isTrailing ? radius : 0
+                        )
+                    )
+            } else {
+                Color.clear
+            }
+        }
+    }
+}
+
+private struct RoundedCornerMask: Shape {
+    let topLeft: CGFloat
+    let bottomLeft: CGFloat
+    let topRight: CGFloat
+    let bottomRight: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let tl = min(min(topLeft, rect.width / 2), rect.height / 2)
+        let tr = min(min(topRight, rect.width / 2), rect.height / 2)
+        let bl = min(min(bottomLeft, rect.width / 2), rect.height / 2)
+        let br = min(min(bottomRight, rect.width / 2), rect.height / 2)
+
+        path.move(to: CGPoint(x: rect.minX + tl, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - tr, y: rect.minY))
+        path.addArc(center: CGPoint(x: rect.maxX - tr, y: rect.minY + tr), radius: tr, startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - br))
+        path.addArc(center: CGPoint(x: rect.maxX - br, y: rect.maxY - br), radius: br, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false)
+        path.addLine(to: CGPoint(x: rect.minX + bl, y: rect.maxY))
+        path.addArc(center: CGPoint(x: rect.minX + bl, y: rect.maxY - bl), radius: bl, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + tl))
+        path.addArc(center: CGPoint(x: rect.minX + tl, y: rect.minY + tl), radius: tl, startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -925,7 +1103,7 @@ private struct RecordControlButton: View {
     private var iconColor: Color {
         switch state {
         case .ready:
-            return Color.minuteMidnightDeep
+            return Color.minuteInk
         case .recording, .recorded, .processing:
             return Color.white
         }

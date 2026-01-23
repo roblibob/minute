@@ -1,5 +1,4 @@
 import MinuteCore
-import ScreenCaptureKit
 import SwiftUI
 
 struct ScreenContextSettingsSection: View {
@@ -18,28 +17,32 @@ struct ScreenContextSettingsSection: View {
                 isOn: $screenContextEnabled
             )
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Capture interval")
                     Spacer()
                     Text(intervalLabel)
                         .minuteCaption()
                 }
+                VStack(alignment: .leading, spacing: 6) {
+                    Slider(value: captureIntervalIndex, in: 0...Double(Self.captureIntervals.count - 1), step: 1)
+                        .tint(.accentColor)
+                        .frame(maxWidth: .infinity)
 
-                Slider(value: captureIntervalIndex, in: 0...Double(Self.captureIntervals.count - 1), step: 1)
-                    .tint(.accentColor)
-
-                HStack {
-                    ForEach(Self.captureIntervals.indices, id: \.self) { index in
-                        let value = Self.captureIntervals[index]
-                        Text(Self.label(for: value))
-                            .minuteCaption()
-                        if index < Self.captureIntervals.count - 1 {
-                            Spacer()
+                    HStack {
+                        ForEach(Self.captureIntervals.indices, id: \.self) { index in
+                            let value = Self.captureIntervals[index]
+                            Text(Self.label(for: value))
+                                .minuteCaption()
+                            if index < Self.captureIntervals.count - 1 {
+                                Spacer()
+                            }
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             SettingsToggleRow(
                 "Enhance video imports with frame text",

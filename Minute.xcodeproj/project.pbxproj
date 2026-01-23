@@ -45,6 +45,7 @@
 		5A7F52012F1F0D0A00D8E124 /* MinuteWhisperService.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = MinuteWhisperService.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A7F52022F1F0D0A00D8E124 /* WhisperXPCService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperXPCService.swift; sourceTree = "<group>"; };
 		5A7F52032F1F0D0A00D8E124 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		779C02330F8D485BB5682A48 /* MinuteInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = MinuteInfo.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -82,10 +83,19 @@
 		58B694E62EF54B130068FAA7 = {
 			isa = PBXGroup;
 			children = (
+				AF2CA8B1E4624B7ABCC0E83C /* Config */,
 				58B694F12EF54B130068FAA7 /* Minute */,
 				5A7F52042F1F0D0A00D8E124 /* MinuteWhisperService */,
 				58B694F02EF54B130068FAA7 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		AF2CA8B1E4624B7ABCC0E83C /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				779C02330F8D485BB5682A48 /* MinuteInfo.plist */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		58B694F02EF54B130068FAA7 /* Products */ = {
@@ -452,7 +462,7 @@
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Minute/Info.plist;
+				INFOPLIST_FILE = Config/MinuteInfo.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Minute;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Minute needs microphone access to record meetings locally.";
@@ -506,7 +516,7 @@
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Minute/Info.plist;
+				INFOPLIST_FILE = Config/MinuteInfo.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Minute;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Minute needs microphone access to record meetings locally.";

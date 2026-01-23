@@ -205,6 +205,15 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
     }
 
+    func setAudioCaptureConfiguration(microphoneEnabled: Bool, systemAudioEnabled: Bool) {
+        guard microphoneCaptureEnabled != microphoneEnabled || systemAudioCaptureEnabled != systemAudioEnabled else { return }
+        microphoneCaptureEnabled = microphoneEnabled
+        systemAudioCaptureEnabled = systemAudioEnabled
+        Task { [weak self] in
+            await self?.applyAudioCaptureToggles()
+        }
+    }
+
     func setScreenCaptureEnabled(_ enabled: Bool) {
         guard screenCaptureEnabled != enabled else { return }
         screenCaptureEnabled = enabled
