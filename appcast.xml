@@ -10,5 +10,13 @@
             <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/roblibob/Minute/releases/download/v0.8/Minute-0.8.zip" length="17397856" type="application/octet-stream" sparkle:edSignature="q9ts9tdWD1KaXvwhTpO79gc96xnqU2WlFefE/TIiZLe7uRymBmNfub/aU//1OW1lvqIVP6bcaXoWm8KFfCMJDw=="/>
         </item>
+        <item>
+            <title>0.7</title>
+            <pubDate>Sat, 24 Jan 2026 22:01:04 +0100</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.8.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.6</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/roblibob/Minute/releases/download/v0.8.1/Minute-0.8.1.zip" length="17397858" type="application/octet-stream" sparkle:edSignature="1k5eyDBIbOLsxuK7JiJ9hF/UaUE2cwv6UvSbveaGlqOvJq7ySZPqoGUVpJTEnFnom2RPglEUjT455pVUGwt1Aw=="/>
+        </item>
     </channel>
 </rss>
