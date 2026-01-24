@@ -46,6 +46,23 @@ if [ -d "$APP_DIR/Contents/XPCServices" ]; then
   done
 fi
 
+SPARKLE_FRAMEWORK="$APP_DIR/Contents/Frameworks/Sparkle.framework"
+if [ -d "$SPARKLE_FRAMEWORK" ]; then
+  find "$SPARKLE_FRAMEWORK/Versions" -type d -name "Updater.app" -print0 2>/dev/null | while IFS= read -r -d '' updater_app; do
+    sign_path "$updater_app"
+  done
+
+  find "$SPARKLE_FRAMEWORK/Versions" -type d -path "*/XPCServices/*.xpc" -print0 2>/dev/null | while IFS= read -r -d '' xpc; do
+    sign_path "$xpc"
+  done
+
+  find "$SPARKLE_FRAMEWORK/Versions" -type f -name "Autoupdate" -print0 2>/dev/null | while IFS= read -r -d '' autoupdate; do
+    sign_path "$autoupdate"
+  done
+
+  sign_path "$SPARKLE_FRAMEWORK"
+fi
+
 VENDOR_DIR="$SRCROOT/MinuteCore/Vendor"
 if [ -d "$VENDOR_DIR" ]; then
   framework_names=$(find "$VENDOR_DIR" -type d -path "*macos*/*.framework" -print 2>/dev/null | awk -F/ '{print $NF}' | sort -u)
