@@ -17,14 +17,14 @@ publishes the Sparkle appcast to GitHub Pages.
    scripts/release-notarize.sh "/path/to/Minute.xcarchive"
    ```
 
-3. Generate and commit the appcast:
+3. Generate and commit the appcast (copied to `appcast.xml` in repo root):
    ```
    APPCAST_DOWNLOAD_URL_PREFIX="https://github.com/roblibob/Minute/releases/download/vX.Y.Z/" \
    SPARKLE_APPCAST_ARGS="--ed25519-priv-key $HOME/.config/minute/sparkle_ed25519.key" \
    scripts/generate-appcast.sh updates
    ```
 
-4. Commit `updates/appcast.xml` to `main`.
+4. Commit `appcast.xml` to `main`.
 5. Upload the release assets to GitHub Releases:
    - `updates/Minute-<version>.dmg`
    - `updates/Minute-<version>.zip`
@@ -41,11 +41,11 @@ make release ARCHIVE="/path/to/Minute.xcarchive" \
 ```
 
 This runs notarization + stapling + DMG/ZIP generation, then regenerates
-`updates/appcast.xml`. You still commit the appcast and publish the assets.
+`appcast.xml`. You still commit the appcast and publish the assets.
 
 ## CI: publish appcast only
 Workflow: `.github/workflows/publish-appcast.yml`
-- Trigger: push to `main` when `updates/appcast.xml` changes
+- Trigger: push to `main` when `appcast.xml` changes
 - Action: copy appcast to `roblibob/roblibob.github.io/appcast.xml`
 - Secret required: `APPCAST_PUBLISH_TOKEN` (PAT with write access to the pages repo)
 

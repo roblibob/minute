@@ -8,7 +8,7 @@ CREATE_DMG="${CREATE_DMG:-1}"
 CREATE_ZIP="${CREATE_ZIP:-1}"
 GENERATE_APPCAST="${GENERATE_APPCAST:-1}"
 APPCAST_DOWNLOAD_URL_PREFIX="${APPCAST_DOWNLOAD_URL_PREFIX:-}"
-APPCAST_DEST="${APPCAST_DEST:-}"
+APPCAST_DEST="${APPCAST_DEST:-appcast.xml}"
 
 if [ -z "$ARCHIVE_PATH" ]; then
   cat <<EOF
@@ -21,7 +21,7 @@ Environment overrides:
   CREATE_ZIP=1
   GENERATE_APPCAST=1
   APPCAST_DOWNLOAD_URL_PREFIX=
-  APPCAST_DEST=
+  APPCAST_DEST=appcast.xml
   SPARKLE_APPCAST_ARGS=
 EOF
   exit 1
@@ -121,6 +121,7 @@ if [ "$GENERATE_APPCAST" = "1" ]; then
   scripts/generate-appcast.sh "$OUTPUT_DIR" "$APPCAST_DOWNLOAD_URL_PREFIX"
 
   if [ -n "$APPCAST_DEST" ]; then
+    mkdir -p "$(dirname "$APPCAST_DEST")"
     cp "$OUTPUT_DIR/appcast.xml" "$APPCAST_DEST"
     echo "Copied appcast to $APPCAST_DEST"
   fi

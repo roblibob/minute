@@ -2,7 +2,7 @@ NOTARY_PROFILE ?= minute-notary
 ARCHIVE ?=
 OUTPUT_DIR ?= updates
 APPCAST_DOWNLOAD_URL_PREFIX ?=
-APPCAST_DEST ?=
+APPCAST_DEST ?= appcast.xml
 SPARKLE_APPCAST_ARGS ?=
 
 .PHONY: release appcast

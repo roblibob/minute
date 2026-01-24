@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - updates/appcast.xml
+      - appcast.xml
   workflow_dispatch:
 
 permissions:
@@ -26,8 +26,8 @@ jobs:
 
       - name: Verify appcast exists
         run: |
-          if [ ! -f "updates/appcast.xml" ]; then
-            echo "error: updates/appcast.xml not found in repo" >&2
+          if [ ! -f "appcast.xml" ]; then
+            echo "error: appcast.xml not found in repo" >&2
             exit 1
           fi
 
@@ -40,7 +40,7 @@ jobs:
 
       - name: Publish appcast.xml
         run: |
-          cp "updates/appcast.xml" "gh-pages/appcast.xml"
+          cp "appcast.xml" "gh-pages/appcast.xml"
           cd gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
