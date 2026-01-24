@@ -141,15 +141,15 @@ struct MeetingNotesSidebarView: View {
             return "This Week"
         }
         if let lastWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: now),
-           calendar.isDate(date, equalTo: lastWeek, toGranularity: .weekOfYear) {
-            return "Last Week"
+            calendar.isDate(date, equalTo: lastWeek, toGranularity: .weekOfYear) {
+                return "Last Week"
         }
         if calendar.isDate(date, equalTo: now, toGranularity: .month) {
             return "This Month"
         }
         if let lastMonth = calendar.date(byAdding: .month, value: -1, to: now),
-           calendar.isDate(date, equalTo: lastMonth, toGranularity: .month) {
-            return "Last Month"
+            calendar.isDate(date, equalTo: lastMonth, toGranularity: .month) {
+                return "Last Month"
         }
         if calendar.isDate(date, equalTo: now, toGranularity: .year) {
             return "Earlier This Year"

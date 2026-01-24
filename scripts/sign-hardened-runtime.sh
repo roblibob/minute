@@ -74,3 +74,7 @@ if [ -d "$VENDOR_DIR" ]; then
     done
   fi
 fi
+
+if [ -n "${DERIVED_FILE_DIR:-}" ]; then
+  touch "$DERIVED_FILE_DIR/sign-bundled-binaries.stamp"
+fi

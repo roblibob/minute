@@ -10,6 +10,7 @@ struct MarkdownViewerOverlay: View {
     var onClose: () -> Void
     var onRetry: () -> Void
     var onOpenInObsidian: (() -> Void)?
+    private let scrollBottomInset: CGFloat = 160
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,14 +84,20 @@ struct MarkdownViewerOverlay: View {
             .padding(24)
         } else if let content {
             ScrollView {
-                if renderPlainText {
-                    Text(content)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                } else {
-                    Markdown(decoratedContent(content))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 0) {
+                    if renderPlainText {
+                        Text(content)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    } else {
+                        Markdown(decoratedContent(content))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Spacer()
+                        .frame(height: scrollBottomInset)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .font(.callout)
             .foregroundStyle(Color.minuteTextPrimary)

@@ -1,5 +1,4 @@
 import AppKit
-import AVFoundation
 import Combine
 import Foundation
 import MinuteCore
@@ -197,25 +196,10 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     private func refreshPreviews(for notes: [MeetingNoteItem]) {
         previewTask?.cancel()
 
-        let configuration = AppConfiguration(defaults: UserDefaults.standard)
         let provider = browserProvider
-        let vaultAccess = Self.makeVaultAccess()
-        previewTask = Task.detached { [notes, configuration, provider, vaultAccess] in
-            var previews: [String: NotePreview] = [:]
-            previews.reserveCapacity(notes.count)
-
+        previewTask = Task.detached { [notes, provider] in
             let browser = provider()
-            for item in notes {
-                if Task.isCancelled { return }
-                let summaryLine = await Self.loadSummaryLine(for: item, browser: browser)
-                let durationSeconds = Self.loadDurationSeconds(
-                    for: item,
-                    configuration: configuration,
-                    vaultAccess: vaultAccess
-                )
-                previews[item.id] = NotePreview(summaryLine: summaryLine, durationSeconds: durationSeconds)
-            }
-
+            let previews = await Self.buildPreviews(for: notes, browser: browser)
             await MainActor.run { [weak self] in
                 self?.notePreviews = previews
             }
@@ -224,15 +208,32 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
     nonisolated private static let summaryPreviewWordCount = 18
 
-    nonisolated private static func loadSummaryLine(
+    nonisolated private static func buildPreviews(
+        for notes: [MeetingNoteItem],
+        browser: any MeetingNotesBrowsing
+    ) async -> [String: NotePreview] {
+        var previews: [String: NotePreview] = [:]
+        previews.reserveCapacity(notes.count)
+
+        for item in notes {
+            if Task.isCancelled { return previews }
+            let preview = await loadPreview(for: item, browser: browser)
+            previews[item.id] = preview
+        }
+        return previews
+    }
+
+    nonisolated private static func loadPreview(
         for item: MeetingNoteItem,
         browser: any MeetingNotesBrowsing
-    ) async -> String {
+    ) async -> NotePreview {
         guard let content = try? await browser.loadNoteContent(for: item) else {
-            return "No summary yet."
+            return NotePreview(summaryLine: "No summary yet.", durationSeconds: nil)
         }
         let summary = extractSummaryPreview(from: content)
-        return summary.isEmpty ? "No summary yet." : summary
+        let summaryLine = summary.isEmpty ? "No summary yet." : summary
+        let durationSeconds = parseLengthSeconds(from: content)
+        return NotePreview(summaryLine: summaryLine, durationSeconds: durationSeconds)
     }
 
     nonisolated private static func extractSummaryPreview(from content: String) -> String {
@@ -267,42 +268,75 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         return preview
     }
 
-    nonisolated private static func loadDurationSeconds(
-        for item: MeetingNoteItem,
-        configuration: AppConfiguration,
-        vaultAccess: VaultAccess
-    ) -> TimeInterval? {
-        let duration = try? vaultAccess.withVaultAccess { vaultRootURL -> TimeInterval? in
-            let audioURL = audioFileURL(
-                for: item,
-                audioRelativePath: configuration.audioRelativePath,
-                vaultRootURL: vaultRootURL
-            )
-            guard FileManager.default.fileExists(atPath: audioURL.path) else { return nil }
-            guard let file = try? AVAudioFile(forReading: audioURL) else { return nil }
-            let format = file.fileFormat
-            guard format.sampleRate > 0 else { return nil }
-            return TimeInterval(Double(file.length) / format.sampleRate)
+    nonisolated private static func parseLengthSeconds(from content: String) -> TimeInterval? {
+        guard let rawValue = parseFrontmatterValue(named: "length", from: content) else {
+            return nil
         }
-        return duration ?? nil
+        return parseDurationSeconds(rawValue)
     }
 
-    nonisolated private static func audioFileURL(
-        for item: MeetingNoteItem,
-        audioRelativePath: String,
-        vaultRootURL: URL
-    ) -> URL {
-        vaultRootURL
-            .appendingPathComponent(audioRelativePath)
-            .appendingPathComponent("\(item.fileURL.deletingPathExtension().lastPathComponent).wav")
+    nonisolated private static func parseFrontmatterValue(named key: String, from content: String) -> String? {
+        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        guard let first = lines.first,
+              first.trimmingCharacters(in: .whitespacesAndNewlines) == "---" else {
+            return nil
+        }
+
+        for line in lines.dropFirst() {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed == "---" { break }
+            guard let colonIndex = trimmed.firstIndex(of: ":") else { continue }
+            let name = trimmed[..<colonIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard name == key else { continue }
+            let rawValue = trimmed[trimmed.index(after: colonIndex)...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimMatchingQuotes(String(rawValue))
+        }
+
+        return nil
     }
 
-    nonisolated private static func makeVaultAccess() -> VaultAccess {
-        let defaults = UserDefaults.standard
-        let bookmarkStore = UserDefaultsVaultBookmarkStore(
-            defaults: defaults,
-            key: AppConfiguration.Defaults.vaultRootBookmarkKey
-        )
-        return VaultAccess(bookmarkStore: bookmarkStore)
+    nonisolated private static func trimMatchingQuotes(_ value: String) -> String {
+        guard value.count >= 2,
+              let first = value.first,
+              let last = value.last,
+              (first == "\"" && last == "\"") || (first == "'" && last == "'")
+        else {
+            return value
+        }
+        return String(value.dropFirst().dropLast())
+    }
+
+    nonisolated private static func parseDurationSeconds(_ value: String) -> TimeInterval? {
+        let cleaned = value.lowercased()
+        var totalMinutes = 0
+        var buffer = ""
+        var hasUnit = false
+
+        for character in cleaned {
+            if character.isNumber {
+                buffer.append(character)
+                continue
+            }
+
+            if character == "h" || character == "m" {
+                guard let number = Int(buffer) else {
+                    buffer = ""
+                    continue
+                }
+                if character == "h" {
+                    totalMinutes += number * 60
+                } else {
+                    totalMinutes += number
+                }
+                buffer = ""
+                hasUnit = true
+            } else if !buffer.isEmpty {
+                buffer = ""
+            }
+        }
+
+        guard hasUnit, totalMinutes > 0 else { return nil }
+        return TimeInterval(totalMinutes * 60)
     }
 }
