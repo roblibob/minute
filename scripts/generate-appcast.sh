@@ -60,5 +60,5 @@ if [ -n "$DOWNLOAD_URL_PREFIX" ]; then
   ARGS+=(--download-url-prefix "$DOWNLOAD_URL_PREFIX")
 fi
 
-"$GENERATE_APPCAST" "${ARGS[@]}" "${EXTRA_ARGS[@]}" "$UPDATES_DIR"
+"$GENERATE_APPCAST" "${ARGS[@]}" "${EXTRA_ARGS[@]:+${EXTRA_ARGS[@]}}" "$UPDATES_DIR"
 echo "Generated appcast at $UPDATES_DIR/appcast.xml"
