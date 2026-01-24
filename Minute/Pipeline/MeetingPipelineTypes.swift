@@ -40,11 +40,11 @@ enum MeetingPipelineState {
         case .processing(let stage, _):
             switch stage {
             case .downloadingModels:
-                return "Processing — Downloading Models"
+                return "Downloading Models"
             case .transcribing:
-                return "Processing — Transcribing"
+                return "Transcribing"
             case .summarizing:
-                return "Processing — Summarizing"
+                return "Summarizing"
             }
         case .writing:
             return "Writing"

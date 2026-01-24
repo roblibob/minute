@@ -285,7 +285,7 @@ private struct PipelineContentView: View {
         case .processing, .writing, .importing:
             return StatusDrawerModel(
                 title: model.state.statusLabel,
-                detail: "Working locally. You can keep browsing notes.",
+                detail: "Meeting is being processed.",
                 progress: model.progress,
                 showsActivity: model.progress == nil,
                 isError: false,
