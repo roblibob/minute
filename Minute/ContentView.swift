@@ -5,7 +5,6 @@
 //  Created by Robert Holst on 12/19/25.
 //
 
-import AppKit
 import MinuteCore
 import SwiftUI
 import UniformTypeIdentifiers
@@ -13,7 +12,6 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel
     @StateObject private var onboardingModel = OnboardingViewModel()
-    @State private var focusResetToken = 0
 
     var body: some View {
         Group {
@@ -21,24 +19,15 @@ struct ContentView: View {
         }
         .frame(minWidth: 860, minHeight: 620)
         .background(MinuteTheme.backgroundGradient)
-        .overlay(
-            WindowInitialFocusClearView(resetToken: focusResetToken)
-                .frame(width: 0, height: 0)
-        )
         .tint(Color.minuteGlow)
         .onAppear { onboardingModel.refreshAll() }
-        .onChange(of: onboardingModel.isComplete) { _, isComplete in
-            if isComplete {
-                focusResetToken += 1
-            }
-        }
     }
 
     @ViewBuilder
     private var contentBody: some View {
         if onboardingModel.isComplete {
             ZStack {
-                PipelineContentView(focusResetToken: $focusResetToken)
+                PipelineContentView()
 
                 if appState.mainContent == .settings {
                     SettingsOverlayView()
@@ -53,7 +42,6 @@ struct ContentView: View {
 private struct PipelineContentView: View {
     @StateObject private var model = MeetingPipelineViewModel.live()
     @StateObject private var notesModel = MeetingNotesBrowserViewModel()
-    @Binding var focusResetToken: Int
     @AppStorage(AppDefaultsKey.screenContextEnabled)
     private var screenContextEnabled: Bool = AppConfiguration.Defaults.defaultScreenContextEnabled
     @State private var isImportingFile = false
@@ -100,11 +88,6 @@ private struct PipelineContentView: View {
             .onReceive(model.$state) { newState in
                 if case .done = newState {
                     notesModel.refresh()
-                }
-            }
-            .onChange(of: notesModel.isRefreshing) { _, isRefreshing in
-                if !isRefreshing {
-                    focusResetToken += 1
                 }
             }
             .contentShape(Rectangle())
@@ -1208,71 +1191,6 @@ private struct RecordControlButton: View {
             }
         }
     }
-}
-
-private struct WindowInitialFocusClearView: NSViewRepresentable {
-    let resetToken: Int
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        FocusSinkView(frame: .zero)
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if context.coordinator.window !== nsView.window {
-            context.coordinator.attach(to: nsView.window, focusSink: nsView)
-        }
-        guard context.coordinator.lastResetToken != resetToken else { return }
-        context.coordinator.lastResetToken = resetToken
-        context.coordinator.clearInitialFocus()
-    }
-
-    final class Coordinator {
-        weak var window: NSWindow?
-        weak var focusSink: NSView?
-        var observer: NSObjectProtocol?
-        var lastResetToken = 0
-
-        deinit {
-            if let observer {
-                NotificationCenter.default.removeObserver(observer)
-            }
-        }
-
-        func attach(to newWindow: NSWindow?, focusSink: NSView) {
-            if let observer {
-                NotificationCenter.default.removeObserver(observer)
-                self.observer = nil
-            }
-            window = newWindow
-            self.focusSink = focusSink
-            guard let newWindow else { return }
-            observer = NotificationCenter.default.addObserver(
-                forName: NSWindow.didBecomeKeyNotification,
-                object: newWindow,
-                queue: .main
-            ) { [weak self] _ in
-                self?.clearInitialFocus()
-            }
-            clearInitialFocus()
-        }
-
-        func clearInitialFocus() {
-            guard let window, let focusSink else { return }
-            window.initialFirstResponder = focusSink
-            DispatchQueue.main.async {
-                window.makeFirstResponder(focusSink)
-            }
-        }
-    }
-}
-
-private final class FocusSinkView: NSView {
-    override var acceptsFirstResponder: Bool { true }
-    override var canBecomeKeyView: Bool { false }
 }
 
 private extension Array where Element == CGFloat {
