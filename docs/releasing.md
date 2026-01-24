@@ -20,7 +20,7 @@ publishes the Sparkle appcast to GitHub Pages.
 3. Generate and commit the appcast (copied to `appcast.xml` in repo root):
    ```
    APPCAST_DOWNLOAD_URL_PREFIX="https://github.com/roblibob/Minute/releases/download/vX.Y.Z/" \
-   SPARKLE_APPCAST_ARGS="--ed25519-priv-key $HOME/.config/minute/sparkle_ed25519.key" \
+   SPARKLE_APPCAST_ARGS="--ed-key-file $HOME/.config/minute/sparkle_ed25519.key" \
    scripts/generate-appcast.sh updates
    ```
 
@@ -37,11 +37,12 @@ publishes the Sparkle appcast to GitHub Pages.
 make release ARCHIVE="/path/to/Minute.xcarchive" \
   NOTARY_PROFILE=minute-notary \
   APPCAST_DOWNLOAD_URL_PREFIX="https://github.com/roblibob/Minute/releases/download/vX.Y.Z/" \
-  SPARKLE_APPCAST_ARGS="--ed25519-priv-key $HOME/.config/minute/sparkle_ed25519.key"
+  SPARKLE_APPCAST_ARGS="--ed-key-file $HOME/.config/minute/sparkle_ed25519.key"
 ```
 
 This runs notarization + stapling + DMG/ZIP generation, then regenerates
-`appcast.xml`. You still commit the appcast and publish the assets.
+`appcast.xml` using the ZIP only (Sparkle does not accept duplicate DMG+ZIP).
+You still commit the appcast and publish the assets.
 
 ## CI: publish appcast only
 Workflow: `.github/workflows/publish-appcast.yml`
