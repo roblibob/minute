@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0E0A182A0E8F4C1792A8B075 /* MinuteLlama in Frameworks */ = {isa = PBXBuildFile; productRef = B730481B2E3B4E5FB8E38D6E /* MinuteLlama */; };
+		1DBD0C88C2F54CA78D084F61 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3B3599BC65E149678727D1B7 /* Sparkle */; };
 		58B6950C2EF600000068FAA7 /* MinuteCore in Frameworks */ = {isa = PBXBuildFile; productRef = 58B6950B2EF600000068FAA7 /* MinuteCore */; };
 		5A7F52052F1F0D0A00D8E124 /* WhisperXPCService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7F52022F1F0D0A00D8E124 /* WhisperXPCService.swift */; };
 		5A7F52062F1F0D0A00D8E124 /* MinuteWhisperService.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5A7F52012F1F0D0A00D8E124 /* MinuteWhisperService.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -65,6 +66,7 @@
 				9C45E2A61F1D4A7A9E4C0B11 /* MinuteWhisper in Frameworks */,
 				0E0A182A0E8F4C1792A8B075 /* MinuteLlama in Frameworks */,
 				70055E391D7145CFA8509E54 /* MarkdownUI in Frameworks */,
+				1DBD0C88C2F54CA78D084F61 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,6 +147,7 @@
 				5A7F52132F1F0D0A00D8E124 /* MinuteWhisper */,
 				B730481B2E3B4E5FB8E38D6E /* MinuteLlama */,
 				0AF288CF7B9C4B81AEE5DD29 /* MarkdownUI */,
+				3B3599BC65E149678727D1B7 /* Sparkle */,
 			);
 			productName = Minute;
 			productReference = 58B694EF2EF54B130068FAA7 /* Minute.app */;
@@ -201,6 +204,7 @@
 			packageReferences = (
 				58B6950A2EF600000068FAA7 /* XCLocalSwiftPackageReference "MinuteCore" */,
 				95CE9161C6A34402B4933FD2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				4953E618B8B349659E4195B9 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 58B694F02EF54B130068FAA7 /* Products */;
@@ -689,6 +693,14 @@
 				minimumVersion = 2.4.1;
 			};
 		};
+		4953E618B8B349659E4195B9 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -696,6 +708,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 95CE9161C6A34402B4933FD2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
+		};
+		3B3599BC65E149678727D1B7 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4953E618B8B349659E4195B9 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		58B6950B2EF600000068FAA7 /* MinuteCore */ = {
 			isa = XCSwiftPackageProductDependency;

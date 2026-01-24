@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MainSettingsView: View {
     @EnvironmentObject private var appState: AppNavigationModel
+    @EnvironmentObject private var updaterViewModel: UpdaterViewModel
     @StateObject private var vaultModel = VaultSettingsModel()
     @StateObject private var modelsModel = ModelsSettingsViewModel()
     @State private var selection: SettingsSection = .general
@@ -81,6 +82,10 @@ struct MainSettingsView: View {
                 Form {
                     ModelsSettingsSection(model: modelsModel)
                 }
+            case .updates:
+                Form {
+                    UpdatesSettingsSection(model: updaterViewModel)
+                }
             }
         }
         .formStyle(.grouped)
@@ -125,6 +130,7 @@ private enum SettingsSection: CaseIterable, Identifiable {
     case general
     case permissions
     case ai
+    case updates
 
     var id: Self { self }
 
@@ -136,6 +142,8 @@ private enum SettingsSection: CaseIterable, Identifiable {
             return "Permissions"
         case .ai:
             return "AI"
+        case .updates:
+            return "Updates"
         }
     }
 
@@ -147,6 +155,8 @@ private enum SettingsSection: CaseIterable, Identifiable {
             return "hand.raised"
         case .ai:
             return "sparkles"
+        case .updates:
+            return "arrow.down.circle"
         }
     }
 }
@@ -154,5 +164,6 @@ private enum SettingsSection: CaseIterable, Identifiable {
 #Preview {
     MainSettingsView()
         .environmentObject(AppNavigationModel())
+        .environmentObject(UpdaterViewModel.preview)
         .frame(width: 680, height: 480)
 }

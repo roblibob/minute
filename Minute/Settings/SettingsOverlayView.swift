@@ -18,4 +18,5 @@ struct SettingsOverlayView: View {
 #Preview {
     SettingsOverlayView()
         .environmentObject(AppNavigationModel())
+        .environmentObject(UpdaterViewModel.preview)
 }
