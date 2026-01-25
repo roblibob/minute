@@ -20,6 +20,10 @@ final class AppConfigurationTests: XCTestCase {
             configuration.screenContextCaptureIntervalSeconds,
             AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
         )
+        XCTAssertEqual(
+            configuration.micActivityNotificationsEnabled,
+            AppConfiguration.Defaults.defaultMicActivityNotificationsEnabled
+        )
     }
 
     func testDefaults_normalizesEmptyRelativePaths() {
@@ -45,6 +49,15 @@ final class AppConfigurationTests: XCTestCase {
             configuration.screenContextCaptureIntervalSeconds,
             AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
         )
+    }
+
+    func testDefaults_readsMicActivityNotificationsEnabled() {
+        let defaults = makeDefaults()
+        defaults.set(false, forKey: AppConfiguration.Defaults.micActivityNotificationsEnabledKey)
+
+        let configuration = AppConfiguration(defaults: defaults)
+
+        XCTAssertEqual(configuration.micActivityNotificationsEnabled, false)
     }
 
     private func makeDefaults() -> UserDefaults {

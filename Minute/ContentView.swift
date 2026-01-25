@@ -41,6 +41,9 @@ struct ContentView: View {
                 keyDownMonitor = nil
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .minuteMicActivityShowPipeline)) { _ in
+            appState.showPipeline()
+        }
     }
 
     @ViewBuilder
@@ -65,6 +68,9 @@ private struct PipelineContentView: View {
     @StateObject private var notesModel = MeetingNotesBrowserViewModel()
     @AppStorage(AppDefaultsKey.screenContextEnabled)
     private var screenContextEnabled: Bool = AppConfiguration.Defaults.defaultScreenContextEnabled
+    @AppStorage(AppDefaultsKey.micActivityNotificationsEnabled)
+    private var micActivityNotificationsEnabled: Bool = AppConfiguration.Defaults.defaultMicActivityNotificationsEnabled
+    @State private var micActivityCoordinator = MicActivityNotificationCoordinator()
     @FocusState private var recordButtonFocused: Bool
     @State private var isImportingFile = false
     @State private var isDropTargeted = false
@@ -106,11 +112,20 @@ private struct PipelineContentView: View {
             .onAppear {
                 model.refreshVaultStatus()
                 notesModel.refresh()
+                micActivityCoordinator.setEnabled(micActivityNotificationsEnabled)
+                micActivityCoordinator.updatePipelineState(model.state)
+            }
+            .onDisappear {
+                micActivityCoordinator.stop()
             }
             .onReceive(model.$state) { newState in
                 if case .done = newState {
                     notesModel.refresh()
                 }
+                micActivityCoordinator.updatePipelineState(newState)
+            }
+            .onChange(of: micActivityNotificationsEnabled) { _, newValue in
+                micActivityCoordinator.setEnabled(newValue)
             }
             .contentShape(Rectangle())
             .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
@@ -133,6 +148,9 @@ private struct PipelineContentView: View {
             }
             .onChange(of: screenContextEnabled) { _, newValue in
                 handleScreenContextSettingChange(newValue)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .minuteMicActivityStartRecording)) { _ in
+                handleNotificationStartRecording()
             }
         }
     }
@@ -364,6 +382,15 @@ private struct PipelineContentView: View {
         case .done, .failed:
             model.send(.reset)
             requestStartRecording()
+        default:
+            break
+        }
+    }
+
+    private func handleNotificationStartRecording() {
+        switch model.state {
+        case .idle, .done, .failed:
+            handleRecordButtonTap()
         default:
             break
         }

@@ -4,6 +4,8 @@ import SwiftUI
 struct GeneralSettingsSection: View {
     @AppStorage(AppDefaultsKey.saveAudio) private var saveAudio: Bool = AppConfiguration.Defaults.defaultSaveAudio
     @AppStorage(AppDefaultsKey.saveTranscript) private var saveTranscript: Bool = AppConfiguration.Defaults.defaultSaveTranscript
+    @AppStorage(AppDefaultsKey.micActivityNotificationsEnabled)
+    private var micActivityNotificationsEnabled: Bool = AppConfiguration.Defaults.defaultMicActivityNotificationsEnabled
 
     var body: some View {
         Section("Options") {
@@ -17,6 +19,12 @@ struct GeneralSettingsSection: View {
                 "Save transcript",
                 detail: "When off, the transcript file and link are omitted from the note.",
                 isOn: $saveTranscript
+            )
+
+            SettingsToggleRow(
+                "Mic activity reminders",
+                detail: "Show a notification when the microphone becomes active.",
+                isOn: $micActivityNotificationsEnabled
             )
         }
     }

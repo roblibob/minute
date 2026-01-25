@@ -8,6 +8,7 @@
 import AppKit
 import Sparkle
 import SwiftUI
+import UserNotifications
 
 @main
 struct MinuteApp: App {
@@ -50,9 +51,10 @@ struct MinuteApp: App {
     }
 }
 
-private final class AppDelegate: NSObject, NSApplicationDelegate {
+private final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         removeTopLevelMenuItems(titles: ["Edit", "View"])
+        configureNotifications()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -65,6 +67,54 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             if let item = mainMenu.items.first(where: { $0.title == title }) {
                 mainMenu.removeItem(item)
             }
+        }
+    }
+
+    private func configureNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+
+        let startAction = UNNotificationAction(
+            identifier: MicActivityNotification.startActionIdentifier,
+            title: "Start Recording",
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: MicActivityNotification.categoryIdentifier,
+            actions: [startAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        if notification.request.content.categoryIdentifier == MicActivityNotification.categoryIdentifier {
+            completionHandler([.banner, .sound])
+        } else {
+            completionHandler([])
+        }
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        defer { completionHandler() }
+        guard response.notification.request.content.categoryIdentifier == MicActivityNotification.categoryIdentifier else {
+            return
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        NotificationCenter.default.post(name: .minuteMicActivityShowPipeline, object: nil)
+
+        if response.actionIdentifier == MicActivityNotification.startActionIdentifier {
+            NotificationCenter.default.post(name: .minuteMicActivityStartRecording, object: nil)
         }
     }
 }

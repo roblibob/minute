@@ -14,6 +14,7 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let screenContextCaptureIntervalSecondsKey = "screenContextCaptureIntervalSeconds"
         public static let summarizationModelIDKey = "summarizationModelID"
         public static let transcriptionModelIDKey = "transcriptionModelID"
+        public static let micActivityNotificationsEnabledKey = "micActivityNotificationsEnabled"
 
         public static let defaultMeetingsRelativePath = "Meetings"
         public static let defaultAudioRelativePath = "Meetings/_audio"
@@ -23,6 +24,7 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let defaultScreenContextEnabled = false
         public static let defaultScreenContextVideoImportEnabled = false
         public static let defaultScreenContextCaptureIntervalSeconds: TimeInterval = 60
+        public static let defaultMicActivityNotificationsEnabled = true
     }
 
     public var meetingsRelativePath: String
@@ -33,6 +35,7 @@ public struct AppConfiguration: Sendable, Equatable {
     public var screenContextEnabled: Bool
     public var screenContextVideoImportEnabled: Bool
     public var screenContextCaptureIntervalSeconds: TimeInterval
+    public var micActivityNotificationsEnabled: Bool
 
     public init(defaults: UserDefaults = .standard) {
         meetingsRelativePath = Self.validatedRelativePath(
@@ -58,6 +61,9 @@ public struct AppConfiguration: Sendable, Equatable {
         let fallback = Defaults.defaultScreenContextCaptureIntervalSeconds
         let resolved = interval ?? fallback
         screenContextCaptureIntervalSeconds = resolved > 0 ? resolved : fallback
+
+        micActivityNotificationsEnabled = defaults.object(forKey: Defaults.micActivityNotificationsEnabledKey) as? Bool
+            ?? Defaults.defaultMicActivityNotificationsEnabled
     }
 
     public static func validatedRelativePath(_ value: String?, fallback: String) -> String {
