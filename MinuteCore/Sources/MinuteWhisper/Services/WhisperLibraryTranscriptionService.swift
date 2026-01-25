@@ -40,10 +40,12 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
     }
 
     public static func liveDefault() -> WhisperLibraryTranscriptionService {
+        let selectionStore = TranscriptionModelSelectionStore()
+        let fallbackURL = selectionStore.selectedModel().destinationURL
         // v1 default: multilingual model + auto language detection for mixed-language meetings.
-        WhisperLibraryTranscriptionService(
+        return WhisperLibraryTranscriptionService(
             configuration: WhisperLibraryTranscriptionConfiguration(
-                modelURL: WhisperModelPaths.defaultBaseModelURL,
+                modelURL: WhisperModelPaths.resolvedModelURL(fallback: fallbackURL),
                 detectLanguage: true,
                 // Unused when `detectLanguage = true`, but keep "auto" for clearer logs.
                 language: "auto"
@@ -78,8 +80,8 @@ public struct WhisperLibraryTranscriptionService: TranscriptionServicing {
                 // Context init.
                 var cparams = whisper_context_default_params()
                 // Determinism: prefer CPU path for v1.
-                cparams.use_gpu = false
-                cparams.flash_attn = false
+                cparams.use_gpu = true
+                cparams.flash_attn = true
 
                 let ctx = whisper_init_from_file_with_params(configuration.modelURL.path, cparams)
                 guard let ctx else {

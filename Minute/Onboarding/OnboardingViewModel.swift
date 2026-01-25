@@ -33,11 +33,19 @@ final class OnboardingViewModel: ObservableObject {
             Task { await refreshModelsStatus() }
         }
     }
+    @Published var selectedTranscriptionModelID: String {
+        didSet {
+            guard oldValue != selectedTranscriptionModelID else { return }
+            transcriptionModelStore.setSelectedModelID(selectedTranscriptionModelID)
+            Task { await refreshModelsStatus() }
+        }
+    }
 
     private let modelManager: any ModelManaging
     private let vaultAccess: VaultAccess
     private let defaults: UserDefaults
     private let summarizationModelStore: SummarizationModelSelectionStore
+    private let transcriptionModelStore: TranscriptionModelSelectionStore
 
     private var defaultsObserver: AnyCancellable?
     private var modelTask: Task<Void, Never>?
@@ -53,16 +61,27 @@ final class OnboardingViewModel: ObservableObject {
     init(
         modelManager: (any ModelManaging)? = nil,
         defaults: UserDefaults = .standard,
-        summarizationModelStore: SummarizationModelSelectionStore? = nil
+        summarizationModelStore: SummarizationModelSelectionStore? = nil,
+        transcriptionModelStore: TranscriptionModelSelectionStore? = nil
     ) {
         let store = summarizationModelStore ?? SummarizationModelSelectionStore(defaults: defaults)
-        self.modelManager = modelManager ?? DefaultModelManager(selectionStore: store)
+        let transcriptionStore = transcriptionModelStore ?? TranscriptionModelSelectionStore(defaults: defaults)
+        self.modelManager = modelManager ?? DefaultModelManager(
+            selectionStore: store,
+            transcriptionSelectionStore: transcriptionStore
+        )
         self.defaults = defaults
         self.summarizationModelStore = store
+        self.transcriptionModelStore = transcriptionStore
         let selectedModel = store.selectedModel()
         self.selectedSummarizationModelID = selectedModel.id
         if store.selectedModelID() != selectedModel.id {
             store.setSelectedModelID(selectedModel.id)
+        }
+        let selectedTranscription = transcriptionStore.selectedModel()
+        self.selectedTranscriptionModelID = selectedTranscription.id
+        if transcriptionStore.selectedModelID() != selectedTranscription.id {
+            transcriptionStore.setSelectedModelID(selectedTranscription.id)
         }
         let bookmarkStore = UserDefaultsVaultBookmarkStore(
             defaults: defaults,
@@ -105,6 +124,10 @@ final class OnboardingViewModel: ObservableObject {
 
     var summarizationModels: [SummarizationModel] {
         SummarizationModelCatalog.all
+    }
+
+    var transcriptionModels: [TranscriptionModel] {
+        TranscriptionModelCatalog.all
     }
 
     var primaryButtonTitle: String {
@@ -263,14 +286,24 @@ final class OnboardingViewModel: ObservableObject {
 
         var parts: [String] = []
         if !result.missingModelIDs.isEmpty {
-            let names = result.missingModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            let names = result.missingModelIDs.map(displayName(for:))
             parts.append("Missing: \(names.joined(separator: ", "))")
         }
         if !result.invalidModelIDs.isEmpty {
-            let names = result.invalidModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            let names = result.invalidModelIDs.map(displayName(for:))
             parts.append("Invalid: \(names.joined(separator: ", "))")
         }
         return parts.joined(separator: " ")
+    }
+
+    private func displayName(for id: String) -> String {
+        if let summarization = SummarizationModelCatalog.model(for: id) {
+            return summarization.displayName
+        }
+        if let transcription = TranscriptionModelCatalog.model(for: id) {
+            return transcription.displayName
+        }
+        return id
     }
 
     private func updateCurrentStepIfNeeded() {

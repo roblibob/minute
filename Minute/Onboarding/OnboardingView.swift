@@ -110,6 +110,11 @@ struct OnboardingView: View {
 
     private var modelsStep: some View {
         VStack(alignment: .leading, spacing: 16) {
+            TranscriptionModelPicker(
+                models: model.transcriptionModels,
+                selection: $model.selectedTranscriptionModelID
+            )
+
             SummarizationModelPicker(
                 models: model.summarizationModels,
                 selection: $model.selectedSummarizationModelID

@@ -73,4 +73,14 @@ final class DefaultModelManagerTests: XCTestCase {
 
         XCTAssertFalse(fm.fileExists(atPath: destinationURL.path))
     }
+
+    func testDefaultRequiredModels_usesSelectedTranscriptionModel() {
+        let models = DefaultModelManager.defaultRequiredModels(
+            selectedSummarizationModelID: nil,
+            selectedTranscriptionModelID: "whisper/large-v3-turbo"
+        )
+
+        XCTAssertTrue(models.contains { $0.id == "whisper/large-v3-turbo" })
+        XCTAssertFalse(models.contains { $0.id == "whisper/base" })
+    }
 }

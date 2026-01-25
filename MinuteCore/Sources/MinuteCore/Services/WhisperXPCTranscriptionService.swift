@@ -26,10 +26,15 @@ public struct WhisperXPCTranscriptionConfiguration: Sendable, Equatable {
 public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unchecked Sendable {
     private let configuration: WhisperXPCTranscriptionConfiguration
     private let connection: NSXPCConnection
+    private let modelURLProvider: () -> URL
     private let logger = Logger(subsystem: "roblibob.Minute", category: "whisper-xpc")
 
-    public init(configuration: WhisperXPCTranscriptionConfiguration) {
+    public init(
+        configuration: WhisperXPCTranscriptionConfiguration,
+        modelURLProvider: (() -> URL)? = nil
+    ) {
         self.configuration = configuration
+        self.modelURLProvider = modelURLProvider ?? { configuration.modelURL }
         let connection = NSXPCConnection(serviceName: configuration.serviceName)
         connection.remoteObjectInterface = NSXPCInterface(with: WhisperXPCTranscriptionProtocol.self)
         connection.resume()
@@ -41,14 +46,21 @@ public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unch
     }
 
     public static func liveDefault() -> WhisperXPCTranscriptionService {
-        WhisperXPCTranscriptionService(
+        let selectionStore = TranscriptionModelSelectionStore()
+        let fallbackURL = selectionStore.selectedModel().destinationURL
+        let modelURLProvider = {
+            let selected = selectionStore.selectedModel().destinationURL
+            return WhisperModelPaths.resolvedModelURL(fallback: selected)
+        }
+        return WhisperXPCTranscriptionService(
             configuration: WhisperXPCTranscriptionConfiguration(
                 serviceName: "com.roblibob.Minute.WhisperService",
-                modelURL: WhisperModelPaths.defaultBaseModelURL,
+                modelURL: WhisperModelPaths.resolvedModelURL(fallback: fallbackURL),
                 detectLanguage: true,
                 language: "auto",
                 threads: 4
-            )
+            ),
+            modelURLProvider: modelURLProvider
         )
     }
 
@@ -80,9 +92,11 @@ public final class WhisperXPCTranscriptionService: TranscriptionServicing, @unch
                 return
             }
 
+            let modelURL = modelURLProvider()
+
             remote.transcribe(
                 wavPath: wavURL.path,
-                modelPath: configuration.modelURL.path,
+                modelPath: modelURL.path,
                 detectLanguage: configuration.detectLanguage,
                 language: configuration.language,
                 threads: configuration.threads

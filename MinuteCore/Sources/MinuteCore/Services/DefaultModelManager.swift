@@ -35,14 +35,17 @@ public actor DefaultModelManager: ModelManaging {
 
     private let requiredModelsOverride: [ModelSpec]?
     private let selectionStore: SummarizationModelSelectionStore
+    private let transcriptionSelectionStore: TranscriptionModelSelectionStore
     private let logger = Logger(subsystem: "roblibob.Minute", category: "models")
 
     public init(
         requiredModels: [ModelSpec]? = nil,
-        selectionStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore()
+        selectionStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore(),
+        transcriptionSelectionStore: TranscriptionModelSelectionStore = TranscriptionModelSelectionStore()
     ) {
         self.requiredModelsOverride = requiredModels
         self.selectionStore = selectionStore
+        self.transcriptionSelectionStore = transcriptionSelectionStore
     }
 
     public func ensureModelsPresent(progress: (@Sendable (ModelDownloadProgress) -> Void)? = nil) async throws {
@@ -227,27 +230,23 @@ public actor DefaultModelManager: ModelManaging {
     // MARK: - Defaults
 
     /// Default pinned model list.
-    public static func defaultRequiredModels(selectedSummarizationModelID: String? = nil) -> [ModelSpec] {
-        let whisperURL = WhisperModelPaths.defaultBaseModelURL
+    public static func defaultRequiredModels(
+        selectedSummarizationModelID: String? = nil,
+        selectedTranscriptionModelID: String? = nil
+    ) -> [ModelSpec] {
+        let transcriptionModel = TranscriptionModelCatalog.model(for: selectedTranscriptionModelID)
+            ?? TranscriptionModelCatalog.defaultModel
         let whisperCoreMLEncoderURL = WhisperModelPaths.defaultBaseEncoderCoreMLURL
         let summarizationModel = SummarizationModelCatalog.model(for: selectedSummarizationModelID) ?? SummarizationModelCatalog.defaultModel
 
         var models: [ModelSpec] = [
-            // Whisper (multilingual)
+            // Whisper
             ModelSpec(
-                id: "whisper/base",
-                destinationURL: whisperURL,
-                sourceURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin")!,
-                expectedSHA256Hex: "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
-            ),
-
-            // Optional Whisper Core ML encoder (required by some whisper.cpp builds on Apple platforms).
-            // Downloaded as a .zip and extracted into a `.mlmodelc` directory.
-            ModelSpec(
-                id: "whisper/base-encoder-coreml",
-                destinationURL: whisperCoreMLEncoderURL,
-                sourceURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-encoder.mlmodelc.zip")!,
-                expectedSHA256Hex: "7e6ab77041942572f239b5b602f8aaa1c3ed29d73e3d8f20abea03a773541089"
+                id: transcriptionModel.id,
+                destinationURL: transcriptionModel.destinationURL,
+                sourceURL: transcriptionModel.sourceURL,
+                expectedSHA256Hex: transcriptionModel.expectedSHA256Hex,
+                expectedFileSizeBytes: transcriptionModel.expectedFileSizeBytes
             ),
 
             // LLM (GGUF)
@@ -274,6 +273,20 @@ public actor DefaultModelManager: ModelManaging {
             )
         }
 
+        if transcriptionModel.id == TranscriptionModelCatalog.defaultModelID {
+            // Optional Whisper Core ML encoder (required by some whisper.cpp builds on Apple platforms).
+            // Downloaded as a .zip and extracted into a `.mlmodelc` directory.
+            models.insert(
+                ModelSpec(
+                    id: "whisper/base-encoder-coreml",
+                    destinationURL: whisperCoreMLEncoderURL,
+                    sourceURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-encoder.mlmodelc.zip")!,
+                    expectedSHA256Hex: "7e6ab77041942572f239b5b602f8aaa1c3ed29d73e3d8f20abea03a773541089"
+                ),
+                at: 1
+            )
+        }
+
         return models
     }
 
@@ -282,8 +295,12 @@ public actor DefaultModelManager: ModelManaging {
             return requiredModelsOverride
         }
 
-        let selectedID = selectionStore.selectedModelID()
-        return DefaultModelManager.defaultRequiredModels(selectedSummarizationModelID: selectedID)
+        let summarizationID = selectionStore.selectedModelID()
+        let transcriptionID = transcriptionSelectionStore.selectedModelID()
+        return DefaultModelManager.defaultRequiredModels(
+            selectedSummarizationModelID: summarizationID,
+            selectedTranscriptionModelID: transcriptionID
+        )
     }
 
     // MARK: - Download + hashing

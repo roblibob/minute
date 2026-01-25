@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MeetingNotesSidebarView: View {
     @ObservedObject var model: MeetingNotesBrowserViewModel
+    @State private var expandedSections: Set<String> = []
 
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -82,24 +83,43 @@ struct MeetingNotesSidebarView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     ForEach(timelineSections) { section in
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text(section.title)
-                                .minuteFootnote()
-                                .textCase(.uppercase)
+                        DisclosureGroup(
+                            isExpanded: binding(for: section)
+                        ) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(section.items) { item in
+                                    let preview = model.preview(for: item)
+                                    MeetingNoteCard(
+                                        item: item,
+                                        summaryLine: preview?.summaryLine ?? "No summary yet.",
+                                        timeLabel: timeLabel(for: item),
+                                        durationLabel: durationLabel(for: preview),
+                                        isSelected: model.selectedItem?.id == item.id,
+                                        onSelect: { model.select(item) },
+                                        onDelete: { model.delete(item) }
+                                    )
+                                }
+                            }
+                            .padding(.top, 8)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text(section.title)
+                                    .minuteFootnote()
+                                    .textCase(.uppercase)
 
-                            ForEach(section.items) { item in
-                                let preview = model.preview(for: item)
-                                MeetingNoteCard(
-                                    item: item,
-                                    summaryLine: preview?.summaryLine ?? "No summary yet.",
-                                    timeLabel: timeLabel(for: item),
-                                    durationLabel: durationLabel(for: preview),
-                                    isSelected: model.selectedItem?.id == item.id,
-                                    onSelect: { model.select(item) },
-                                    onDelete: { model.delete(item) }
-                                )
+                                Text("\(section.items.count)")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Color.minuteTextMuted)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    binding(for: section).wrappedValue.toggle()
+                                }
                             }
                         }
+                        .animation(.easeInOut(duration: 0.2), value: expandedSections)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -107,6 +127,33 @@ struct MeetingNotesSidebarView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 16)
+            .onAppear {
+                updateExpandedSections(with: timelineSections)
+            }
+            .onChange(of: timelineSections.map(\.id)) { _, _ in
+                updateExpandedSections(with: timelineSections)
+            }
+        }
+    }
+
+    private func binding(for section: MeetingTimelineSection) -> Binding<Bool> {
+        Binding(
+            get: { expandedSections.contains(section.id) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedSections.insert(section.id)
+                } else {
+                    expandedSections.remove(section.id)
+                }
+            }
+        )
+    }
+
+    private func updateExpandedSections(with sections: [MeetingTimelineSection]) {
+        let validIDs = Set(sections.map(\.id))
+        expandedSections = expandedSections.intersection(validIDs)
+        if expandedSections.isEmpty, let first = sections.first {
+            expandedSections = [first.id]
         }
     }
 

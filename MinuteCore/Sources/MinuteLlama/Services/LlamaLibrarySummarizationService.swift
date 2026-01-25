@@ -79,7 +79,10 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
 
         LlamaLibraryRuntime.ensureBackendInitialized()
 
-        let modelParams = llama_model_default_params()
+        var modelParams = llama_model_default_params()
+        if llama_supports_gpu_offload() {
+            modelParams.n_gpu_layers = Int32.max
+        }
         guard let model = llama_model_load_from_file(configuration.modelURL.path, modelParams) else {
             throw MinuteError.llamaFailed(exitCode: -1, output: "Failed to load llama model")
         }
@@ -103,6 +106,11 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         ctxParams.n_ctx = UInt32(nCtx)
         ctxParams.n_batch = UInt32(nBatch)
         ctxParams.n_seq_max = 1
+        if llama_supports_gpu_offload() {
+            ctxParams.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED
+            ctxParams.offload_kqv = true
+            ctxParams.op_offload = true
+        }
 
         guard let ctx = llama_init_from_model(model, ctxParams) else {
             throw MinuteError.llamaFailed(exitCode: -1, output: "Failed to init llama context")

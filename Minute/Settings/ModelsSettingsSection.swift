@@ -7,6 +7,11 @@ struct ModelsSettingsSection: View {
     var body: some View {
         Section("Models") {
             VStack(alignment: .leading, spacing: 12) {
+                TranscriptionModelPicker(
+                    models: model.transcriptionModels,
+                    selection: $model.selectedTranscriptionModelID
+                )
+
                 SummarizationModelPicker(
                     models: model.summarizationModels,
                     selection: $model.selectedSummarizationModelID

@@ -24,9 +24,11 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
     }
 
     public static func liveDefault() -> WhisperLiveTranscriptionService {
-        WhisperLiveTranscriptionService(
+        let selectionStore = TranscriptionModelSelectionStore()
+        let fallbackURL = selectionStore.selectedModel().destinationURL
+        return WhisperLiveTranscriptionService(
             configuration: WhisperLibraryTranscriptionConfiguration(
-                modelURL: WhisperModelPaths.defaultBaseModelURL,
+                modelURL: WhisperModelPaths.resolvedModelURL(fallback: fallbackURL),
                 detectLanguage: true,
                 language: "auto"
             )
@@ -173,8 +175,8 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
         }
 
         var cparams = whisper_context_default_params()
-        cparams.use_gpu = false
-        cparams.flash_attn = false
+        cparams.use_gpu = true
+        cparams.flash_attn = true
 
         guard let ctx = whisper_init_from_file_with_params(configuration.modelURL.path, cparams) else {
             throw MinuteError.whisperMissing

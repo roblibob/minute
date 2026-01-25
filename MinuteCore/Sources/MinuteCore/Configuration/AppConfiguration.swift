@@ -13,6 +13,7 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let screenContextVideoImportEnabledKey = "screenContextVideoImportEnabled"
         public static let screenContextCaptureIntervalSecondsKey = "screenContextCaptureIntervalSeconds"
         public static let summarizationModelIDKey = "summarizationModelID"
+        public static let transcriptionModelIDKey = "transcriptionModelID"
 
         public static let defaultMeetingsRelativePath = "Meetings"
         public static let defaultAudioRelativePath = "Meetings/_audio"

@@ -127,6 +127,7 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     static func live() -> MeetingPipelineViewModel {
         let selectionStore = SummarizationModelSelectionStore()
+        let transcriptionSelectionStore = TranscriptionModelSelectionStore()
         let summarizationServiceProvider: () -> any SummarizationServicing = {
             LlamaLibrarySummarizationService.liveDefault(selectionStore: selectionStore)
         }
@@ -141,7 +142,10 @@ final class MeetingPipelineViewModel: ObservableObject {
             transcriptionService: transcriptionService,
             diarizationService: FluidAudioDiarizationService.meetingDefault(),
             summarizationServiceProvider: summarizationServiceProvider,
-            modelManager: DefaultModelManager(selectionStore: selectionStore),
+            modelManager: DefaultModelManager(
+                selectionStore: selectionStore,
+                transcriptionSelectionStore: transcriptionSelectionStore
+            ),
             vaultAccess: vaultAccess,
             vaultWriter: DefaultVaultWriter()
         )

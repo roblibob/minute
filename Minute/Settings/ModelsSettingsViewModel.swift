@@ -19,21 +19,39 @@ final class ModelsSettingsViewModel: ObservableObject {
             refresh()
         }
     }
+    @Published var selectedTranscriptionModelID: String {
+        didSet {
+            guard oldValue != selectedTranscriptionModelID else { return }
+            transcriptionModelStore.setSelectedModelID(selectedTranscriptionModelID)
+            refresh()
+        }
+    }
 
     private let modelManager: any ModelManaging
     private let summarizationModelStore: SummarizationModelSelectionStore
+    private let transcriptionModelStore: TranscriptionModelSelectionStore
     private var modelTask: Task<Void, Never>?
 
     init(
         modelManager: (any ModelManaging)? = nil,
-        summarizationModelStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore()
+        summarizationModelStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore(),
+        transcriptionModelStore: TranscriptionModelSelectionStore = TranscriptionModelSelectionStore()
     ) {
         self.summarizationModelStore = summarizationModelStore
-        self.modelManager = modelManager ?? DefaultModelManager(selectionStore: summarizationModelStore)
+        self.transcriptionModelStore = transcriptionModelStore
+        self.modelManager = modelManager ?? DefaultModelManager(
+            selectionStore: summarizationModelStore,
+            transcriptionSelectionStore: transcriptionModelStore
+        )
         let selectedModel = summarizationModelStore.selectedModel()
         self.selectedSummarizationModelID = selectedModel.id
         if summarizationModelStore.selectedModelID() != selectedModel.id {
             summarizationModelStore.setSelectedModelID(selectedModel.id)
+        }
+        let selectedTranscription = transcriptionModelStore.selectedModel()
+        self.selectedTranscriptionModelID = selectedTranscription.id
+        if transcriptionModelStore.selectedModelID() != selectedTranscription.id {
+            transcriptionModelStore.setSelectedModelID(selectedTranscription.id)
         }
         refresh()
     }
@@ -101,11 +119,11 @@ final class ModelsSettingsViewModel: ObservableObject {
 
         var parts: [String] = []
         if !result.missingModelIDs.isEmpty {
-            let names = result.missingModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            let names = result.missingModelIDs.map(displayName(for:))
             parts.append("Missing: \(names.joined(separator: ", "))")
         }
         if !result.invalidModelIDs.isEmpty {
-            let names = result.invalidModelIDs.map { SummarizationModelCatalog.displayName(for: $0) }
+            let names = result.invalidModelIDs.map(displayName(for:))
             parts.append("Invalid: \(names.joined(separator: ", "))")
         }
         return parts.joined(separator: " ")
@@ -113,5 +131,19 @@ final class ModelsSettingsViewModel: ObservableObject {
 
     var summarizationModels: [SummarizationModel] {
         SummarizationModelCatalog.all
+    }
+
+    var transcriptionModels: [TranscriptionModel] {
+        TranscriptionModelCatalog.all
+    }
+
+    private func displayName(for id: String) -> String {
+        if let summarization = SummarizationModelCatalog.model(for: id) {
+            return summarization.displayName
+        }
+        if let transcription = TranscriptionModelCatalog.model(for: id) {
+            return transcription.displayName
+        }
+        return id
     }
 }

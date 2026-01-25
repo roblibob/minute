@@ -47,7 +47,9 @@ public struct WhisperTranscriptionService: TranscriptionServicing {
         }
 
         // Default to the multilingual base model so we can transcribe both Swedish + English.
-        let modelURL = WhisperModelPaths.defaultBaseModelURL
+        let selectionStore = TranscriptionModelSelectionStore()
+        let fallbackURL = selectionStore.selectedModel().destinationURL
+        let modelURL = WhisperModelPaths.resolvedModelURL(fallback: fallbackURL)
 
         return WhisperTranscriptionService(
             configuration: WhisperTranscriptionConfiguration(executableURL: executableURL, modelURL: modelURL, language: "auto")
@@ -181,6 +183,35 @@ public enum WhisperModelPaths {
             .appendingPathComponent("models", isDirectory: true)
             .appendingPathComponent("whisper", isDirectory: true)
             .appendingPathComponent("ggml-base.bin")
+    }
+
+    public static func modelURL(fileName: String) -> URL {
+        applicationSupportRoot
+            .appendingPathComponent("Minute", isDirectory: true)
+            .appendingPathComponent("models", isDirectory: true)
+            .appendingPathComponent("whisper", isDirectory: true)
+            .appendingPathComponent(fileName)
+    }
+
+    /// Resolves the model URL, allowing a dev override via `MINUTE_WHISPER_MODEL`.
+    ///
+    /// If the override is a filename (no path separators), it is resolved within
+    /// `~/Library/Application Support/Minute/models/whisper/`.
+    public static func resolvedModelURL(
+        fallback: URL = WhisperModelPaths.defaultBaseModelURL,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> URL {
+        if let override = environment["MINUTE_WHISPER_MODEL"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty {
+            let expanded = (override as NSString).expandingTildeInPath
+            if expanded.contains("/") {
+                return URL(fileURLWithPath: expanded)
+            }
+            return fallback
+                .deletingLastPathComponent()
+                .appendingPathComponent(expanded)
+        }
+        return fallback
     }
 
     /// Optional Core ML encoder (if the bundled whisper build expects it).
