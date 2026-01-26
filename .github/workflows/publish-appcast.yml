@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to publish appcast from (tag, branch, or SHA)"
+        description: "Release tag to publish appcast from (e.g. v0.9.1)"
         required: false
 
 permissions:
@@ -16,11 +16,6 @@ jobs:
   publish-appcast:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.release.tag_name || inputs.ref || 'main' }}
-
       - name: Ensure publish token is configured
         run: |
           if [ -z "${{ secrets.APPCAST_PUBLISH_TOKEN }}" ]; then
@@ -28,12 +23,59 @@ jobs:
             exit 1
           fi
 
-      - name: Verify appcast exists
+      - name: Resolve release metadata
+        id: release
         run: |
-          if [ ! -f "appcast.xml" ]; then
-            echo "error: appcast.xml not found in repo" >&2
+          set -euo pipefail
+          if [ -n "${{ inputs.ref }}" ]; then
+            tag="${{ inputs.ref }}"
+            echo "Fetching release metadata for tag $tag"
+            curl -sSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" \
+              -o release.json
+          else
+            echo "Using release metadata from event payload"
+            cp "$GITHUB_EVENT_PATH" release.json
+          fi
+          echo "release_path=$(pwd)/release.json" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Locate appcast asset
+        id: appcast
+        run: |
+          set -euo pipefail
+          asset_id=$(python - <<'PY'
+import json, os, sys
+path=os.environ["RELEASE_JSON"]
+data=json.load(open(path))
+release=data.get("release", data)
+assets=release.get("assets", [])
+for asset in assets:
+    if asset.get("name") == "appcast.xml":
+        print(asset.get("id", ""))
+        sys.exit(0)
+sys.exit(1)
+PY
+)
+          if [ -z "$asset_id" ]; then
+            echo "error: appcast.xml not found in release assets" >&2
             exit 1
           fi
+          echo "asset_id=$asset_id" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_JSON: ${{ steps.release.outputs.release_path }}
+
+      - name: Download appcast asset
+        run: |
+          set -euo pipefail
+          curl -sSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/assets/${{ steps.appcast.outputs.asset_id }}" \
+            -o appcast.xml
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Checkout GitHub Pages repo
         uses: actions/checkout@v4

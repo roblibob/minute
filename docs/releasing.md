@@ -17,21 +17,21 @@ publishes the Sparkle appcast to GitHub Pages.
    scripts/release-notarize.sh "/path/to/Minute.xcarchive"
    ```
 
-3. Generate and commit the appcast (copied to `appcast.xml` in repo root):
+3. Generate the appcast (stored in `updates/appcast.xml` alongside the artifacts):
    ```
    APPCAST_DOWNLOAD_URL_PREFIX="https://github.com/roblibob/Minute/releases/download/vX.Y.Z/" \
    SPARKLE_APPCAST_ARGS="--ed-key-file $HOME/.config/minute/sparkle_ed25519.key" \
    scripts/generate-appcast.sh updates
    ```
 
-4. Commit `appcast.xml` to `main`.
-5. Upload the release assets to GitHub Releases:
+4. Upload the release assets to GitHub Releases:
    - `updates/Minute-<version>.dmg`
    - `updates/Minute-<version>.zip`
+   - `updates/appcast.xml`
 
-6. The GitHub Actions workflow publishes `appcast.xml` to
+5. The GitHub Actions workflow publishes `appcast.xml` to
    `https://roblibob.github.io/appcast.xml`.
-7. The Homebrew cask is updated automatically after the GitHub Release is published.
+6. The Homebrew cask is updated automatically after the GitHub Release is published.
 
 ## Makefile shortcut
 ```
@@ -42,13 +42,13 @@ make release ARCHIVE="/path/to/Minute.xcarchive" \
 ```
 
 This runs notarization + stapling + DMG/ZIP generation, then regenerates
-`appcast.xml` using the ZIP only (Sparkle does not accept duplicate DMG+ZIP).
-You still commit the appcast and publish the assets.
+`updates/appcast.xml` using the ZIP only (Sparkle does not accept duplicate DMG+ZIP).
+You upload the appcast as a release asset alongside the DMG/ZIP.
 
 ## CI: publish appcast only
 Workflow: `.github/workflows/publish-appcast.yml`
 - Trigger: release published (or manual dispatch)
-- Action: copy appcast to `roblibob/roblibob.github.io/appcast.xml`
+- Action: download `appcast.xml` from the GitHub Release assets and copy it to `roblibob/roblibob.github.io/appcast.xml`
 - Secret required: `APPCAST_PUBLISH_TOKEN` (PAT with write access to the pages repo)
 
 ## CI: update Homebrew cask
