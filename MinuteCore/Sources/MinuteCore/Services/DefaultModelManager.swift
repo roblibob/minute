@@ -236,7 +236,6 @@ public actor DefaultModelManager: ModelManaging {
     ) -> [ModelSpec] {
         let transcriptionModel = TranscriptionModelCatalog.model(for: selectedTranscriptionModelID)
             ?? TranscriptionModelCatalog.defaultModel
-        let whisperCoreMLEncoderURL = WhisperModelPaths.defaultBaseEncoderCoreMLURL
         let summarizationModel = SummarizationModelCatalog.model(for: selectedSummarizationModelID) ?? SummarizationModelCatalog.defaultModel
 
         var models: [ModelSpec] = [
@@ -273,15 +272,18 @@ public actor DefaultModelManager: ModelManaging {
             )
         }
 
-        if transcriptionModel.id == TranscriptionModelCatalog.defaultModelID {
+        if let encoderDestinationURL = transcriptionModel.encoderCoreMLDestinationURL,
+           let encoderSourceURL = transcriptionModel.encoderCoreMLSourceURL,
+           let encoderExpectedSHA256Hex = transcriptionModel.encoderCoreMLExpectedSHA256Hex {
             // Optional Whisper Core ML encoder (required by some whisper.cpp builds on Apple platforms).
             // Downloaded as a .zip and extracted into a `.mlmodelc` directory.
             models.insert(
                 ModelSpec(
-                    id: "whisper/base-encoder-coreml",
-                    destinationURL: whisperCoreMLEncoderURL,
-                    sourceURL: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-encoder.mlmodelc.zip")!,
-                    expectedSHA256Hex: "7e6ab77041942572f239b5b602f8aaa1c3ed29d73e3d8f20abea03a773541089"
+                    id: "\(transcriptionModel.id)/encoder-coreml",
+                    destinationURL: encoderDestinationURL,
+                    sourceURL: encoderSourceURL,
+                    expectedSHA256Hex: encoderExpectedSHA256Hex,
+                    expectedFileSizeBytes: transcriptionModel.encoderCoreMLExpectedFileSizeBytes
                 ),
                 at: 1
             )

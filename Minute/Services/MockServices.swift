@@ -80,6 +80,21 @@ struct MockMediaImportService: MediaImporting {
     }
 }
 
+struct MockRecordingRecoveryService: RecordingRecoveryServicing {
+    func findRecoverableRecordings() async -> [RecoverableRecording] {
+        []
+    }
+
+    func recover(recording: RecoverableRecording) async throws -> RecordingRecoveryResult {
+        _ = recording
+        throw MinuteError.audioExportFailed
+    }
+
+    func discard(recording: RecoverableRecording) async {
+        _ = recording
+    }
+}
+
 struct MockDiarizationService: DiarizationServicing {
     func diarize(wavURL: URL) async throws -> [SpeakerSegment] {
         _ = wavURL

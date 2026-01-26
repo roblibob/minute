@@ -66,6 +66,17 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
 
         let logger = logger
 
+        let marker = RecordingSessionMarker(
+            startedAt: Date(),
+            microphoneEnabled: microphoneEnabled,
+            systemAudioEnabled: systemAudioEnabled
+        )
+        do {
+            try RecordingSessionMarkerStore.write(marker, to: sessionDirectoryURL)
+        } catch {
+            logger.error("Failed to write session marker: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+        }
+
         // Capture with AVAudioEngine tap to avoid silent recordings on macOS.
         let levelMixer = levelMixer
 

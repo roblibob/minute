@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 import os
+import UniformTypeIdentifiers
 
 public actor DefaultMediaImportService: MediaImporting {
     private let logger = Logger(subsystem: "roblibob.Minute", category: "media-import")
@@ -27,16 +28,35 @@ public actor DefaultMediaImportService: MediaImporting {
 
         let asset = AVURLAsset(url: sourceURL)
         let wavURL = tempRoot.appendingPathComponent("contract.wav")
-        guard let ffmpegURL = ffmpegExecutableURL() else {
+        let isAudioImport = isAudioURL(sourceURL)
+
+        if let ffmpegURL = ffmpegExecutableURL() {
+            do {
+                try await convertWithFFmpeg(sourceURL: sourceURL, tempRoot: tempRoot, outputURL: wavURL, ffmpegURL: ffmpegURL)
+            } catch {
+                logger.error("ffmpeg conversion failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+                if isAudioImport {
+                    logger.info("Falling back to CoreAudio conversion.")
+                    do {
+                        try await AudioWavConverter.convertToContractWav(inputURL: sourceURL, outputURL: wavURL)
+                    } catch {
+                        logger.error("CoreAudio conversion failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+                        throw MinuteError.audioExportFailed
+                    }
+                } else {
+                    throw MinuteError.audioExportFailed
+                }
+            }
+        } else if isAudioImport {
+            do {
+                try await AudioWavConverter.convertToContractWav(inputURL: sourceURL, outputURL: wavURL)
+            } catch {
+                logger.error("CoreAudio conversion failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+                throw MinuteError.audioExportFailed
+            }
+        } else {
             logger.error("ffmpeg is missing from the app bundle.")
             throw MinuteError.ffmpegMissing
-        }
-
-        do {
-            try await convertWithFFmpeg(sourceURL: sourceURL, tempRoot: tempRoot, outputURL: wavURL, ffmpegURL: ffmpegURL)
-        } catch {
-            logger.error("ffmpeg conversion failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
-            throw MinuteError.audioExportFailed
         }
 
         try ContractWavVerifier.verifyContractWav(at: wavURL)
@@ -53,6 +73,18 @@ public actor DefaultMediaImportService: MediaImporting {
             duration: duration,
             suggestedStartDate: suggestedStartDate
         )
+    }
+
+    private func isAudioURL(_ url: URL) -> Bool {
+        let ext = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !ext.isEmpty else { return false }
+        if ext == "wav" || ext == "wave" || ext == "caf" {
+            return true
+        }
+        if let type = UTType(filenameExtension: ext) {
+            return type.conforms(to: .audio)
+        }
+        return false
     }
 
     private func ffmpegExecutableURL() -> URL? {

@@ -8,6 +8,7 @@ import MinuteCore
 import MinuteWhisper
 import MinuteLlama
 import os
+import UniformTypeIdentifiers
 
 @MainActor
 final class MeetingPipelineViewModel: ObservableObject {
@@ -34,9 +35,11 @@ final class MeetingPipelineViewModel: ObservableObject {
     @Published private(set) var screenInferenceStatus: ScreenInferenceStatus? = nil
     @Published private(set) var latestScreenCaptureImage: NSImage? = nil
     @Published private(set) var liveTranscriptionLine: String = ""
+    @Published private(set) var recoverableRecordings: [RecoverableRecording] = []
 
     private let audioService: any AudioServicing
     private let mediaImportService: any MediaImporting
+    private let recoveryService: any RecordingRecoveryServicing
     private let pipelineCoordinator: MeetingPipelineCoordinator
     private let screenContextCaptureService: ScreenContextCaptureService
     private let screenContextVideoExtractor: ScreenContextVideoFrameExtractor
@@ -68,6 +71,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     init(
         audioService: some AudioServicing,
         mediaImportService: some MediaImporting,
+        recoveryService: some RecordingRecoveryServicing,
         pipelineCoordinator: MeetingPipelineCoordinator,
         screenContextCaptureService: ScreenContextCaptureService,
         screenContextVideoExtractor: ScreenContextVideoFrameExtractor,
@@ -76,6 +80,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     ) {
         self.audioService = audioService
         self.mediaImportService = mediaImportService
+        self.recoveryService = recoveryService
         self.pipelineCoordinator = pipelineCoordinator
         self.screenContextCaptureService = screenContextCaptureService
         self.screenContextVideoExtractor = screenContextVideoExtractor
@@ -92,6 +97,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             .sink { [weak self] _ in
                 self?.refreshVaultStatus()
             }
+
+        refreshRecoverableRecordings()
     }
 
     deinit {
@@ -117,6 +124,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         return MeetingPipelineViewModel(
             audioService: MockAudioService(),
             mediaImportService: MockMediaImportService(),
+            recoveryService: MockRecordingRecoveryService(),
             pipelineCoordinator: coordinator,
             screenContextCaptureService: ScreenContextCaptureService(inferencer: MockScreenContextInferenceService()),
             screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: MockScreenContextInferenceService()),
@@ -153,6 +161,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         return MeetingPipelineViewModel(
             audioService: DefaultAudioService(),
             mediaImportService: DefaultMediaImportService(),
+            recoveryService: DefaultRecordingRecoveryService(),
             pipelineCoordinator: coordinator,
             screenContextCaptureService: ScreenContextCaptureService(inferencer: screenInferencer),
             screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: screenInferencer),
@@ -167,6 +176,14 @@ final class MeetingPipelineViewModel: ObservableObject {
             vaultStatus = VaultStatus(displayText: url.path, isConfigured: true)
         } catch {
             vaultStatus = VaultStatus(displayText: "Not selected", isConfigured: false)
+        }
+    }
+
+    func refreshRecoverableRecordings() {
+        Task { [weak self] in
+            guard let self else { return }
+            let recordings = await recoveryService.findRecoverableRecordings()
+            self.recoverableRecordings = recordings
         }
     }
 
@@ -186,6 +203,70 @@ final class MeetingPipelineViewModel: ObservableObject {
             cancelProcessingIfAllowed()
         case .reset:
             resetIfAllowed()
+        }
+    }
+
+    func recoverRecording(_ recording: RecoverableRecording) {
+        guard state.canImportMedia else { return }
+
+        processingTask?.cancel()
+        progress = nil
+        stopLiveTranscriptionTicker()
+        liveTranscriptionResult = nil
+        screenContextEvents = []
+        screenInferenceStatus = nil
+        screenCaptureBaseProcessedCount = 0
+        screenCaptureBaseSkippedCount = 0
+        state = .importing(sourceURL: recording.sessionURL)
+
+        processingTask = Task(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await recoveryService.recover(recording: recording)
+                let startedAt = result.startedAt
+                let stoppedAt = result.stoppedAt
+                state = .recorded(
+                    audioTempURL: result.wavURL,
+                    durationSeconds: result.duration,
+                    startedAt: startedAt,
+                    stoppedAt: stoppedAt
+                )
+                await recoveryService.discard(recording: recording)
+                await MainActor.run {
+                    self.refreshRecoverableRecordings()
+                }
+            } catch is CancellationError {
+                progress = nil
+                screenInferenceStatus = nil
+                screenContextEvents = []
+                screenCaptureBaseProcessedCount = 0
+                screenCaptureBaseSkippedCount = 0
+                state = .idle
+            } catch let minuteError as MinuteError {
+                progress = nil
+                screenInferenceStatus = nil
+                screenContextEvents = []
+                screenCaptureBaseProcessedCount = 0
+                screenCaptureBaseSkippedCount = 0
+                state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
+            } catch {
+                progress = nil
+                screenInferenceStatus = nil
+                screenContextEvents = []
+                screenCaptureBaseProcessedCount = 0
+                screenCaptureBaseSkippedCount = 0
+                state = .failed(error: .audioExportFailed, debugOutput: ErrorHandler.debugMessage(for: error))
+            }
+        }
+    }
+
+    func discardRecoverableRecording(_ recording: RecoverableRecording) {
+        Task { [weak self] in
+            guard let self else { return }
+            await recoveryService.discard(recording: recording)
+            await MainActor.run {
+                self.refreshRecoverableRecordings()
+            }
         }
     }
 
@@ -387,7 +468,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             guard let self else { return }
             do {
                 let result = try await mediaImportService.importMedia(from: url)
-                if screenContextSettingsStore.isVideoImportEnabled {
+                if screenContextSettingsStore.isVideoImportEnabled, isVideoImportURL(url) {
                     screenInferenceStatus = ScreenInferenceStatus(processedCount: 0, skippedCount: 0, isInferenceRunning: true)
                     if let inferenceResult = await extractScreenContextForImport(sourceURL: url) {
                         screenContextEvents = inferenceResult.events
@@ -627,6 +708,12 @@ final class MeetingPipelineViewModel: ObservableObject {
             logger.error("Video screen context failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             return nil
         }
+    }
+
+    private func isVideoImportURL(_ url: URL) -> Bool {
+        let ext = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let type = UTType(filenameExtension: ext) else { return false }
+        return type.conforms(to: .movie)
     }
 
     private func runPipeline(context: PipelineContext) async {

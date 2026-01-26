@@ -131,7 +131,7 @@ private struct PipelineContentView: View {
             .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
                 handleDrop(providers)
             }
-            .fileImporter(isPresented: $isImportingFile, allowedContentTypes: [.audio, .movie]) { result in
+            .fileImporter(isPresented: $isImportingFile, allowedContentTypes: importableContentTypes) { result in
                 switch result {
                 case .success(let url):
                     importFile(url)
@@ -162,7 +162,7 @@ private struct PipelineContentView: View {
                 .stroke(Color.minuteGlow.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [10]))
                 .padding(32)
                 .overlay(
-                    Text("Drop audio to import")
+                    Text("Drop audio or video to import")
                         .font(.system(size: 14, weight: .semibold))
                         .tracking(-0.2)
                         .foregroundStyle(Color.minuteTextPrimary)
@@ -245,8 +245,20 @@ private struct PipelineContentView: View {
     }
 
     private func isSupportedMediaURL(_ url: URL) -> Bool {
-        guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
+        let ext = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if ext == "wav" || ext == "wave" {
+            return true
+        }
+        guard let type = UTType(filenameExtension: ext) else { return false }
         return type.conforms(to: .audio) || type.conforms(to: .movie)
+    }
+
+    private var importableContentTypes: [UTType] {
+        var types: [UTType] = [.audio, .movie]
+        if let wav = UTType(filenameExtension: "wav") {
+            types.append(wav)
+        }
+        return types
     }
 
     private func importFile(_ url: URL) {

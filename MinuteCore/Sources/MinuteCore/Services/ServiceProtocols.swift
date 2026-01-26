@@ -67,6 +67,59 @@ public protocol MediaImporting: Sendable {
     func importMedia(from sourceURL: URL) async throws -> MediaImportResult
 }
 
+// MARK: - Recording recovery
+
+public struct RecoverableRecording: Sendable, Equatable, Identifiable {
+    public var id: String
+    public var sessionURL: URL
+    public var startedAt: Date
+    public var captureURL: URL?
+    public var systemCaptureURL: URL?
+    public var contractWavURL: URL?
+    public var microphoneEnabled: Bool?
+    public var systemAudioEnabled: Bool?
+
+    public init(
+        id: String,
+        sessionURL: URL,
+        startedAt: Date,
+        captureURL: URL?,
+        systemCaptureURL: URL?,
+        contractWavURL: URL?,
+        microphoneEnabled: Bool?,
+        systemAudioEnabled: Bool?
+    ) {
+        self.id = id
+        self.sessionURL = sessionURL
+        self.startedAt = startedAt
+        self.captureURL = captureURL
+        self.systemCaptureURL = systemCaptureURL
+        self.contractWavURL = contractWavURL
+        self.microphoneEnabled = microphoneEnabled
+        self.systemAudioEnabled = systemAudioEnabled
+    }
+}
+
+public struct RecordingRecoveryResult: Sendable, Equatable {
+    public var wavURL: URL
+    public var duration: TimeInterval
+    public var startedAt: Date
+    public var stoppedAt: Date
+
+    public init(wavURL: URL, duration: TimeInterval, startedAt: Date, stoppedAt: Date) {
+        self.wavURL = wavURL
+        self.duration = duration
+        self.startedAt = startedAt
+        self.stoppedAt = stoppedAt
+    }
+}
+
+public protocol RecordingRecoveryServicing: Sendable {
+    func findRecoverableRecordings() async -> [RecoverableRecording]
+    func recover(recording: RecoverableRecording) async throws -> RecordingRecoveryResult
+    func discard(recording: RecoverableRecording) async
+}
+
 // MARK: - Transcription + Summarization
 
 public protocol TranscriptionServicing: Sendable {
