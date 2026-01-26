@@ -63,6 +63,15 @@ sign_app_bundle() {
   fi
 }
 
+sign_app_helpers() {
+  local xpc_dir="$APP_PATH/Contents/XPCServices"
+  if [ -d "$xpc_dir" ]; then
+    find "$xpc_dir" -type d -name "*.xpc" -print0 | while IFS= read -r -d '' xpc; do
+      sign_path "$xpc"
+    done
+  fi
+}
+
 sign_sparkle_helpers() {
   local sparkle_framework="$APP_PATH/Contents/Frameworks/Sparkle.framework"
   if [ ! -d "$sparkle_framework" ]; then
@@ -104,6 +113,7 @@ cleanup() {
 trap cleanup EXIT
 
 sign_sparkle_helpers
+sign_app_helpers
 sign_app_bundle
 
 TEMP_ZIP="$TEMP_DIR/Minute-notary.zip"

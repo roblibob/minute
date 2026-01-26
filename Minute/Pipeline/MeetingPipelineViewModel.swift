@@ -5,7 +5,6 @@ import QuartzCore
 import Combine
 import Foundation
 import MinuteCore
-import MinuteWhisper
 import MinuteLlama
 import os
 import UniformTypeIdentifiers
@@ -572,7 +571,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     private func startLiveTranscription(session: RecordingSession) async {
         guard let audioService = audioService as? (any LiveAudioSinkConfiguring) else { return }
 
-        let liveService = WhisperLiveTranscriptionService.liveDefault()
+        let liveService = WhisperXPCLiveTranscriptionService.liveDefault()
         let liveSession = LiveTranscriptionSession(
             service: liveService,
             configuration: LiveTranscriptionConfiguration(

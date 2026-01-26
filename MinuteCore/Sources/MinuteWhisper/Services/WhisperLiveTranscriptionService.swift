@@ -175,9 +175,8 @@ public final class WhisperLiveTranscriptionService: LiveTranscriptionServicing, 
         }
 
         var cparams = whisper_context_default_params()
-        let useGPU = ProcessInfo.processInfo.environment["MINUTE_WHISPER_LIVE_GPU"] == "1"
-        cparams.use_gpu = useGPU
-        cparams.flash_attn = useGPU
+        cparams.use_gpu = true
+        cparams.flash_attn = true
 
         guard let ctx = whisper_init_from_file_with_params(configuration.modelURL.path, cparams) else {
             throw MinuteError.whisperMissing
