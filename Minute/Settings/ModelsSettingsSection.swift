@@ -7,10 +7,22 @@ struct ModelsSettingsSection: View {
     var body: some View {
         Section("Models") {
             VStack(alignment: .leading, spacing: 12) {
-                TranscriptionModelPicker(
-                    models: model.transcriptionModels,
-                    selection: $model.selectedTranscriptionModelID
+                TranscriptionBackendPicker(
+                    backends: model.transcriptionBackends,
+                    selection: $model.selectedTranscriptionBackendID
                 )
+
+                if model.isFluidAudioSelected {
+                    FluidAudioASRModelPicker(
+                        models: model.fluidAudioModels,
+                        selection: $model.selectedFluidAudioModelID
+                    )
+                } else {
+                    TranscriptionModelPicker(
+                        models: model.transcriptionModels,
+                        selection: $model.selectedTranscriptionModelID
+                    )
+                }
 
                 SummarizationModelPicker(
                     models: model.summarizationModels,
@@ -18,7 +30,7 @@ struct ModelsSettingsSection: View {
                 )
 
                 ModelDownloadStatusView(
-                    title: "Whisper + Llama models",
+                    title: "\(model.selectedTranscriptionBackendDisplayName) + Llama models",
                     detail: "Required for local transcription and summarization.",
                     status: statusState,
                     progress: progressValue,

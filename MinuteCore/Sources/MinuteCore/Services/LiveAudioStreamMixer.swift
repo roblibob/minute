@@ -3,16 +3,27 @@ import Foundation
 public struct LiveAudioStreamMixerConfiguration: Sendable, Equatable {
     public var targetSampleRateHz: Double
     public var maxChunkSamples: Int
+    public var maxLagSeconds: TimeInterval
 
-    public init(targetSampleRateHz: Double = 16_000, maxChunkSeconds: Double = 0.5) {
+    public init(
+        targetSampleRateHz: Double = 16_000,
+        maxChunkSeconds: Double = 0.5,
+        maxLagSeconds: TimeInterval = 10.0
+    ) {
         self.targetSampleRateHz = targetSampleRateHz
         self.maxChunkSamples = max(1, Int(targetSampleRateHz * maxChunkSeconds))
+        self.maxLagSeconds = max(0, maxLagSeconds)
+    }
+
+    var maxLagSamples: Int {
+        max(0, Int(targetSampleRateHz * maxLagSeconds))
     }
 }
 
 public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
     private let transcriptionSession: LiveTranscriptionSession
     private let config: LiveAudioStreamMixerConfiguration
+    private var transcriptionQueue: LiveAudioTranscriptionQueue
     private var startedAt: Date?
     private var micQueue: [Float] = []
     private var micQueueStart: Int = 0
@@ -21,7 +32,7 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
     private var micOffsetSamples: Int?
     private var systemOffsetSamples: Int?
     private var mixedSampleCursor: Int = 0
-    private var appendTask: Task<Void, Never>?
+    private var workerTask: Task<Void, Never>?
 
     public init(
         transcriptionSession: LiveTranscriptionSession,
@@ -29,6 +40,7 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
     ) {
         self.transcriptionSession = transcriptionSession
         self.config = configuration
+        self.transcriptionQueue = LiveAudioTranscriptionQueue(maxLagSamples: configuration.maxLagSamples)
     }
 
     public func start(at startTime: Date) async {
@@ -40,18 +52,21 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
         micOffsetSamples = nil
         systemOffsetSamples = nil
         mixedSampleCursor = 0
-        appendTask = nil
+        transcriptionQueue = LiveAudioTranscriptionQueue(maxLagSamples: config.maxLagSamples)
+        workerTask?.cancel()
+        workerTask = nil
         await transcriptionSession.reset()
     }
 
     public func stop() async -> TranscriptionResult {
         drainAvailableSamples()
 
-        if let pending = appendTask {
-            appendTask = nil
-            pending.cancel()
-            _ = await waitForAppendTask(pending, timeoutNanos: 1_000_000_000)
+        if let workerTask {
+            self.workerTask = nil
+            workerTask.cancel()
+            _ = await waitForAppendTask(workerTask, timeoutNanos: 1_000_000_000)
         }
+        transcriptionQueue.removeAll()
 
         let endSeconds = Double(mixedSampleCursor) / config.targetSampleRateHz
         return await transcriptionSession.finish(endTimeSeconds: endSeconds)
@@ -115,16 +130,23 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
     }
 
     private func enqueueTranscription(samples: [Float], endTimeSeconds: TimeInterval) {
-        let session = transcriptionSession
-        let previous = appendTask
-        appendTask = Task {
-            if let previous {
-                if Task.isCancelled { return }
-                _ = await previous.value
-            }
-            if Task.isCancelled { return }
-            await session.append(samples: samples, endTimeSeconds: endTimeSeconds)
+        transcriptionQueue.enqueue(LiveAudioTranscriptionChunk(samples: samples, endTimeSeconds: endTimeSeconds))
+        startWorkerIfNeeded()
+    }
+
+    private func startWorkerIfNeeded() {
+        guard workerTask == nil else { return }
+        workerTask = Task { [weak self] in
+            await self?.processPendingChunks()
         }
+    }
+
+    private func processPendingChunks() async {
+        while !Task.isCancelled {
+            guard let chunk = transcriptionQueue.pop() else { break }
+            await transcriptionSession.append(samples: chunk.samples, endTimeSeconds: chunk.endTimeSeconds)
+        }
+        workerTask = nil
     }
 
     private func waitForAppendTask(_ task: Task<Void, Never>, timeoutNanos: UInt64) async -> Bool {

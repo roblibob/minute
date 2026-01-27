@@ -15,6 +15,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
     case whisperFailed(exitCode: Int32, output: String)
     case whisperTimeout
 
+    case transcriptionFailed(underlyingDescription: String)
+
     case llamaMissing
     case llamaFailed(exitCode: Int32, output: String)
 
@@ -50,6 +52,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "Transcription failed."
         case .whisperTimeout:
             return "Transcription timed out."
+        case .transcriptionFailed:
+            return "Transcription failed."
 
         case .llamaMissing:
             return "Summarization component is missing."
@@ -82,6 +86,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "whisper failed (exitCode=\(exitCode))\n\(output)"
         case .whisperMissing:
             return "whisper missing: ensure the Whisper XPC service is embedded and signed with the app."
+        case .transcriptionFailed(let underlyingDescription):
+            return "transcription failed\n\(underlyingDescription)"
         case .llamaFailed(let exitCode, let output):
             return "llama failed (exitCode=\(exitCode))\n\(output)"
         case .modelDownloadFailed(let underlyingDescription):

@@ -157,7 +157,8 @@ public actor LiveTranscriptionSession {
             lines[activeLineIndex].text = trimmed
             lines[activeLineIndex].endSeconds = endTimeSeconds
         } catch {
-            logger.error("Live transcription failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+            let count = currentPhraseSamples.count
+            logger.error("Live transcription failed (samples=\(count, privacy: .public)): \(ErrorHandler.debugMessage(for: error), privacy: .public)")
         }
     }
 

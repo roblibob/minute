@@ -77,10 +77,21 @@ final class DefaultModelManagerTests: XCTestCase {
     func testDefaultRequiredModels_usesSelectedTranscriptionModel() {
         let models = DefaultModelManager.defaultRequiredModels(
             selectedSummarizationModelID: nil,
-            selectedTranscriptionModelID: "whisper/large-v3-turbo"
+            selectedTranscriptionModelID: "whisper/base",
+            transcriptionBackend: .whisper
         )
 
-        XCTAssertTrue(models.contains { $0.id == "whisper/large-v3-turbo" })
-        XCTAssertFalse(models.contains { $0.id == "whisper/base" })
+        XCTAssertTrue(models.contains { $0.id == "whisper/base" })
+    }
+
+    func testDefaultRequiredModels_excludesWhisperWhenFluidAudioSelected() {
+        let models = DefaultModelManager.defaultRequiredModels(
+            selectedSummarizationModelID: nil,
+            selectedTranscriptionModelID: "whisper/base",
+            transcriptionBackend: .fluidAudio
+        )
+
+        XCTAssertFalse(models.contains { $0.id.hasPrefix("whisper/") })
+        XCTAssertTrue(models.contains { $0.id.hasPrefix("llm/") })
     }
 }

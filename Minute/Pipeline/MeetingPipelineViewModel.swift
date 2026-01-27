@@ -135,10 +135,18 @@ final class MeetingPipelineViewModel: ObservableObject {
     static func live() -> MeetingPipelineViewModel {
         let selectionStore = SummarizationModelSelectionStore()
         let transcriptionSelectionStore = TranscriptionModelSelectionStore()
+        let transcriptionBackendStore = TranscriptionBackendSelectionStore()
+        let fluidAudioModelStore = FluidAudioASRModelSelectionStore()
         let summarizationServiceProvider: () -> any SummarizationServicing = {
             LlamaLibrarySummarizationService.liveDefault(selectionStore: selectionStore)
         }
-        let transcriptionService: any TranscriptionServicing = WhisperXPCTranscriptionService.liveDefault()
+        let transcriptionService: any TranscriptionServicing
+        switch transcriptionBackendStore.selectedBackend() {
+        case .whisper:
+            transcriptionService = WhisperXPCTranscriptionService.liveDefault()
+        case .fluidAudio:
+            transcriptionService = FluidAudioTranscriptionService.liveDefault(selectionStore: fluidAudioModelStore)
+        }
         let screenInferencer: any ScreenContextInferencing = LlamaMTMDScreenInferenceService
             .liveDefault(selectionStore: selectionStore)
             ?? MissingScreenContextInferenceService()
@@ -151,7 +159,9 @@ final class MeetingPipelineViewModel: ObservableObject {
             summarizationServiceProvider: summarizationServiceProvider,
             modelManager: DefaultModelManager(
                 selectionStore: selectionStore,
-                transcriptionSelectionStore: transcriptionSelectionStore
+                transcriptionSelectionStore: transcriptionSelectionStore,
+                transcriptionBackendStore: transcriptionBackendStore,
+                fluidAudioModelStore: fluidAudioModelStore
             ),
             vaultAccess: vaultAccess,
             vaultWriter: DefaultVaultWriter()
@@ -570,8 +580,20 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private func startLiveTranscription(session: RecordingSession) async {
         guard let audioService = audioService as? (any LiveAudioSinkConfiguring) else { return }
-
-        let liveService = WhisperXPCLiveTranscriptionService.liveDefault()
+        let backend = TranscriptionBackendSelectionStore().selectedBackend()
+        if backend == .fluidAudio {
+            let selected = FluidAudioASRModelSelectionStore().selectedModel()
+            logger.info("Starting live transcription: backend=\(backend.displayName, privacy: .public) model=\(selected.displayName, privacy: .public)")
+        } else {
+            logger.info("Starting live transcription: backend=\(backend.displayName, privacy: .public)")
+        }
+        let liveService: any LiveTranscriptionServicing
+        switch backend {
+        case .whisper:
+            liveService = WhisperXPCLiveTranscriptionService.liveDefault()
+        case .fluidAudio:
+            liveService = FluidAudioLiveTranscriptionService.liveDefault()
+        }
         let liveSession = LiveTranscriptionSession(
             service: liveService,
             configuration: LiveTranscriptionConfiguration(

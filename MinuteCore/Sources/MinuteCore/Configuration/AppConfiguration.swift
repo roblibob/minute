@@ -14,6 +14,8 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let screenContextCaptureIntervalSecondsKey = "screenContextCaptureIntervalSeconds"
         public static let summarizationModelIDKey = "summarizationModelID"
         public static let transcriptionModelIDKey = "transcriptionModelID"
+        public static let transcriptionBackendIDKey = "transcriptionBackendID"
+        public static let fluidAudioAsrModelIDKey = "fluidAudioAsrModelID"
         public static let micActivityNotificationsEnabledKey = "micActivityNotificationsEnabled"
 
         public static let defaultMeetingsRelativePath = "Meetings"
@@ -25,6 +27,8 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let defaultScreenContextVideoImportEnabled = false
         public static let defaultScreenContextCaptureIntervalSeconds: TimeInterval = 60
         public static let defaultMicActivityNotificationsEnabled = true
+        public static let defaultTranscriptionBackendID = TranscriptionBackend.whisper.rawValue
+        public static let defaultFluidAudioAsrModelID = FluidAudioASRModelCatalog.defaultModelID
     }
 
     public var meetingsRelativePath: String

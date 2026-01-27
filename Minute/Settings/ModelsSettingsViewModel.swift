@@ -19,6 +19,13 @@ final class ModelsSettingsViewModel: ObservableObject {
             refresh()
         }
     }
+    @Published var selectedTranscriptionBackendID: String {
+        didSet {
+            guard oldValue != selectedTranscriptionBackendID else { return }
+            transcriptionBackendStore.setSelectedBackendID(selectedTranscriptionBackendID)
+            refresh()
+        }
+    }
     @Published var selectedTranscriptionModelID: String {
         didSet {
             guard oldValue != selectedTranscriptionModelID else { return }
@@ -26,32 +33,57 @@ final class ModelsSettingsViewModel: ObservableObject {
             refresh()
         }
     }
+    @Published var selectedFluidAudioModelID: String {
+        didSet {
+            guard oldValue != selectedFluidAudioModelID else { return }
+            fluidAudioModelStore.setSelectedModelID(selectedFluidAudioModelID)
+            refresh()
+        }
+    }
 
     private let modelManager: any ModelManaging
     private let summarizationModelStore: SummarizationModelSelectionStore
     private let transcriptionModelStore: TranscriptionModelSelectionStore
+    private let transcriptionBackendStore: TranscriptionBackendSelectionStore
+    private let fluidAudioModelStore: FluidAudioASRModelSelectionStore
     private var modelTask: Task<Void, Never>?
 
     init(
         modelManager: (any ModelManaging)? = nil,
         summarizationModelStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore(),
-        transcriptionModelStore: TranscriptionModelSelectionStore = TranscriptionModelSelectionStore()
+        transcriptionModelStore: TranscriptionModelSelectionStore = TranscriptionModelSelectionStore(),
+        transcriptionBackendStore: TranscriptionBackendSelectionStore = TranscriptionBackendSelectionStore(),
+        fluidAudioModelStore: FluidAudioASRModelSelectionStore = FluidAudioASRModelSelectionStore()
     ) {
         self.summarizationModelStore = summarizationModelStore
         self.transcriptionModelStore = transcriptionModelStore
+        self.transcriptionBackendStore = transcriptionBackendStore
+        self.fluidAudioModelStore = fluidAudioModelStore
         self.modelManager = modelManager ?? DefaultModelManager(
             selectionStore: summarizationModelStore,
-            transcriptionSelectionStore: transcriptionModelStore
+            transcriptionSelectionStore: transcriptionModelStore,
+            transcriptionBackendStore: transcriptionBackendStore,
+            fluidAudioModelStore: fluidAudioModelStore
         )
         let selectedModel = summarizationModelStore.selectedModel()
         self.selectedSummarizationModelID = selectedModel.id
         if summarizationModelStore.selectedModelID() != selectedModel.id {
             summarizationModelStore.setSelectedModelID(selectedModel.id)
         }
+        let selectedBackend = transcriptionBackendStore.selectedBackend()
+        self.selectedTranscriptionBackendID = selectedBackend.id
+        if transcriptionBackendStore.selectedBackendID() != selectedBackend.id {
+            transcriptionBackendStore.setSelectedBackendID(selectedBackend.id)
+        }
         let selectedTranscription = transcriptionModelStore.selectedModel()
         self.selectedTranscriptionModelID = selectedTranscription.id
         if transcriptionModelStore.selectedModelID() != selectedTranscription.id {
             transcriptionModelStore.setSelectedModelID(selectedTranscription.id)
+        }
+        let selectedFluidModel = fluidAudioModelStore.selectedModel()
+        self.selectedFluidAudioModelID = selectedFluidModel.id
+        if fluidAudioModelStore.selectedModelID() != selectedFluidModel.id {
+            fluidAudioModelStore.setSelectedModelID(selectedFluidModel.id)
         }
         refresh()
     }
@@ -133,8 +165,24 @@ final class ModelsSettingsViewModel: ObservableObject {
         SummarizationModelCatalog.all
     }
 
+    var transcriptionBackends: [TranscriptionBackend] {
+        TranscriptionBackend.allCases
+    }
+
     var transcriptionModels: [TranscriptionModel] {
         TranscriptionModelCatalog.all
+    }
+
+    var fluidAudioModels: [FluidAudioASRModel] {
+        FluidAudioASRModelCatalog.all
+    }
+
+    var isFluidAudioSelected: Bool {
+        TranscriptionBackend.backend(for: selectedTranscriptionBackendID) == .fluidAudio
+    }
+
+    var selectedTranscriptionBackendDisplayName: String {
+        TranscriptionBackend.displayName(for: selectedTranscriptionBackendID)
     }
 
     private func displayName(for id: String) -> String {
@@ -143,6 +191,9 @@ final class ModelsSettingsViewModel: ObservableObject {
         }
         if let transcription = TranscriptionModelCatalog.model(for: id) {
             return transcription.displayName
+        }
+        if let fluidAudio = FluidAudioASRModelCatalog.model(for: id) {
+            return fluidAudio.displayName
         }
         return id
     }

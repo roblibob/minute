@@ -36,19 +36,68 @@ public actor DefaultModelManager: ModelManaging {
     private let requiredModelsOverride: [ModelSpec]?
     private let selectionStore: SummarizationModelSelectionStore
     private let transcriptionSelectionStore: TranscriptionModelSelectionStore
+    private let transcriptionBackendStore: TranscriptionBackendSelectionStore
+    private let fluidAudioModelManager: FluidAudioASRModelManager
     private let logger = Logger(subsystem: "roblibob.Minute", category: "models")
 
     public init(
         requiredModels: [ModelSpec]? = nil,
         selectionStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore(),
-        transcriptionSelectionStore: TranscriptionModelSelectionStore = TranscriptionModelSelectionStore()
+        transcriptionSelectionStore: TranscriptionModelSelectionStore = TranscriptionModelSelectionStore(),
+        transcriptionBackendStore: TranscriptionBackendSelectionStore = TranscriptionBackendSelectionStore(),
+        fluidAudioModelStore: FluidAudioASRModelSelectionStore = FluidAudioASRModelSelectionStore()
     ) {
         self.requiredModelsOverride = requiredModels
         self.selectionStore = selectionStore
         self.transcriptionSelectionStore = transcriptionSelectionStore
+        self.transcriptionBackendStore = transcriptionBackendStore
+        self.fluidAudioModelManager = FluidAudioASRModelManager(selectionStore: fluidAudioModelStore)
     }
 
     public func ensureModelsPresent(progress: (@Sendable (ModelDownloadProgress) -> Void)? = nil) async throws {
+        if requiredModelsOverride != nil {
+            try await ensurePinnedModelsPresent(progress: progress)
+            return
+        }
+
+        let backend = transcriptionBackendStore.selectedBackend()
+        if backend == .fluidAudio {
+            let scaledPrimary: (@Sendable (ModelDownloadProgress) -> Void)?
+            if let handler = progress {
+                scaledPrimary = { update in
+                    let clamped = min(max(update.fractionCompleted, 0), 1)
+                    handler(ModelDownloadProgress(
+                        fractionCompleted: clamped * 0.5,
+                        label: update.label
+                    ))
+                }
+            } else {
+                scaledPrimary = nil
+            }
+
+            try await ensurePinnedModelsPresent(progress: scaledPrimary)
+
+            let scaledSecondary: (@Sendable (ModelDownloadProgress) -> Void)?
+            if let handler = progress {
+                scaledSecondary = { update in
+                    let clamped = min(max(update.fractionCompleted, 0), 1)
+                    handler(ModelDownloadProgress(
+                        fractionCompleted: 0.5 + clamped * 0.5,
+                        label: update.label
+                    ))
+                }
+            } else {
+                scaledSecondary = nil
+            }
+
+            try await fluidAudioModelManager.ensureModelsPresent(progress: scaledSecondary)
+            return
+        }
+
+        try await ensurePinnedModelsPresent(progress: progress)
+    }
+
+    private func ensurePinnedModelsPresent(progress: (@Sendable (ModelDownloadProgress) -> Void)?) async throws {
         let requiredModels = resolvedRequiredModels()
 
         // Ensure the app is configured with pinned URLs + checksums.
@@ -140,6 +189,133 @@ public actor DefaultModelManager: ModelManaging {
     }
 
     public func validateModels() async throws -> ModelValidationResult {
+        if requiredModelsOverride != nil {
+            return try validatePinnedModels()
+        }
+
+        let backend = transcriptionBackendStore.selectedBackend()
+        let base = try validatePinnedModels()
+
+        guard backend == .fluidAudio else {
+            return base
+        }
+
+        let fluid = try await fluidAudioModelManager.validateModels()
+        return merge(base, fluid)
+    }
+
+    public func removeModels(withIDs ids: [String]) async throws {
+        let fluidAudioIDs = ids.filter { FluidAudioASRModelCatalog.model(for: $0) != nil }
+        if !fluidAudioIDs.isEmpty {
+            try await fluidAudioModelManager.removeModels(withIDs: fluidAudioIDs)
+        }
+
+        let remainingIDs = ids.filter { FluidAudioASRModelCatalog.model(for: $0) == nil }
+        guard !remainingIDs.isEmpty else { return }
+
+        let requiredModels = resolvedRequiredModels()
+        let fileManager = FileManager.default
+
+        for spec in requiredModels where remainingIDs.contains(spec.id) {
+            if fileManager.fileExists(atPath: spec.destinationURL.path) {
+                do {
+                    try fileManager.removeItem(at: spec.destinationURL)
+                } catch {
+                    throw MinuteError.modelDownloadFailed(underlyingDescription: "Failed to remove model \(spec.id): \(error)")
+                }
+            }
+
+            try? fileManager.removeItem(at: checksumMarkerURL(for: spec.destinationURL))
+        }
+    }
+
+    // MARK: - Defaults
+
+    /// Default pinned model list.
+    public static func defaultRequiredModels(
+        selectedSummarizationModelID: String? = nil,
+        selectedTranscriptionModelID: String? = nil,
+        transcriptionBackend: TranscriptionBackend = .whisper
+    ) -> [ModelSpec] {
+        let transcriptionModel = TranscriptionModelCatalog.model(for: selectedTranscriptionModelID)
+            ?? TranscriptionModelCatalog.defaultModel
+        let summarizationModel = SummarizationModelCatalog.model(for: selectedSummarizationModelID) ?? SummarizationModelCatalog.defaultModel
+
+        var models: [ModelSpec] = []
+
+        if transcriptionBackend == .whisper {
+            models.append(
+                ModelSpec(
+                    id: transcriptionModel.id,
+                    destinationURL: transcriptionModel.destinationURL,
+                    sourceURL: transcriptionModel.sourceURL,
+                    expectedSHA256Hex: transcriptionModel.expectedSHA256Hex,
+                    expectedFileSizeBytes: transcriptionModel.expectedFileSizeBytes
+                )
+            )
+        }
+
+        models.append(
+            ModelSpec(
+                id: summarizationModel.id,
+                destinationURL: summarizationModel.destinationURL,
+                sourceURL: summarizationModel.sourceURL,
+                expectedSHA256Hex: summarizationModel.expectedSHA256Hex,
+                expectedFileSizeBytes: summarizationModel.expectedFileSizeBytes
+            )
+        )
+
+        if let mmprojURL = summarizationModel.mmprojDestinationURL,
+           let mmprojSourceURL = summarizationModel.mmprojSourceURL,
+           let mmprojExpectedSHA256Hex = summarizationModel.mmprojExpectedSHA256Hex {
+            models.append(
+                ModelSpec(
+                    id: "\(summarizationModel.id)/mmproj",
+                    destinationURL: mmprojURL,
+                    sourceURL: mmprojSourceURL,
+                    expectedSHA256Hex: mmprojExpectedSHA256Hex,
+                    expectedFileSizeBytes: summarizationModel.mmprojExpectedFileSizeBytes
+                )
+            )
+        }
+
+        if transcriptionBackend == .whisper,
+           let encoderDestinationURL = transcriptionModel.encoderCoreMLDestinationURL,
+           let encoderSourceURL = transcriptionModel.encoderCoreMLSourceURL,
+           let encoderExpectedSHA256Hex = transcriptionModel.encoderCoreMLExpectedSHA256Hex {
+            // Optional Whisper Core ML encoder (required by some whisper.cpp builds on Apple platforms).
+            // Downloaded as a .zip and extracted into a `.mlmodelc` directory.
+            models.insert(
+                ModelSpec(
+                    id: "\(transcriptionModel.id)/encoder-coreml",
+                    destinationURL: encoderDestinationURL,
+                    sourceURL: encoderSourceURL,
+                    expectedSHA256Hex: encoderExpectedSHA256Hex,
+                    expectedFileSizeBytes: transcriptionModel.encoderCoreMLExpectedFileSizeBytes
+                ),
+                at: 1
+            )
+        }
+
+        return models
+    }
+
+    private func resolvedRequiredModels() -> [ModelSpec] {
+        if let requiredModelsOverride {
+            return requiredModelsOverride
+        }
+
+        let summarizationID = selectionStore.selectedModelID()
+        let transcriptionID = transcriptionSelectionStore.selectedModelID()
+        let backend = transcriptionBackendStore.selectedBackend()
+        return DefaultModelManager.defaultRequiredModels(
+            selectedSummarizationModelID: summarizationID,
+            selectedTranscriptionModelID: transcriptionID,
+            transcriptionBackend: backend
+        )
+    }
+
+    private func validatePinnedModels() throws -> ModelValidationResult {
         let requiredModels = resolvedRequiredModels()
         let fileManager = FileManager.default
         var missing: [String] = []
@@ -210,99 +386,10 @@ public actor DefaultModelManager: ModelManaging {
         return ModelValidationResult(missingModelIDs: missing, invalidModelIDs: invalid)
     }
 
-    public func removeModels(withIDs ids: [String]) async throws {
-        let requiredModels = resolvedRequiredModels()
-        let fileManager = FileManager.default
-
-        for spec in requiredModels where ids.contains(spec.id) {
-            if fileManager.fileExists(atPath: spec.destinationURL.path) {
-                do {
-                    try fileManager.removeItem(at: spec.destinationURL)
-                } catch {
-                    throw MinuteError.modelDownloadFailed(underlyingDescription: "Failed to remove model \(spec.id): \(error)")
-                }
-            }
-
-            try? fileManager.removeItem(at: checksumMarkerURL(for: spec.destinationURL))
-        }
-    }
-
-    // MARK: - Defaults
-
-    /// Default pinned model list.
-    public static func defaultRequiredModels(
-        selectedSummarizationModelID: String? = nil,
-        selectedTranscriptionModelID: String? = nil
-    ) -> [ModelSpec] {
-        let transcriptionModel = TranscriptionModelCatalog.model(for: selectedTranscriptionModelID)
-            ?? TranscriptionModelCatalog.defaultModel
-        let summarizationModel = SummarizationModelCatalog.model(for: selectedSummarizationModelID) ?? SummarizationModelCatalog.defaultModel
-
-        var models: [ModelSpec] = [
-            // Whisper
-            ModelSpec(
-                id: transcriptionModel.id,
-                destinationURL: transcriptionModel.destinationURL,
-                sourceURL: transcriptionModel.sourceURL,
-                expectedSHA256Hex: transcriptionModel.expectedSHA256Hex,
-                expectedFileSizeBytes: transcriptionModel.expectedFileSizeBytes
-            ),
-
-            // LLM (GGUF)
-            ModelSpec(
-                id: summarizationModel.id,
-                destinationURL: summarizationModel.destinationURL,
-                sourceURL: summarizationModel.sourceURL,
-                expectedSHA256Hex: summarizationModel.expectedSHA256Hex,
-                expectedFileSizeBytes: summarizationModel.expectedFileSizeBytes
-            ),
-        ]
-
-        if let mmprojURL = summarizationModel.mmprojDestinationURL,
-           let mmprojSourceURL = summarizationModel.mmprojSourceURL,
-           let mmprojExpectedSHA256Hex = summarizationModel.mmprojExpectedSHA256Hex {
-            models.append(
-                ModelSpec(
-                    id: "\(summarizationModel.id)/mmproj",
-                    destinationURL: mmprojURL,
-                    sourceURL: mmprojSourceURL,
-                    expectedSHA256Hex: mmprojExpectedSHA256Hex,
-                    expectedFileSizeBytes: summarizationModel.mmprojExpectedFileSizeBytes
-                )
-            )
-        }
-
-        if let encoderDestinationURL = transcriptionModel.encoderCoreMLDestinationURL,
-           let encoderSourceURL = transcriptionModel.encoderCoreMLSourceURL,
-           let encoderExpectedSHA256Hex = transcriptionModel.encoderCoreMLExpectedSHA256Hex {
-            // Optional Whisper Core ML encoder (required by some whisper.cpp builds on Apple platforms).
-            // Downloaded as a .zip and extracted into a `.mlmodelc` directory.
-            models.insert(
-                ModelSpec(
-                    id: "\(transcriptionModel.id)/encoder-coreml",
-                    destinationURL: encoderDestinationURL,
-                    sourceURL: encoderSourceURL,
-                    expectedSHA256Hex: encoderExpectedSHA256Hex,
-                    expectedFileSizeBytes: transcriptionModel.encoderCoreMLExpectedFileSizeBytes
-                ),
-                at: 1
-            )
-        }
-
-        return models
-    }
-
-    private func resolvedRequiredModels() -> [ModelSpec] {
-        if let requiredModelsOverride {
-            return requiredModelsOverride
-        }
-
-        let summarizationID = selectionStore.selectedModelID()
-        let transcriptionID = transcriptionSelectionStore.selectedModelID()
-        return DefaultModelManager.defaultRequiredModels(
-            selectedSummarizationModelID: summarizationID,
-            selectedTranscriptionModelID: transcriptionID
-        )
+    private func merge(_ lhs: ModelValidationResult, _ rhs: ModelValidationResult) -> ModelValidationResult {
+        let missing = lhs.missingModelIDs + rhs.missingModelIDs
+        let invalid = lhs.invalidModelIDs + rhs.invalidModelIDs
+        return ModelValidationResult(missingModelIDs: missing, invalidModelIDs: invalid)
     }
 
     // MARK: - Download + hashing

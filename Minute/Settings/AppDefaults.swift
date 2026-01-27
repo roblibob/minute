@@ -8,5 +8,7 @@ enum AppDefaultsKey {
     static let screenContextVideoImportEnabled = AppConfiguration.Defaults.screenContextVideoImportEnabledKey
     static let screenContextCaptureIntervalSeconds = AppConfiguration.Defaults.screenContextCaptureIntervalSecondsKey
     static let transcriptionModelID = AppConfiguration.Defaults.transcriptionModelIDKey
+    static let transcriptionBackendID = AppConfiguration.Defaults.transcriptionBackendIDKey
+    static let fluidAudioAsrModelID = AppConfiguration.Defaults.fluidAudioAsrModelIDKey
     static let micActivityNotificationsEnabled = AppConfiguration.Defaults.micActivityNotificationsEnabledKey
 }
