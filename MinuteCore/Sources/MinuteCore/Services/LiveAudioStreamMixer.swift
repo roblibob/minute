@@ -64,7 +64,7 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
         if let workerTask {
             self.workerTask = nil
             workerTask.cancel()
-            _ = await waitForAppendTask(workerTask, timeoutNanos: 1_000_000_000)
+            // Avoid awaiting task.value; cancellation plus actor ordering ensures in-flight append finishes before finalize.
         }
         transcriptionQueue.removeAll()
 
@@ -147,22 +147,6 @@ public actor LiveAudioStreamMixer: LiveAudioChunkSinking {
             await transcriptionSession.append(samples: chunk.samples, endTimeSeconds: chunk.endTimeSeconds)
         }
         workerTask = nil
-    }
-
-    private func waitForAppendTask(_ task: Task<Void, Never>, timeoutNanos: UInt64) async -> Bool {
-        await withTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                _ = await task.value
-                return true
-            }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: timeoutNanos)
-                return false
-            }
-            let completed = await group.next() ?? false
-            group.cancelAll()
-            return completed
-        }
     }
 
     private func mixSamples(startIndex: Int, count: Int) -> [Float] {
