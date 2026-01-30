@@ -242,7 +242,7 @@ private enum PromptBuilder {
         - Be as detailed as possible for screen content.
         - Use this compact format: "[Screen Content], Participating: [Participant Names]"
         - When participants are visible, use: "[Screen Content], Participating: [Participant Names]". If no participants are visible, output just "[Screen Content]" or "[Screen Content], Participating: None".
-        - Do not describe physical appearances.
+        - Do not describe physical appearances or backgrounds of participants.
         - If the screen is blank, minimized, or irrelevant, output "No meaningful screen content".
 
         Window Title: \(windowTitle)

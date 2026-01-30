@@ -33,17 +33,20 @@ public struct LiveTranscriptionConfiguration: Sendable, Equatable {
     public var recordTimeoutSeconds: TimeInterval
     public var phraseTimeoutSeconds: TimeInterval
     public var energyThreshold: Float
+    public var maxPhraseSeconds: TimeInterval
 
     public init(
         sampleRateHz: Double = 16_000,
         recordTimeoutSeconds: TimeInterval = 2.0,
         phraseTimeoutSeconds: TimeInterval = 3.0,
-        energyThreshold: Float = 0.01
+        energyThreshold: Float = 0.01,
+        maxPhraseSeconds: TimeInterval = 10.0
     ) {
         self.sampleRateHz = sampleRateHz
         self.recordTimeoutSeconds = recordTimeoutSeconds
         self.phraseTimeoutSeconds = phraseTimeoutSeconds
         self.energyThreshold = energyThreshold
+        self.maxPhraseSeconds = max(0, maxPhraseSeconds)
     }
 }
 
@@ -85,6 +88,12 @@ public actor LiveTranscriptionSession {
         let energy = rms(samples)
 
         if energy >= config.energyThreshold {
+            let maxPhraseSamples = max(0, Int(config.maxPhraseSeconds * config.sampleRateHz))
+            if maxPhraseSamples > 0, currentPhraseSamples.count + samples.count > maxPhraseSamples {
+                await transcribeCurrentPhrase(endTimeSeconds: chunkStartSeconds)
+                await finalizePhrase(endTimeSeconds: chunkStartSeconds)
+            }
+
             if activeLineIndex == nil {
                 activeLineIndex = lines.count
                 lines.append(Line(startSeconds: chunkStartSeconds, endSeconds: endTimeSeconds, text: ""))
