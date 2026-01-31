@@ -119,8 +119,8 @@ private struct PipelineContentView: View {
                 micActivityCoordinator.stop()
             }
             .onReceive(model.$state) { newState in
-                if case .done = newState {
-                    notesModel.refresh()
+                if case let .done(noteURL, _) = newState {
+                    notesModel.refreshAndSelect(noteURL: noteURL)
                 }
                 micActivityCoordinator.updatePipelineState(newState)
             }
@@ -325,6 +325,21 @@ private struct PipelineContentView: View {
     }
 
     private var statusDrawerModel: StatusDrawerModel? {
+        if case .idle = model.state,
+           let recovery = model.recoverableRecordings.first {
+            let folderName = recovery.sessionURL.lastPathComponent
+            return StatusDrawerModel(
+                title: "Unfinished meeting detected",
+                detail: "An unfinished meeting was detected in \(folderName). Do you want to recover it?",
+                progress: nil,
+                showsActivity: false,
+                isError: false,
+                actionTitle: "Recover",
+                action: { model.recoverRecording(recovery) },
+                secondaryActionTitle: "Delete",
+                secondaryAction: { model.discardRecoverableRecording(recovery) }
+            )
+        }
         switch model.state {
         case .recorded:
             return StatusDrawerModel(
@@ -334,7 +349,9 @@ private struct PipelineContentView: View {
                 showsActivity: false,
                 isError: false,
                 actionTitle: nil,
-                action: nil
+                action: nil,
+                secondaryActionTitle: nil,
+                secondaryAction: nil
             )
         case .processing, .writing, .importing:
             return StatusDrawerModel(
@@ -344,7 +361,9 @@ private struct PipelineContentView: View {
                 showsActivity: model.progress == nil,
                 isError: false,
                 actionTitle: nil,
-                action: nil
+                action: nil,
+                secondaryActionTitle: nil,
+                secondaryAction: nil
             )
         case .done(let noteURL, _):
             return StatusDrawerModel(
@@ -354,7 +373,9 @@ private struct PipelineContentView: View {
                 showsActivity: false,
                 isError: false,
                 actionTitle: "Reveal in Finder",
-                action: { model.revealInFinder(noteURL) }
+                action: { model.revealInFinder(noteURL) },
+                secondaryActionTitle: nil,
+                secondaryAction: nil
             )
         case .failed(let error, _):
             return StatusDrawerModel(
@@ -364,7 +385,9 @@ private struct PipelineContentView: View {
                 showsActivity: false,
                 isError: true,
                 actionTitle: nil,
-                action: nil
+                action: nil,
+                secondaryActionTitle: nil,
+                secondaryAction: nil
             )
         default:
             return nil
@@ -644,6 +667,8 @@ private struct StatusDrawerModel {
     let isError: Bool
     let actionTitle: String?
     let action: (() -> Void)?
+    let secondaryActionTitle: String?
+    let secondaryAction: (() -> Void)?
 }
 
 private struct StatusDrawerView: View {
@@ -675,10 +700,27 @@ private struct StatusDrawerView: View {
             Spacer(minLength: 0)
 
             if let actionTitle = model.actionTitle, let action = model.action {
-                Button(actionTitle) {
-                    action()
+                HStack(spacing: 8) {
+                    if let secondaryTitle = model.secondaryActionTitle,
+                       let secondaryAction = model.secondaryAction {
+                        Button(secondaryTitle) {
+                            secondaryAction()
+                        }
+                        .font(.callout.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .foregroundStyle(Color.minuteTextPrimary)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.minuteOutline, lineWidth: 1)
+                        )
+                    }
+
+                    Button(actionTitle) {
+                        action()
+                    }
+                    .minuteStandardButtonStyle()
                 }
-                .minuteStandardButtonStyle()
             }
         }
         .padding(isCompact ? 10 : 12)

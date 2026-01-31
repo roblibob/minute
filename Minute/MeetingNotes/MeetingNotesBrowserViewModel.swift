@@ -23,6 +23,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     @Published var isOverlayPresented: Bool = false
 
     private let browserProvider: @Sendable () -> any MeetingNotesBrowsing
+    private var pendingSelectionURL: URL?
     private var listTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var deleteTask: Task<Void, Never>?
@@ -59,6 +60,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     self?.notes = notes
                     self?.isRefreshing = false
                     self?.refreshPreviews(for: notes)
+                    self?.applyPendingSelection(from: notes)
                 }
             } catch is CancellationError {
                 await MainActor.run {
@@ -127,6 +129,11 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
     func preview(for item: MeetingNoteItem) -> NotePreview? {
         notePreviews[item.id]
+    }
+
+    func refreshAndSelect(noteURL: URL) {
+        pendingSelectionURL = noteURL
+        refresh()
     }
 
     func delete(_ item: MeetingNoteItem) {
@@ -338,5 +345,13 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
         guard hasUnit, totalMinutes > 0 else { return nil }
         return TimeInterval(totalMinutes * 60)
+    }
+
+    private func applyPendingSelection(from notes: [MeetingNoteItem]) {
+        guard let pendingSelectionURL else { return }
+        let pendingPath = pendingSelectionURL.standardizedFileURL.path
+        guard let match = notes.first(where: { $0.fileURL.standardizedFileURL.path == pendingPath }) else { return }
+        self.pendingSelectionURL = nil
+        select(match)
     }
 }

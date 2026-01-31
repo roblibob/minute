@@ -240,7 +240,6 @@ final class MeetingPipelineViewModel: ObservableObject {
                     startedAt: startedAt,
                     stoppedAt: stoppedAt
                 )
-                await recoveryService.discard(recording: recording)
                 await MainActor.run {
                     self.refreshRecoverableRecordings()
                 }
