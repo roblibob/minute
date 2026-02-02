@@ -18,6 +18,7 @@ public struct MeetingNoteItem: Sendable, Identifiable, Equatable {
 public protocol MeetingNotesBrowsing: Sendable {
     func listNotes() async throws -> [MeetingNoteItem]
     func loadNoteContent(for item: MeetingNoteItem) async throws -> String
+    func loadTranscriptContent(for item: MeetingNoteItem) async throws -> String
     func deleteNoteFiles(for item: MeetingNoteItem) async throws
 }
 
@@ -111,6 +112,21 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
 
         return try vaultAccess.withVaultAccess { _ in
             let data = try Data(contentsOf: item.fileURL)
+            if let content = String(data: data, encoding: .utf8) {
+                return content
+            }
+            return String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    public func loadTranscriptContent(for item: MeetingNoteItem) async throws -> String {
+        try Task.checkCancellation()
+
+        return try vaultAccess.withVaultAccess { vaultRootURL in
+            let baseName = item.fileURL.deletingPathExtension().lastPathComponent
+            let transcriptRootURL = Self.directoryURL(from: vaultRootURL, relativePath: transcriptsRelativePath)
+            let transcriptURL = transcriptRootURL.appendingPathComponent("\(baseName).md")
+            let data = try Data(contentsOf: transcriptURL)
             if let content = String(data: data, encoding: .utf8) {
                 return content
             }

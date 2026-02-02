@@ -3,18 +3,25 @@ import SwiftUI
 
 struct MarkdownViewerOverlay: View {
     var title: String
-    var content: String?
-    var isLoading: Bool
-    var errorMessage: String?
-    var renderPlainText: Bool
+    var summaryContent: String?
+    var transcriptContent: String?
+    var isLoadingSummary: Bool
+    var isLoadingTranscript: Bool
+    var summaryErrorMessage: String?
+    var transcriptErrorMessage: String?
+    var renderSummaryPlainText: Bool
+    var renderTranscriptPlainText: Bool
+    var selectedTab: MeetingNotePreviewTab
+    var onSelectTab: (MeetingNotePreviewTab) -> Void
     var onClose: () -> Void
-    var onRetry: () -> Void
+    var onRetry: (MeetingNotePreviewTab) -> Void
     var onOpenInObsidian: (() -> Void)?
     private let scrollBottomInset: CGFloat = 160
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            tabBar
             Rectangle()
                 .fill(Color.white.opacity(0.08))
                 .frame(height: 1)
@@ -60,32 +67,69 @@ struct MarkdownViewerOverlay: View {
         .padding(16)
     }
 
+    private var tabBar: some View {
+        HStack(spacing: 6) {
+            ForEach(MeetingNotePreviewTab.allCases) { tab in
+                Button {
+                    onSelectTab(tab)
+                } label: {
+                    Text(tab.title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .tracking(-0.1)
+                        .foregroundStyle(
+                            selectedTab == tab ? Color.minuteTextPrimary : Color.minuteTextSecondary
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(selectedTab == tab ? Color.minuteSurfaceStrong : Color.clear)
+                )
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+            }
+        }
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.minuteSurface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.minuteOutline, lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+    }
+
     @ViewBuilder
     private var bodyContent: some View {
-        if isLoading {
+        if activeIsLoading {
             VStack(spacing: 12) {
                 ProgressView()
-                Text("Loading note…")
+                Text(activeLoadingLabel)
                     .minuteCaption()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(24)
-        } else if let errorMessage {
+        } else if let errorMessage = activeErrorMessage {
             VStack(spacing: 12) {
                 Text(errorMessage)
                     .foregroundStyle(.red)
 
                 Button("Retry") {
-                    onRetry()
+                    onRetry(selectedTab)
                 }
                 .minuteStandardButtonStyle()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(24)
-        } else if let content {
+        } else if let content = activeContent {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if renderPlainText {
+                    if activeRenderPlainText {
                         Text(content)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
@@ -103,10 +147,64 @@ struct MarkdownViewerOverlay: View {
             .foregroundStyle(Color.minuteTextPrimary)
             .padding(20)
         } else {
-            Text("No content available.")
+            Text(activeEmptyLabel)
                 .minuteCaption()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(24)
+        }
+    }
+
+    private var activeContent: String? {
+        switch selectedTab {
+        case .summary:
+            return summaryContent
+        case .transcription:
+            return transcriptContent
+        }
+    }
+
+    private var activeIsLoading: Bool {
+        switch selectedTab {
+        case .summary:
+            return isLoadingSummary
+        case .transcription:
+            return isLoadingTranscript
+        }
+    }
+
+    private var activeErrorMessage: String? {
+        switch selectedTab {
+        case .summary:
+            return summaryErrorMessage
+        case .transcription:
+            return transcriptErrorMessage
+        }
+    }
+
+    private var activeRenderPlainText: Bool {
+        switch selectedTab {
+        case .summary:
+            return renderSummaryPlainText
+        case .transcription:
+            return renderTranscriptPlainText
+        }
+    }
+
+    private var activeLoadingLabel: String {
+        switch selectedTab {
+        case .summary:
+            return "Loading note…"
+        case .transcription:
+            return "Loading transcription…"
+        }
+    }
+
+    private var activeEmptyLabel: String {
+        switch selectedTab {
+        case .summary:
+            return "No summary available."
+        case .transcription:
+            return "No transcription available."
         }
     }
 }
@@ -114,12 +212,18 @@ struct MarkdownViewerOverlay: View {
 #Preview {
     MarkdownViewerOverlay(
         title: "Meeting Preview",
-        content: "# Title\n\nSome **markdown** content.",
-        isLoading: false,
-        errorMessage: nil,
-        renderPlainText: false,
+        summaryContent: "# Title\n\nSome **markdown** content.",
+        transcriptContent: "# Transcript\n\nHello world.",
+        isLoadingSummary: false,
+        isLoadingTranscript: false,
+        summaryErrorMessage: nil,
+        transcriptErrorMessage: nil,
+        renderSummaryPlainText: false,
+        renderTranscriptPlainText: false,
+        selectedTab: .summary,
+        onSelectTab: { _ in },
         onClose: {},
-        onRetry: {},
+        onRetry: { _ in },
         onOpenInObsidian: {}
     )
 }

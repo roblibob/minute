@@ -181,12 +181,20 @@ private struct PipelineContentView: View {
             if notesModel.isOverlayPresented {
                 MarkdownViewerOverlay(
                     title: notesModel.selectedItem?.title ?? "",
-                    content: notesModel.noteContent,
-                    isLoading: notesModel.isLoadingContent,
-                    errorMessage: notesModel.overlayErrorMessage,
-                    renderPlainText: notesModel.renderPlainText,
+                    summaryContent: notesModel.noteContent,
+                    transcriptContent: notesModel.transcriptContent,
+                    isLoadingSummary: notesModel.isLoadingContent,
+                    isLoadingTranscript: notesModel.isLoadingTranscript,
+                    summaryErrorMessage: notesModel.overlayErrorMessage,
+                    transcriptErrorMessage: notesModel.transcriptErrorMessage,
+                    renderSummaryPlainText: notesModel.renderPlainText,
+                    renderTranscriptPlainText: notesModel.renderTranscriptPlainText,
+                    selectedTab: notesModel.selectedTab,
+                    onSelectTab: notesModel.selectTab,
                     onClose: notesModel.dismissOverlay,
-                    onRetry: notesModel.retryLoadContent,
+                    onRetry: { tab in
+                        notesModel.retryLoadContent(for: tab)
+                    },
                     onOpenInObsidian: notesModel.openInObsidian
                 )
             } else {

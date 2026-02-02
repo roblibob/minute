@@ -3,6 +3,22 @@ import Combine
 import Foundation
 import MinuteCore
 
+enum MeetingNotePreviewTab: String, CaseIterable, Identifiable {
+    case summary
+    case transcription
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .summary:
+            return "Summary"
+        case .transcription:
+            return "Transcription"
+        }
+    }
+}
+
 @MainActor
 final class MeetingNotesBrowserViewModel: ObservableObject {
     struct NotePreview: Equatable {
@@ -19,13 +35,19 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     @Published private(set) var noteContent: String?
     @Published private(set) var overlayErrorMessage: String?
     @Published private(set) var renderPlainText: Bool = false
+    @Published private(set) var isLoadingTranscript: Bool = false
+    @Published private(set) var transcriptContent: String?
+    @Published private(set) var transcriptErrorMessage: String?
+    @Published private(set) var renderTranscriptPlainText: Bool = false
     @Published private(set) var selectedItem: MeetingNoteItem?
+    @Published private(set) var selectedTab: MeetingNotePreviewTab = .summary
     @Published var isOverlayPresented: Bool = false
 
     private let browserProvider: @Sendable () -> any MeetingNotesBrowsing
     private var pendingSelectionURL: URL?
     private var listTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
+    private var transcriptLoadTask: Task<Void, Never>?
     private var deleteTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
     private var defaultsObserver: AnyCancellable?
@@ -43,6 +65,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     deinit {
         listTask?.cancel()
         loadTask?.cancel()
+        transcriptLoadTask?.cancel()
         deleteTask?.cancel()
         previewTask?.cancel()
     }
@@ -79,52 +102,51 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     }
 
     func select(_ item: MeetingNoteItem) {
-        loadTask?.cancel()
         selectedItem = item
-        noteContent = nil
-        overlayErrorMessage = nil
-        renderPlainText = false
-        isLoadingContent = true
+        selectedTab = .summary
+        resetTranscriptState()
         isOverlayPresented = true
-
-        let provider = browserProvider
-        loadTask = Task { [weak self] in
-            do {
-                let content = try await provider().loadNoteContent(for: item)
-                let shouldRenderPlainText = Self.shouldRenderPlainText(content)
-
-                await MainActor.run {
-                    self?.noteContent = content
-                    self?.renderPlainText = shouldRenderPlainText
-                    self?.isLoadingContent = false
-                }
-            } catch is CancellationError {
-                await MainActor.run {
-                    self?.isLoadingContent = false
-                }
-            } catch {
-                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to load note.")
-                await MainActor.run {
-                    self?.overlayErrorMessage = message
-                    self?.isLoadingContent = false
-                }
-            }
-        }
+        startLoadingSummary(for: item)
     }
 
     func retryLoadContent() {
         guard let item = selectedItem else { return }
-        select(item)
+        startLoadingSummary(for: item)
+    }
+
+    func retryLoadTranscript() {
+        guard let item = selectedItem else { return }
+        startLoadingTranscript(for: item, force: true)
+    }
+
+    func retryLoadContent(for tab: MeetingNotePreviewTab) {
+        switch tab {
+        case .summary:
+            retryLoadContent()
+        case .transcription:
+            retryLoadTranscript()
+        }
+    }
+
+    func selectTab(_ tab: MeetingNotePreviewTab) {
+        guard selectedTab != tab else { return }
+        selectedTab = tab
+        if tab == .transcription {
+            loadTranscriptIfNeeded()
+        }
     }
 
     func dismissOverlay() {
         loadTask?.cancel()
+        transcriptLoadTask?.cancel()
         isOverlayPresented = false
         selectedItem = nil
+        selectedTab = .summary
         noteContent = nil
         overlayErrorMessage = nil
         renderPlainText = false
         isLoadingContent = false
+        resetTranscriptState()
     }
 
     func preview(for item: MeetingNoteItem) -> NotePreview? {
@@ -175,6 +197,88 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         _ = NSWorkspace.shared.open(obsidianURL)
     }
 
+    private func startLoadingSummary(for item: MeetingNoteItem) {
+        loadTask?.cancel()
+        noteContent = nil
+        overlayErrorMessage = nil
+        renderPlainText = false
+        isLoadingContent = true
+
+        let provider = browserProvider
+        loadTask = Task { [weak self] in
+            do {
+                let content = try await provider().loadNoteContent(for: item)
+                let shouldRenderPlainText = Self.shouldRenderPlainText(content)
+
+                await MainActor.run {
+                    self?.noteContent = content
+                    self?.renderPlainText = shouldRenderPlainText
+                    self?.isLoadingContent = false
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self?.isLoadingContent = false
+                }
+            } catch {
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to load note.")
+                await MainActor.run {
+                    self?.overlayErrorMessage = message
+                    self?.isLoadingContent = false
+                }
+            }
+        }
+    }
+
+    private func loadTranscriptIfNeeded() {
+        guard let item = selectedItem else { return }
+        guard transcriptContent == nil, transcriptErrorMessage == nil, !isLoadingTranscript else { return }
+        startLoadingTranscript(for: item, force: false)
+    }
+
+    private func startLoadingTranscript(for item: MeetingNoteItem, force: Bool) {
+        if !force {
+            guard transcriptContent == nil, transcriptErrorMessage == nil, !isLoadingTranscript else { return }
+        }
+
+        transcriptLoadTask?.cancel()
+        transcriptContent = nil
+        transcriptErrorMessage = nil
+        renderTranscriptPlainText = false
+        isLoadingTranscript = true
+
+        let provider = browserProvider
+        transcriptLoadTask = Task { [weak self] in
+            do {
+                let content = try await provider().loadTranscriptContent(for: item)
+                let shouldRenderPlainText = Self.shouldRenderPlainText(content)
+
+                await MainActor.run {
+                    self?.transcriptContent = content
+                    self?.renderTranscriptPlainText = shouldRenderPlainText
+                    self?.isLoadingTranscript = false
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self?.isLoadingTranscript = false
+                }
+            } catch {
+                let message = Self.transcriptErrorMessage(for: error)
+                await MainActor.run {
+                    self?.transcriptErrorMessage = message
+                    self?.isLoadingTranscript = false
+                }
+            }
+        }
+    }
+
+    private func resetTranscriptState() {
+        transcriptLoadTask?.cancel()
+        transcriptContent = nil
+        transcriptErrorMessage = nil
+        renderTranscriptPlainText = false
+        isLoadingTranscript = false
+    }
+
     nonisolated private static func defaultBrowserProvider() -> any MeetingNotesBrowsing {
         let defaults = UserDefaults.standard
         let configuration = AppConfiguration(defaults: defaults)
@@ -198,6 +302,14 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         } catch {
             return true
         }
+    }
+
+    private static func transcriptErrorMessage(for error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSFileReadNoSuchFileError {
+            return "Transcript not available."
+        }
+        return ErrorHandler.userMessage(for: error, fallback: "Failed to load transcript.")
     }
 
     private func refreshPreviews(for notes: [MeetingNoteItem]) {
