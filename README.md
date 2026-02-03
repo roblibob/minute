@@ -123,6 +123,23 @@ During a court hearing in the 27th Judicial District, Rod Ponton experienced a p
 - Audio and inference stay local.
 - No outbound network calls except model downloads.
 
+## Testing
+
+Run app tests:
+```
+xcodebuild -workspace Minute.xcworkspace -scheme Minute -configuration Debug test -destination 'platform=macOS'
+```
+
+Run MinuteCore tests:
+```
+xcodebuild -workspace Minute.xcworkspace -scheme MinuteCore -configuration Debug test -destination 'platform=macOS'
+```
+
+Or use the Makefile shortcut:
+```
+make test
+```
+
 ## Contributing
 See `CONTRIBUTING.md`.
 

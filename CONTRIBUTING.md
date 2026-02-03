@@ -13,9 +13,19 @@ Build:
 xcodebuild -project Minute.xcodeproj -scheme Minute -configuration Debug build
 ```
 
+Test (Minute app target):
+```
+xcodebuild -workspace Minute.xcworkspace -scheme Minute -configuration Debug test -destination 'platform=macOS'
+```
+
 Test (MinuteCore):
 ```
 xcodebuild -workspace Minute.xcworkspace -scheme MinuteCore -configuration Debug test -destination 'platform=macOS'
+```
+
+Make targets:
+```
+make test
 ```
 
 ## Guidelines
