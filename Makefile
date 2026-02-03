@@ -10,7 +10,7 @@ APPCAST_DOWNLOAD_URL_PREFIX ?=
 APPCAST_DEST ?= $(OUTPUT_DIR)/appcast.xml
 SPARKLE_APPCAST_ARGS ?=
 
-.PHONY: release appcast archive
+.PHONY: release appcast archive test test-all
 
 release:
 	@set -e; \
@@ -35,6 +35,12 @@ archive:
 	  echo "Usage: make archive ARCHIVE=/path/to/Minute.xcarchive"; \
 	  exit 1; \
 	fi
+
+test:
+	xcodebuild -workspace "$(WORKSPACE)" -scheme MinuteCore -configuration Debug test -destination "platform=macOS"
+
+test-all:
+	xcodebuild -workspace "$(WORKSPACE)" -scheme Minute -configuration Debug test
 	@if [ -d "$(WORKSPACE)" ]; then \
 	  xcodebuild -workspace "$(WORKSPACE)" -scheme "$(SCHEME)" -configuration "$(CONFIGURATION)" -destination "generic/platform=macOS" -archivePath "$(ARCHIVE)" archive; \
 	elif [ -d "$(PROJECT)" ]; then \

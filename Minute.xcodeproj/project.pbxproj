@@ -16,6 +16,7 @@
 		5A7F52082F1F0D0A00D8E124 /* MinuteCore in Frameworks */ = {isa = PBXBuildFile; productRef = 58B6950B2EF600000068FAA7 /* MinuteCore */; };
 		70055E391D7145CFA8509E54 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 0AF288CF7B9C4B81AEE5DD29 /* MarkdownUI */; };
 		9C45E2A61F1D4A7A9E4C0B11 /* MinuteWhisper in Frameworks */ = {isa = PBXBuildFile; productRef = 5A7F52132F1F0D0A00D8E124 /* MinuteWhisper */; };
+		BF27CF187A62466DB14F257B /* MinuteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F15E3BAE1404A58B205DD07 /* MinuteTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,6 +26,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 5A7F520F2F1F0D0A00D8E124;
 			remoteInfo = MinuteWhisperService;
+		};
+		68AD8511947A463C8A38EE55 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 58B694E72EF54B130068FAA7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 58B694EE2EF54B130068FAA7;
+			remoteInfo = Minute;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -47,6 +55,8 @@
 		5A7F52022F1F0D0A00D8E124 /* WhisperXPCService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperXPCService.swift; sourceTree = "<group>"; };
 		5A7F52032F1F0D0A00D8E124 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		779C02330F8D485BB5682A48 /* MinuteInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = MinuteInfo.plist; sourceTree = "<group>"; };
+		5F15E3BAE1404A58B205DD07 /* MinuteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteTests.swift; sourceTree = "<group>"; };
+		8ADB76E0C8D7477E9C5E50D2 /* MinuteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MinuteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +89,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7BA98BF71BA949F4A88F3EE6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -89,6 +106,7 @@
 				58B694F12EF54B130068FAA7 /* Minute */,
 				5A7F52042F1F0D0A00D8E124 /* MinuteWhisperService */,
 				58B694F02EF54B130068FAA7 /* Products */,
+			5D97A5986491499181E6D7E5 /* MinuteTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -97,6 +115,7 @@
 			children = (
 				58B694EF2EF54B130068FAA7 /* Minute.app */,
 				5A7F52012F1F0D0A00D8E124 /* MinuteWhisperService.xpc */,
+			8ADB76E0C8D7477E9C5E50D2 /* MinuteTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,6 +135,14 @@
 				779C02330F8D485BB5682A48 /* MinuteInfo.plist */,
 			);
 			path = Config;
+			sourceTree = "<group>";
+		};
+		5D97A5986491499181E6D7E5 /* MinuteTests */ = {
+			isa = PBXGroup;
+			children = (
+				5F15E3BAE1404A58B205DD07 /* MinuteTests.swift */,
+			);
+			path = MinuteTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -174,6 +201,24 @@
 			productReference = 5A7F52012F1F0D0A00D8E124 /* MinuteWhisperService.xpc */;
 			productType = "com.apple.product-type.xpc-service";
 		};
+		3AE23570A0804307B77836FB /* MinuteTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 50F8DB1C97EE4F1692434EF9 /* Build configuration list for PBXNativeTarget "MinuteTests" */;
+			buildPhases = (
+				E242A9BE18A54200931F213F /* Sources */,
+				7BA98BF71BA949F4A88F3EE6 /* Frameworks */,
+				84F1C85F198844C5A543F341 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				50C59F17E02D4CE2BD54018E /* PBXTargetDependency */,
+			);
+			name = MinuteTests;
+			productName = MinuteTests;
+			productReference = 8ADB76E0C8D7477E9C5E50D2 /* MinuteTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -213,6 +258,7 @@
 			targets = (
 				58B694EE2EF54B130068FAA7 /* Minute */,
 				5A7F520F2F1F0D0A00D8E124 /* MinuteWhisperService */,
+			3AE23570A0804307B77836FB /* MinuteTests */,
 			);
 		};
 /* End PBXProject section */
@@ -226,6 +272,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5A7F520C2F1F0D0A00D8E124 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		84F1C85F198844C5A543F341 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -339,6 +392,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E242A9BE18A54200931F213F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF27CF187A62466DB14F257B /* MinuteTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -346,6 +407,11 @@
 			isa = PBXTargetDependency;
 			target = 5A7F520F2F1F0D0A00D8E124 /* MinuteWhisperService */;
 			targetProxy = 5A7F520E2F1F0D0A00D8E124 /* PBXContainerItemProxy */;
+		};
+		50C59F17E02D4CE2BD54018E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 58B694EE2EF54B130068FAA7 /* Minute */;
+			targetProxy = 68AD8511947A463C8A38EE55 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -650,6 +716,44 @@
 			};
 			name = Release;
 		};
+		EFB44760BCE242AABD3D08E2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9U6KWJQQVG;
+				INFOPLIST_FILE = Config/MinuteInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				PRODUCT_BUNDLE_IDENTIFIER = com.roblibob.MinuteTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Minute.app/Contents/MacOS/Minute";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		7261E3669CBB45DCAF93420E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9U6KWJQQVG;
+				INFOPLIST_FILE = Config/MinuteInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				PRODUCT_BUNDLE_IDENTIFIER = com.roblibob.MinuteTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Minute.app/Contents/MacOS/Minute";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -676,6 +780,15 @@
 			buildConfigurations = (
 				5A7F52112F1F0D0A00D8E124 /* Debug */,
 				5A7F52122F1F0D0A00D8E124 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		50F8DB1C97EE4F1692434EF9 /* Build configuration list for PBXNativeTarget "MinuteTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFB44760BCE242AABD3D08E2 /* Debug */,
+				7261E3669CBB45DCAF93420E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
