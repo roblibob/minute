@@ -2,13 +2,14 @@ Minute Overview
 
 Minute is a native macOS app for capturing meetings locally and writing
 deterministic notes into a user-selected Obsidian vault. It records audio,
-transcribes with Whisper, summarizes with Llama, and writes a fixed set of
+transcribes with Fluidaudio, summarizes with Llama, and writes a fixed set of
 artifacts to the vault.
 
 What the app does
 - Record microphone + system audio locally.
-- Transcribe audio locally (whisper.cpp).
-- Summarize locally with a JSON-only LLM prompt (llama.cpp).
+- Transcribe audio locally (Fluidaudio).
+- Optionally capture screen context locally for summaries.
+- Summarize locally with a JSON-only LLM prompt (llama).
 - Render a deterministic Markdown note from JSON.
 - Write exactly three files to the vault per meeting.
 
@@ -30,10 +31,10 @@ How the app works (pipeline)
    - Capture mic + system audio into temporary files.
    - Mix and convert to the contract WAV format.
 2) Transcribe
-   - Run whisper.cpp on the WAV file.
+   - Run Fluidaudio on the WAV file.
    - Write transcript markdown to Meetings/_transcripts/.
 3) Summarize
-   - Run llama.cpp with a JSON-only prompt.
+   - Run llama with a JSON-only prompt.
    - Validate JSON; if invalid, run a single repair pass.
    - If still invalid, emit a fallback note with empty sections.
 4) Render
@@ -60,14 +61,14 @@ Storage locations
 Technology snapshot
 - UI: SwiftUI (macOS 14+)
 - Audio: AVFoundation + ScreenCaptureKit
-- Transcription: whisper.cpp (library, XPC helper)
-- Summarization: llama.cpp (library)
+- Transcription: Fluidaudio (library, XPC helper)
+- Summarization: llama (library)
 - Markdown: deterministic renderer (model outputs JSON only)
 
 Code structure
 - Minute/ (app target, SwiftUI UI + app orchestration)
 - MinuteCore/ (shared domain + services; non-UI logic)
-- MinuteWhisperService/ (XPC helper for whisper)
+- MinuteWhisperService/ (XPC helper for transcription)
 - Vendor/ (bundled binaries like ffmpeg)
 - scripts/ (release, notarization, appcast tooling)
 - docs/ (product and release docs)

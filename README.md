@@ -57,7 +57,7 @@ brew install --cask minute
     * ✅ Links to the full transcript and audio for reference.
 
 ### 100% Private & Offline
-* **Apple Silicon Native:** Runs `Whisper` (for transcription) and `Llama/Gemma 3` (for screen context and summarization) entirely on your Mac's Neural Engine.
+* **Apple Silicon Native:** Runs `Fluidaudio/Parakeet` (for transcription) and `Llama/Gemma 3` (for screen context and summarization) entirely on your Mac's Neural Engine.
 * **Zero Data Leak:** Unplug your ethernet cable—it still works. Your meetings never touch a server.
 
 
