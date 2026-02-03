@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class MinuteCoreTests: XCTestCase {
-    func testSmoke() {
-        XCTAssertTrue(true)
+struct MinuteCoreTests {
+    @Test
+    func smoke() {
+        #expect(true)
     }
 }

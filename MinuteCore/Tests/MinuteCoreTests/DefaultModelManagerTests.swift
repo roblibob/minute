@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class DefaultModelManagerTests: XCTestCase {
-    func testEnsureModelsPresent_downloadsFileURLAndVerifiesSHA() async throws {
+struct DefaultModelManagerTests {
+    @Test
+    func ensureModelsPresent_downloadsFileURLAndVerifiesSHA() async throws {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("minute-model-manager-tests-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -32,12 +34,13 @@ final class DefaultModelManagerTests: XCTestCase {
 
         try await manager.ensureModelsPresent(progress: Optional<(@Sendable (ModelDownloadProgress) -> Void)>.none)
 
-        XCTAssertTrue(fm.fileExists(atPath: destinationURL.path))
+        #expect(fm.fileExists(atPath: destinationURL.path))
         let written = try Data(contentsOf: destinationURL)
-        XCTAssertEqual(written, content)
+        expectEqual(written, content)
     }
 
-    func testEnsureModelsPresent_whenSHAMismatches_throwsChecksumMismatchAndDoesNotLeaveFile() async throws {
+    @Test
+    func ensureModelsPresent_whenSHAMismatches_throwsChecksumMismatchAndDoesNotLeaveFile() async throws {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("minute-model-manager-tests-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -61,37 +64,39 @@ final class DefaultModelManagerTests: XCTestCase {
 
         do {
             try await manager.ensureModelsPresent(progress: Optional<(@Sendable (ModelDownloadProgress) -> Void)>.none)
-            XCTFail("Expected to throw")
+            #expect(false)
         } catch let err as MinuteError {
             switch err {
             case .modelChecksumMismatch:
                 break
             default:
-                XCTFail("Unexpected MinuteError: \(err)")
+                #expect(false)
             }
         }
 
-        XCTAssertFalse(fm.fileExists(atPath: destinationURL.path))
+        #expect(!fm.fileExists(atPath: destinationURL.path))
     }
 
-    func testDefaultRequiredModels_usesSelectedTranscriptionModel() {
+    @Test
+    func defaultRequiredModels_usesSelectedTranscriptionModel() {
         let models = DefaultModelManager.defaultRequiredModels(
             selectedSummarizationModelID: nil,
             selectedTranscriptionModelID: "whisper/base",
             transcriptionBackend: .whisper
         )
 
-        XCTAssertTrue(models.contains { $0.id == "whisper/base" })
+        #expect(models.contains { $0.id == "whisper/base" })
     }
 
-    func testDefaultRequiredModels_excludesWhisperWhenFluidAudioSelected() {
+    @Test
+    func defaultRequiredModels_excludesWhisperWhenFluidAudioSelected() {
         let models = DefaultModelManager.defaultRequiredModels(
             selectedSummarizationModelID: nil,
             selectedTranscriptionModelID: "whisper/base",
             transcriptionBackend: .fluidAudio
         )
 
-        XCTAssertFalse(models.contains { $0.id.hasPrefix("whisper/") })
-        XCTAssertTrue(models.contains { $0.id.hasPrefix("llm/") })
+        #expect(!models.contains { $0.id.hasPrefix("whisper/") })
+        #expect(models.contains { $0.id.hasPrefix("llm/") })
     }
 }

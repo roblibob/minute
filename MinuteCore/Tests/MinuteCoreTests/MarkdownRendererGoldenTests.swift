@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class MarkdownRendererGoldenTests: XCTestCase {
-    func testRender_matchesTemplateExactly() {
+struct MarkdownRendererGoldenTests {
+    @Test
+    func render_matchesTemplateExactly() {
         let extraction = MeetingExtraction(
             title: "Weekly Sync",
             date: "2025-12-19",
@@ -57,6 +59,6 @@ final class MarkdownRendererGoldenTests: XCTestCase {
         [[Meetings/_transcripts/2025-12-19 - Weekly Sync.md]]
         """ + "\n"
 
-        XCTAssertEqual(markdown, expected)
+        expectEqual(markdown, expected)
     }
 }

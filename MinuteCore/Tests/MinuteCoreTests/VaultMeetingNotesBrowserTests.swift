@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 @testable import MinuteCore
 
-final class VaultMeetingNotesBrowserTests: XCTestCase {
-    func testListNotesExcludesAudioAndTranscripts() async throws {
+struct VaultMeetingNotesBrowserTests {
+    @Test
+    func listNotesExcludesAudioAndTranscripts() async throws {
         let rootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -23,16 +24,17 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         let browser = try makeBrowser(vaultRootURL: rootURL)
         let notes = try await browser.listNotes()
 
-        XCTAssertEqual(notes.count, 1)
-        XCTAssertEqual(notes.first?.title, "Team Sync")
-        XCTAssertEqual(
+        expectEqual(notes.count, 1)
+        expectEqual(notes.first?.title, "Team Sync")
+        expectEqual(
             notes.first?.relativePath,
             "Meetings/2025/01/2025-01-10 10.00 - Team Sync.md"
         )
-        XCTAssertNotNil(notes.first?.date)
+        #expect(notes.first?.date != nil)
     }
 
-    func testSortsNewestFirstByParsedDate() async throws {
+    @Test
+    func sortsNewestFirstByParsedDate() async throws {
         let rootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -48,10 +50,11 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         let browser = try makeBrowser(vaultRootURL: rootURL)
         let notes = try await browser.listNotes()
 
-        XCTAssertEqual(notes.map(\.title), ["Second", "First"])
+        expectEqual(notes.map(\.title), ["Second", "First"])
     }
 
-    func testFallbackToModificationDateWhenParsingFails() async throws {
+    @Test
+    func fallbackToModificationDateWhenParsingFails() async throws {
         let rootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -67,11 +70,12 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         let browser = try makeBrowser(vaultRootURL: rootURL)
         let notes = try await browser.listNotes()
 
-        XCTAssertEqual(notes.first?.title, "Loose")
-        XCTAssertNil(notes.first?.date)
+        expectEqual(notes.first?.title, "Loose")
+        #expect(notes.first?.date == nil)
     }
 
-    func testDeleteRemovesNoteAudioTranscriptWhenPresent() async throws {
+    @Test
+    func deleteRemovesNoteAudioTranscriptWhenPresent() async throws {
         let rootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -85,16 +89,20 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
 
         let browser = try makeBrowser(vaultRootURL: rootURL)
         let notes = try await browser.listNotes()
-        let note = try XCTUnwrap(notes.first)
+        guard let note = notes.first else {
+            #expect(false)
+            return
+        }
 
         try await browser.deleteNoteFiles(for: note)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: noteURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: transcriptURL.path))
+        #expect(!FileManager.default.fileExists(atPath: noteURL.path))
+        #expect(!FileManager.default.fileExists(atPath: audioURL.path))
+        #expect(!FileManager.default.fileExists(atPath: transcriptURL.path))
     }
 
-    func testLoadTranscriptContentReturnsTranscriptFile() async throws {
+    @Test
+    func loadTranscriptContentReturnsTranscriptFile() async throws {
         let rootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: rootURL) }
 
@@ -105,11 +113,14 @@ final class VaultMeetingNotesBrowserTests: XCTestCase {
         try createFile(at: transcriptURL, contents: "transcript contents")
 
         let browser = try makeBrowser(vaultRootURL: rootURL)
-        let note = try XCTUnwrap(try await browser.listNotes().first)
+        guard let note = try await browser.listNotes().first else {
+            #expect(false)
+            return
+        }
 
         let content = try await browser.loadTranscriptContent(for: note)
 
-        XCTAssertEqual(content, "transcript contents")
+        expectEqual(content, "transcript contents")
     }
 }
 

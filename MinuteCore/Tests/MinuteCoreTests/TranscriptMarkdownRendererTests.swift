@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class TranscriptMarkdownRendererTests: XCTestCase {
-    func testRender_producesDeterministicMarkdown() {
+struct TranscriptMarkdownRendererTests {
+    @Test
+    func render_producesDeterministicMarkdown() {
         let markdown = TranscriptMarkdownRenderer().render(
             title: "Weekly Sync",
             dateISO: "2025-12-19",
@@ -24,6 +26,6 @@ final class TranscriptMarkdownRendererTests: XCTestCase {
         World
         """ + "\n"
 
-        XCTAssertEqual(markdown, expected)
+        expectEqual(markdown, expected)
     }
 }

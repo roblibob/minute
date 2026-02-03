@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class WhisperTranscriptNormalizerTests: XCTestCase {
-    func testNormalizeWhisperOutput_stripsNoiseAndCollapsesBlankLines() {
+struct WhisperTranscriptNormalizerTests {
+    @Test
+    func normalizeWhisperOutput_stripsNoiseAndCollapsesBlankLines() {
         let raw = """
         \u{001B}[32m[ 12%]\u{001B}[0m
         system_info: n_threads = 8
@@ -17,6 +19,6 @@ final class WhisperTranscriptNormalizerTests: XCTestCase {
 
         let normalized = TranscriptNormalizer.normalizeWhisperOutput(raw)
 
-        XCTAssertEqual(normalized, "Hello world.\n\nThis is a test.")
+        expectEqual(normalized, "Hello world.\n\nThis is a test.")
     }
 }

@@ -1,9 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 @testable import MinuteCore
 
-final class MeetingPipelineCoordinatorTests: XCTestCase {
-    func testExecute_writesOutputsAndReportsProgress() async throws {
+struct MeetingPipelineCoordinatorTests {
+    @Test
+    func execute_writesOutputsAndReportsProgress() async throws {
         let vaultRootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: vaultRootURL) }
 
@@ -24,30 +25,31 @@ final class MeetingPipelineCoordinatorTests: XCTestCase {
             }
         )
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: result.noteURL.path))
-        XCTAssertNotNil(result.audioURL)
+        #expect(FileManager.default.fileExists(atPath: result.noteURL.path))
+        #expect(result.audioURL != nil)
         if let audioURL = result.audioURL {
-            XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+            #expect(FileManager.default.fileExists(atPath: audioURL.path))
         }
 
         let contract = MeetingFileContract(folders: context.vaultFolders)
         let transcriptRelativePath = contract.transcriptRelativePath(date: context.startedAt, title: "Weekly Sync")
         let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: transcriptURL.path))
+        #expect(FileManager.default.fileExists(atPath: transcriptURL.path))
 
         let noteContents = try String(contentsOf: result.noteURL)
         let expectedDate = MeetingNoteDateFormatter.format(processedAt)
-        XCTAssertTrue(noteContents.contains("date: \(expectedDate)"))
-        XCTAssertFalse(noteContents.contains("date: 2025-01-12"))
+        #expect(noteContents.contains("date: \(expectedDate)"))
+        #expect(!noteContents.contains("date: 2025-01-12"))
 
         let snapshot = progressStore.snapshot()
-        XCTAssertTrue(
+        #expect(
             stages(snapshot.stages, containInOrder: [.downloadingModels, .transcribing, .summarizing, .writing])
         )
-        XCTAssertNotNil(snapshot.writingExtraction)
+        #expect(snapshot.writingExtraction != nil)
     }
 
-    func testExecute_invalidJSON_usesFallbackExtraction() async throws {
+    @Test
+    func execute_invalidJSON_usesFallbackExtraction() async throws {
         let vaultRootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: vaultRootURL) }
 
@@ -62,14 +64,15 @@ final class MeetingPipelineCoordinatorTests: XCTestCase {
 
         let result = try await coordinator.execute(context: context)
 
-        XCTAssertTrue(result.noteURL.lastPathComponent.contains("Untitled"))
-        XCTAssertNil(result.audioURL)
+        #expect(result.noteURL.lastPathComponent.contains("Untitled"))
+        #expect(result.audioURL == nil)
 
         let noteContents = try String(contentsOf: result.noteURL)
-        XCTAssertTrue(noteContents.contains("Failed to structure output"))
+        #expect(noteContents.contains("Failed to structure output"))
     }
 
-    func testExecute_usesTranscriptionOverride() async throws {
+    @Test
+    func execute_usesTranscriptionOverride() async throws {
         let vaultRootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: vaultRootURL) }
 
@@ -91,7 +94,7 @@ final class MeetingPipelineCoordinatorTests: XCTestCase {
         let transcriptRelativePath = contract.transcriptRelativePath(date: context.startedAt, title: "Weekly Sync")
         let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
         let transcriptContents = try String(contentsOf: transcriptURL)
-        XCTAssertTrue(transcriptContents.contains("Live transcript"))
+        #expect(transcriptContents.contains("Live transcript"))
     }
 }
 

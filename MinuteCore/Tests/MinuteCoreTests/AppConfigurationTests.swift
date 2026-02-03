@@ -1,32 +1,35 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class AppConfigurationTests: XCTestCase {
-    func testDefaults_useFallbacksWhenUnset() {
+struct AppConfigurationTests {
+    @Test
+    func defaults_useFallbacksWhenUnset() {
         let defaults = makeDefaults()
         let configuration = AppConfiguration(defaults: defaults)
 
-        XCTAssertEqual(configuration.meetingsRelativePath, AppConfiguration.Defaults.defaultMeetingsRelativePath)
-        XCTAssertEqual(configuration.audioRelativePath, AppConfiguration.Defaults.defaultAudioRelativePath)
-        XCTAssertEqual(configuration.transcriptsRelativePath, AppConfiguration.Defaults.defaultTranscriptsRelativePath)
-        XCTAssertEqual(configuration.saveAudio, AppConfiguration.Defaults.defaultSaveAudio)
-        XCTAssertEqual(configuration.saveTranscript, AppConfiguration.Defaults.defaultSaveTranscript)
-        XCTAssertEqual(configuration.screenContextEnabled, AppConfiguration.Defaults.defaultScreenContextEnabled)
-        XCTAssertEqual(
+        expectEqual(configuration.meetingsRelativePath, AppConfiguration.Defaults.defaultMeetingsRelativePath)
+        expectEqual(configuration.audioRelativePath, AppConfiguration.Defaults.defaultAudioRelativePath)
+        expectEqual(configuration.transcriptsRelativePath, AppConfiguration.Defaults.defaultTranscriptsRelativePath)
+        expectEqual(configuration.saveAudio, AppConfiguration.Defaults.defaultSaveAudio)
+        expectEqual(configuration.saveTranscript, AppConfiguration.Defaults.defaultSaveTranscript)
+        expectEqual(configuration.screenContextEnabled, AppConfiguration.Defaults.defaultScreenContextEnabled)
+        expectEqual(
             configuration.screenContextVideoImportEnabled,
             AppConfiguration.Defaults.defaultScreenContextVideoImportEnabled
         )
-        XCTAssertEqual(
+        expectEqual(
             configuration.screenContextCaptureIntervalSeconds,
             AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
         )
-        XCTAssertEqual(
+        expectEqual(
             configuration.micActivityNotificationsEnabled,
             AppConfiguration.Defaults.defaultMicActivityNotificationsEnabled
         )
     }
 
-    func testDefaults_normalizesEmptyRelativePaths() {
+    @Test
+    func defaults_normalizesEmptyRelativePaths() {
         let defaults = makeDefaults()
         defaults.set("  ", forKey: AppConfiguration.Defaults.meetingsRelativePathKey)
         defaults.set("\n", forKey: AppConfiguration.Defaults.audioRelativePathKey)
@@ -34,30 +37,32 @@ final class AppConfigurationTests: XCTestCase {
 
         let configuration = AppConfiguration(defaults: defaults)
 
-        XCTAssertEqual(configuration.meetingsRelativePath, AppConfiguration.Defaults.defaultMeetingsRelativePath)
-        XCTAssertEqual(configuration.audioRelativePath, AppConfiguration.Defaults.defaultAudioRelativePath)
-        XCTAssertEqual(configuration.transcriptsRelativePath, AppConfiguration.Defaults.defaultTranscriptsRelativePath)
+        expectEqual(configuration.meetingsRelativePath, AppConfiguration.Defaults.defaultMeetingsRelativePath)
+        expectEqual(configuration.audioRelativePath, AppConfiguration.Defaults.defaultAudioRelativePath)
+        expectEqual(configuration.transcriptsRelativePath, AppConfiguration.Defaults.defaultTranscriptsRelativePath)
     }
 
-    func testDefaults_rejectsNonPositiveCaptureInterval() {
+    @Test
+    func defaults_rejectsNonPositiveCaptureInterval() {
         let defaults = makeDefaults()
         defaults.set(0.0, forKey: AppConfiguration.Defaults.screenContextCaptureIntervalSecondsKey)
 
         let configuration = AppConfiguration(defaults: defaults)
 
-        XCTAssertEqual(
+        expectEqual(
             configuration.screenContextCaptureIntervalSeconds,
             AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
         )
     }
 
-    func testDefaults_readsMicActivityNotificationsEnabled() {
+    @Test
+    func defaults_readsMicActivityNotificationsEnabled() {
         let defaults = makeDefaults()
         defaults.set(false, forKey: AppConfiguration.Defaults.micActivityNotificationsEnabledKey)
 
         let configuration = AppConfiguration(defaults: defaults)
 
-        XCTAssertEqual(configuration.micActivityNotificationsEnabled, false)
+        expectEqual(configuration.micActivityNotificationsEnabled, false)
     }
 
     private func makeDefaults() -> UserDefaults {

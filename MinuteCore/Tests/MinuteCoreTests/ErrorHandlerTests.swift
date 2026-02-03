@@ -1,31 +1,36 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class ErrorHandlerTests: XCTestCase {
+struct ErrorHandlerTests {
     private struct SampleError: Error {}
 
-    func testUserMessage_prefersMinuteErrorDescription() {
+    @Test
+    func userMessage_prefersMinuteErrorDescription() {
         let message = ErrorHandler.userMessage(for: MinuteError.whisperMissing, fallback: "Fallback")
-        XCTAssertEqual(message, "Transcription component is missing.")
+        expectEqual(message, "Transcription component is missing.")
     }
 
-    func testUserMessage_usesFallbackForUnknownError() {
+    @Test
+    func userMessage_usesFallbackForUnknownError() {
         let message = ErrorHandler.userMessage(for: SampleError(), fallback: "Something went wrong.")
-        XCTAssertEqual(message, "Something went wrong.")
+        expectEqual(message, "Something went wrong.")
     }
 
-    func testDebugMessage_prefersMinuteErrorSummary() {
+    @Test
+    func debugMessage_prefersMinuteErrorSummary() {
         let message = ErrorHandler.debugMessage(
             for: MinuteError.whisperFailed(exitCode: 1, output: "stderr")
         )
-        XCTAssertEqual(message, "whisper failed (exitCode=1)\nstderr")
+        expectEqual(message, "whisper failed (exitCode=1)\nstderr")
     }
 
-    func testMinuteError_returnsFallbackForUnknownError() {
+    @Test
+    func minuteError_returnsFallbackForUnknownError() {
         let minuteError = ErrorHandler.minuteError(for: SampleError(), fallback: .vaultWriteFailed)
         if case .vaultWriteFailed = minuteError {
             return
         }
-        XCTFail("Expected fallback MinuteError.vaultWriteFailed")
+        #expect(false)
     }
 }

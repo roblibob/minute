@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class MeetingFileContractTests: XCTestCase {
-    func testPaths_useExpectedFoldersAndFormat() {
+struct MeetingFileContractTests {
+    @Test
+    func paths_useExpectedFoldersAndFormat() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
 
@@ -16,16 +18,17 @@ final class MeetingFileContractTests: XCTestCase {
         )
 
         let note = contract.noteRelativePath(date: date, title: "Weekly Sync", calendar: calendar)
-        XCTAssertEqual(note, "Meetings/2025/12/2025-12-19 09.30 - Weekly Sync.md")
+        expectEqual(note, "Meetings/2025/12/2025-12-19 09.30 - Weekly Sync.md")
 
         let audio = contract.audioRelativePath(date: date, title: "Weekly Sync", calendar: calendar)
-        XCTAssertEqual(audio, "Meetings/_audio/2025-12-19 09.30 - Weekly Sync.wav")
+        expectEqual(audio, "Meetings/_audio/2025-12-19 09.30 - Weekly Sync.wav")
 
         let transcript = contract.transcriptRelativePath(date: date, title: "Weekly Sync", calendar: calendar)
-        XCTAssertEqual(transcript, "Meetings/_transcripts/2025-12-19 09.30 - Weekly Sync.md")
+        expectEqual(transcript, "Meetings/_transcripts/2025-12-19 09.30 - Weekly Sync.md")
     }
 
-    func testPaths_sanitizeTitle() {
+    @Test
+    func paths_sanitizeTitle() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
 
@@ -33,6 +36,6 @@ final class MeetingFileContractTests: XCTestCase {
         let contract = MeetingFileContract()
 
         let audio = contract.audioRelativePath(date: date, title: "A/B:C", calendar: calendar)
-        XCTAssertEqual(audio, "Meetings/_audio/2025-01-02 07.05 - A B C.wav")
+        expectEqual(audio, "Meetings/_audio/2025-01-02 07.05 - A B C.wav")
     }
 }

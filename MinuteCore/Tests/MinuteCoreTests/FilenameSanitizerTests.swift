@@ -1,24 +1,29 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class FilenameSanitizerTests: XCTestCase {
-    func testSanitizeTitle_whenEmpty_returnsUntitled() {
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle(""), "Untitled")
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle("   \n  "), "Untitled")
+struct FilenameSanitizerTests {
+    @Test
+    func sanitizeTitle_whenEmpty_returnsUntitled() {
+        expectEqual(FilenameSanitizer.sanitizeTitle(""), "Untitled")
+        expectEqual(FilenameSanitizer.sanitizeTitle("   \n  "), "Untitled")
     }
 
-    func testSanitizeTitle_removesPathSeparatorsAndForbiddenCharacters() {
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle("A/B:C"), "A B C")
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle("Hello\\World"), "Hello World")
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle("What?*\"<>|"), "What")
+    @Test
+    func sanitizeTitle_removesPathSeparatorsAndForbiddenCharacters() {
+        expectEqual(FilenameSanitizer.sanitizeTitle("A/B:C"), "A B C")
+        expectEqual(FilenameSanitizer.sanitizeTitle("Hello\\World"), "Hello World")
+        expectEqual(FilenameSanitizer.sanitizeTitle("What?*\"<>|"), "What")
     }
 
-    func testSanitizeTitle_collapsesWhitespace() {
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle("  Hello   world  "), "Hello world")
+    @Test
+    func sanitizeTitle_collapsesWhitespace() {
+        expectEqual(FilenameSanitizer.sanitizeTitle("  Hello   world  "), "Hello world")
     }
 
-    func testSanitizeTitle_preventsDotSegments() {
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle("."), "Untitled")
-        XCTAssertEqual(FilenameSanitizer.sanitizeTitle(".."), "Untitled")
+    @Test
+    func sanitizeTitle_preventsDotSegments() {
+        expectEqual(FilenameSanitizer.sanitizeTitle("."), "Untitled")
+        expectEqual(FilenameSanitizer.sanitizeTitle(".."), "Untitled")
     }
 }

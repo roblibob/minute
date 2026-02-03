@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class MarkdownRendererEscapingTests: XCTestCase {
-    func testTitle_isDoubleQuotedAndEscapedInYAML_andNormalizedInHeader() {
+struct MarkdownRendererEscapingTests {
+    @Test
+    func title_isDoubleQuotedAndEscapedInYAML_andNormalizedInHeader() {
         let extraction = MeetingExtraction(
             title: "He said \"Hello\\World\"\nNext",
             date: "2025-12-19",
@@ -22,10 +24,7 @@ final class MarkdownRendererEscapingTests: XCTestCase {
             transcriptRelativePath: nil
         )
 
-        // YAML must be double-quoted and escaped.
-        XCTAssertTrue(markdown.contains("title: \"He said \\\"Hello\\\\World\\\" Next\"\n"))
-
-        // Header title is normalized to a single line.
-        XCTAssertTrue(markdown.contains("# He said \"Hello\\World\" Next\n"))
+        #expect(markdown.contains("title: \"He said \\\"Hello\\\\World\\\" Next\"\n"))
+        #expect(markdown.contains("# He said \"Hello\\World\" Next\n"))
     }
 }

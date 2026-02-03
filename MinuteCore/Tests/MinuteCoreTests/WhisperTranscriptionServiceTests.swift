@@ -1,8 +1,8 @@
 import Foundation
-import XCTest
+import Testing
 @testable import MinuteCore
 
-final class WhisperTranscriptionServiceTests: XCTestCase {
+struct WhisperTranscriptionServiceTests {
     private struct MockProcessRunner: ProcessRunning {
         var handler: @Sendable (URL, [String]) async throws -> ProcessResult
 
@@ -17,7 +17,8 @@ final class WhisperTranscriptionServiceTests: XCTestCase {
         }
     }
 
-    func testTranscribe_whenExitCodeZero_returnsNormalizedTranscript() async throws {
+    @Test
+    func transcribe_whenExitCodeZero_returnsNormalizedTranscript() async throws {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -46,10 +47,11 @@ final class WhisperTranscriptionServiceTests: XCTestCase {
         )
 
         let result = try await service.transcribe(wavURL: wav)
-        XCTAssertEqual(result.text, "Hello world.\n\nThis is a test.")
+        expectEqual(result.text, "Hello world.\n\nThis is a test.")
     }
 
-    func testTranscribe_whenNonZeroExitCode_throwsWhisperFailedIncludingOutput() async {
+    @Test
+    func transcribe_whenNonZeroExitCode_throwsWhisperFailedIncludingOutput() async {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -75,21 +77,22 @@ final class WhisperTranscriptionServiceTests: XCTestCase {
 
         do {
             _ = try await service.transcribe(wavURL: wav)
-            XCTFail("Expected error")
+            #expect(false)
         } catch let error as MinuteError {
             switch error {
             case .whisperFailed(let exitCode, let output):
-                XCTAssertEqual(exitCode, 2)
-                XCTAssertTrue(output.contains("boom"))
+                expectEqual(exitCode, 2)
+                #expect(output.contains("boom"))
             default:
-                XCTFail("Unexpected error: \(error)")
+                #expect(false)
             }
         } catch {
-            XCTFail("Unexpected error: \(error)")
+            #expect(false)
         }
     }
 
-    func testTranscribe_whenExecutableMissing_throwsWhisperMissing() async {
+    @Test
+    func transcribe_whenExecutableMissing_throwsWhisperMissing() async {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -104,7 +107,7 @@ final class WhisperTranscriptionServiceTests: XCTestCase {
         FileManager.default.createFile(atPath: wav.path, contents: Data([0x00]))
 
         let runner = MockProcessRunner { _, _ in
-            XCTFail("Runner should not be invoked")
+            #expect(false)
             return ProcessResult(exitCode: 0, stdout: "", stderr: "")
         }
 
@@ -115,18 +118,19 @@ final class WhisperTranscriptionServiceTests: XCTestCase {
 
         do {
             _ = try await service.transcribe(wavURL: wav)
-            XCTFail("Expected error")
+            #expect(false)
         } catch let error as MinuteError {
             guard case .whisperMissing = error else {
-                XCTFail("Unexpected error: \(error)")
+                #expect(false)
                 return
             }
         } catch {
-            XCTFail("Unexpected error: \(error)")
+            #expect(false)
         }
     }
 
-    func testTranscribe_whenModelMissing_throwsModelMissing() async {
+    @Test
+    func transcribe_whenModelMissing_throwsModelMissing() async {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -142,7 +146,7 @@ final class WhisperTranscriptionServiceTests: XCTestCase {
         FileManager.default.createFile(atPath: wav.path, contents: Data([0x00]))
 
         let runner = MockProcessRunner { _, _ in
-            XCTFail("Runner should not be invoked")
+            #expect(false)
             return ProcessResult(exitCode: 0, stdout: "", stderr: "")
         }
 
@@ -153,14 +157,14 @@ final class WhisperTranscriptionServiceTests: XCTestCase {
 
         do {
             _ = try await service.transcribe(wavURL: wav)
-            XCTFail("Expected error")
+            #expect(false)
         } catch let error as MinuteError {
             guard case .modelMissing = error else {
-                XCTFail("Unexpected error: \(error)")
+                #expect(false)
                 return
             }
         } catch {
-            XCTFail("Unexpected error: \(error)")
+            #expect(false)
         }
     }
 }

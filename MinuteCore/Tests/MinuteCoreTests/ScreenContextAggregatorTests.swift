@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class ScreenContextAggregatorTests: XCTestCase {
-    func testSummarizeExtractsAgendaAndParticipants() {
+struct ScreenContextAggregatorTests {
+    @Test
+    func summarizeExtractsAgendaAndParticipants() {
         let snapshot = ScreenContextSnapshot(
             capturedAt: Date(),
             windowTitle: "Teams",
@@ -19,12 +21,13 @@ final class ScreenContextAggregatorTests: XCTestCase {
 
         let summary = ScreenContextAggregator.summarize(snapshots: [snapshot])
 
-        XCTAssertEqual(summary.agendaItems, ["Intro", "Roadmap"])
-        XCTAssertEqual(summary.participantCount, 3)
-        XCTAssertEqual(summary.participantNames, ["Alice Johnson", "Bob Smith", "Carol Lee"])
+        expectEqual(summary.agendaItems, ["Intro", "Roadmap"])
+        expectEqual(summary.participantCount, 3)
+        expectEqual(summary.participantNames, ["Alice Johnson", "Bob Smith", "Carol Lee"])
     }
 
-    func testSummarizeRedactsEmails() {
+    @Test
+    func summarizeRedactsEmails() {
         let snapshot = ScreenContextSnapshot(
             capturedAt: Date(),
             windowTitle: "Slack",
@@ -36,7 +39,7 @@ final class ScreenContextAggregatorTests: XCTestCase {
         let summary = ScreenContextAggregator.summarize(snapshots: [snapshot])
         let artifact = summary.sharedArtifacts.first ?? ""
 
-        XCTAssertTrue(artifact.contains("[redacted]"))
-        XCTAssertFalse(artifact.contains("alice@example.com"))
+        #expect(artifact.contains("[redacted]"))
+        #expect(!artifact.contains("alice@example.com"))
     }
 }

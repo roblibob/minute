@@ -1,11 +1,12 @@
 @preconcurrency import AVFoundation
 import Foundation
-import XCTest
+import Testing
 
 @testable import MinuteCore
 
-final class ContractWavPCMReaderTests: XCTestCase {
-    func testReadPCM16Mono_readsSamplesFromContractWav() async throws {
+struct ContractWavPCMReaderTests {
+    @Test
+    func readPCM16Mono_readsSamplesFromContractWav() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("minute-wav-read-test-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -32,7 +33,7 @@ final class ContractWavPCMReaderTests: XCTestCase {
             let inputFormat = inputFile.processingFormat
 
             guard let buffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: frameCount) else {
-                XCTFail("Failed to create buffer")
+                #expect(false)
                 return
             }
 
@@ -44,12 +45,12 @@ final class ContractWavPCMReaderTests: XCTestCase {
             if inputFormat.isInterleaved {
                 let audioBufferList = buffer.audioBufferList.pointee
                 guard audioBufferList.mNumberBuffers == 1 else {
-                    XCTFail("Expected 1 interleaved buffer")
+                    #expect(false)
                     return
                 }
 
                 guard let mData = audioBufferList.mBuffers.mData else {
-                    XCTFail("Missing interleaved buffer data")
+                    #expect(false)
                     return
                 }
 
@@ -62,7 +63,7 @@ final class ContractWavPCMReaderTests: XCTestCase {
                 }
             } else {
                 guard let ch0 = buffer.floatChannelData?[0] else {
-                    XCTFail("Missing float channel data")
+                    #expect(false)
                     return
                 }
 
@@ -80,12 +81,12 @@ final class ContractWavPCMReaderTests: XCTestCase {
         try ContractWavVerifier.verifyContractWav(at: outputURL)
 
         let pcm = try ContractWavPCMReader.readPCM16Mono(at: outputURL)
-        XCTAssertEqual(pcm.sampleRate, 16_000)
-        XCTAssert(pcm.samples.count > 1_000)
+        expectEqual(pcm.sampleRate, 16_000)
+        #expect(pcm.samples.count > 1_000)
 
         let floats = pcm.asFloat32()
-        XCTAssertEqual(floats.count, pcm.samples.count)
-        XCTAssert(floats.allSatisfy { $0 >= -1.0 && $0 <= 1.0 })
-        XCTAssert(floats.contains(where: { abs($0) > 0.01 }))
+        expectEqual(floats.count, pcm.samples.count)
+        #expect(floats.allSatisfy { $0 >= -1.0 && $0 <= 1.0 })
+        #expect(floats.contains(where: { abs($0) > 0.01 }))
     }
 }

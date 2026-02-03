@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class LiveTranscriptionSessionTests: XCTestCase {
-    func testFinishReturnsLiveTranscriptSegments() async {
+struct LiveTranscriptionSessionTests {
+    @Test
+    func finishReturnsLiveTranscriptSegments() async {
         let service = StubLiveTranscriptionService(text: "Hello live")
         let session = LiveTranscriptionSession(
             service: service,
@@ -18,11 +20,12 @@ final class LiveTranscriptionSessionTests: XCTestCase {
         await session.append(samples: samples, endTimeSeconds: 1.0)
         let result = await session.finish(endTimeSeconds: 1.0)
 
-        XCTAssertEqual(result.text, "Hello live")
-        XCTAssertEqual(result.segments.count, 1)
+        expectEqual(result.text, "Hello live")
+        expectEqual(result.segments.count, 1)
     }
 
-    func testTickerTextReturnsRecentTranscript() async {
+    @Test
+    func tickerTextReturnsRecentTranscript() async {
         let service = StubLiveTranscriptionService(text: "Rolling update")
         let session = LiveTranscriptionSession(
             service: service,
@@ -38,7 +41,7 @@ final class LiveTranscriptionSessionTests: XCTestCase {
         await session.append(samples: samples, endTimeSeconds: 1.0)
 
         let ticker = await session.tickerText(maxLength: 32)
-        XCTAssertEqual(ticker, "Rolling update")
+        expectEqual(ticker, "Rolling update")
     }
 }
 

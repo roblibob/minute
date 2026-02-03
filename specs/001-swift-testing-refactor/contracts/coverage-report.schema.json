@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CoverageReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["overallCoveragePercent", "criticalPathCoveragePercent", "generatedAt"],
+  "properties": {
+    "overallCoveragePercent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "criticalPathCoveragePercent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

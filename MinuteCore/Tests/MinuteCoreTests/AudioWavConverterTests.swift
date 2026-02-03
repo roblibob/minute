@@ -1,11 +1,12 @@
 @preconcurrency import AVFoundation
 import Foundation
-import XCTest
+import Testing
 
 @testable import MinuteCore
 
-final class AudioWavConverterTests: XCTestCase {
-    func test_convertToContractWav_producesMono16kInt16Wav() async throws {
+struct AudioWavConverterTests {
+    @Test
+    func convertToContractWav_producesMono16kInt16Wav() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("minute-audio-test-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -33,7 +34,7 @@ final class AudioWavConverterTests: XCTestCase {
             let inputFormat = inputFile.processingFormat
 
             guard let buffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: frameCount) else {
-                XCTFail("Failed to create buffer")
+                #expect(false)
                 return
             }
 
@@ -46,12 +47,12 @@ final class AudioWavConverterTests: XCTestCase {
                 // One buffer containing LRLRLR...
                 let audioBufferList = buffer.audioBufferList.pointee
                 guard audioBufferList.mNumberBuffers == 1 else {
-                    XCTFail("Expected 1 interleaved buffer")
+                    #expect(false)
                     return
                 }
 
                 guard let mData = audioBufferList.mBuffers.mData else {
-                    XCTFail("Missing interleaved buffer data")
+                    #expect(false)
                     return
                 }
 
@@ -69,7 +70,7 @@ final class AudioWavConverterTests: XCTestCase {
             } else {
                 // Non-interleaved: one buffer per channel.
                 guard let ch0 = buffer.floatChannelData?[0], let ch1 = buffer.floatChannelData?[1] else {
-                    XCTFail("Missing float channel data")
+                    #expect(false)
                     return
                 }
 
@@ -88,11 +89,11 @@ final class AudioWavConverterTests: XCTestCase {
         do {
             let readFile = try AVAudioFile(forReading: inputURL)
             guard let sanityBuffer = AVAudioPCMBuffer(pcmFormat: readFile.processingFormat, frameCapacity: 1024) else {
-                XCTFail("Failed to create sanity buffer")
+                #expect(false)
                 return
             }
             try readFile.read(into: sanityBuffer)
-            XCTAssert(sanityBuffer.frameLength > 0, "Expected readable input audio")
+            #expect(sanityBuffer.frameLength > 0)
         }
 
         // Convert.
@@ -103,6 +104,6 @@ final class AudioWavConverterTests: XCTestCase {
 
         // Duration should be ~1 second.
         let duration = try ContractWavVerifier.durationSeconds(ofContractWavAt: outputURL)
-        XCTAssert(duration > 0.9 && duration < 1.1, "Expected ~1s duration, got \(duration)")
+        #expect(duration > 0.9 && duration < 1.1)
     }
 }

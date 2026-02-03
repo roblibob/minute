@@ -1,26 +1,29 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class LiveAudioTranscriptionQueueTests: XCTestCase {
-    func testDropsOldestChunksWhenLagExceeded() {
+struct LiveAudioTranscriptionQueueTests {
+    @Test
+    func dropsOldestChunksWhenLagExceeded() {
         var queue = LiveAudioTranscriptionQueue(maxLagSamples: 2_000)
 
         queue.enqueue(LiveAudioTranscriptionChunk(samples: Array(repeating: 0, count: 1_000), endTimeSeconds: 1))
         queue.enqueue(LiveAudioTranscriptionChunk(samples: Array(repeating: 0, count: 1_000), endTimeSeconds: 2))
         queue.enqueue(LiveAudioTranscriptionChunk(samples: Array(repeating: 0, count: 1_000), endTimeSeconds: 3))
 
-        XCTAssertEqual(queue.pendingSamples, 2_000)
-        XCTAssertNotNil(queue.pop())
-        XCTAssertNotNil(queue.pop())
-        XCTAssertNil(queue.pop())
+        expectEqual(queue.pendingSamples, 2_000)
+        #expect(queue.pop() != nil)
+        #expect(queue.pop() != nil)
+        #expect(queue.pop() == nil)
     }
 
-    func testKeepsSingleChunkEvenIfItExceedsLag() {
+    @Test
+    func keepsSingleChunkEvenIfItExceedsLag() {
         var queue = LiveAudioTranscriptionQueue(maxLagSamples: 1_000)
         queue.enqueue(LiveAudioTranscriptionChunk(samples: Array(repeating: 0, count: 1_500), endTimeSeconds: 1))
 
-        XCTAssertEqual(queue.pendingSamples, 1_500)
-        XCTAssertNotNil(queue.pop())
-        XCTAssertNil(queue.pop())
+        expectEqual(queue.pendingSamples, 1_500)
+        #expect(queue.pop() != nil)
+        #expect(queue.pop() == nil)
     }
 }

@@ -1,11 +1,12 @@
 @preconcurrency import AVFoundation
 import Foundation
-import XCTest
+import Testing
 
 @testable import MinuteCore
 
-final class RecordingRecoveryServiceTests: XCTestCase {
-    func test_findRecoverableRecordings_usesMarkerStartDate() async throws {
+struct RecordingRecoveryServiceTests {
+    @Test
+    func findRecoverableRecordings_usesMarkerStartDate() async throws {
         let tempRoot = FileManager.default.temporaryDirectory
         let sessionURL = tempRoot.appendingPathComponent("minute-capture-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: sessionURL, withIntermediateDirectories: true)
@@ -25,18 +26,22 @@ final class RecordingRecoveryServiceTests: XCTestCase {
         let service = DefaultRecordingRecoveryService()
         let recordings = await service.findRecoverableRecordings()
 
-        guard let found = recordings.first(where: { $0.sessionURL == sessionURL }) else {
-            XCTFail("Expected to find recovery session")
+        let expectedPath = sessionURL.standardizedFileURL.path
+        guard let found = recordings.first(where: { $0.sessionURL.standardizedFileURL.path == expectedPath }) else {
+            #expect(false)
             return
         }
 
-        XCTAssertEqual(found.startedAt.timeIntervalSince1970, startedAt.timeIntervalSince1970, accuracy: 1)
-        XCTAssertEqual(found.captureURL, captureURL)
-        XCTAssertEqual(found.microphoneEnabled, true)
-        XCTAssertEqual(found.systemAudioEnabled, false)
+        #expect(abs(found.startedAt.timeIntervalSince1970 - startedAt.timeIntervalSince1970) <= 1)
+        let foundCapturePath = found.captureURL?.resolvingSymlinksInPath().path
+        let expectedCapturePath = captureURL.resolvingSymlinksInPath().path
+        expectEqual(foundCapturePath, expectedCapturePath)
+        expectEqual(found.microphoneEnabled, true)
+        expectEqual(found.systemAudioEnabled, false)
     }
 
-    func test_recover_createsContractWavFromCapture() async throws {
+    @Test
+    func recover_createsContractWavFromCapture() async throws {
         let tempRoot = FileManager.default.temporaryDirectory
         let sessionURL = tempRoot.appendingPathComponent("minute-capture-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: sessionURL, withIntermediateDirectories: true)
@@ -68,9 +73,9 @@ final class RecordingRecoveryServiceTests: XCTestCase {
         let result = try await service.recover(recording: recording)
 
         try ContractWavVerifier.verifyContractWav(at: result.wavURL)
-        XCTAssert(result.duration > 0.9 && result.duration < 1.1, "Expected ~1s duration, got \(result.duration)")
-        XCTAssertEqual(result.startedAt, startedAt)
-        XCTAssertEqual(result.stoppedAt, startedAt.addingTimeInterval(result.duration))
+        #expect(result.duration > 0.9 && result.duration < 1.1)
+        expectEqual(result.startedAt, startedAt)
+        expectEqual(result.stoppedAt, startedAt.addingTimeInterval(result.duration))
     }
 
     private func writeTestCapture(to url: URL, durationSeconds: Double) throws {

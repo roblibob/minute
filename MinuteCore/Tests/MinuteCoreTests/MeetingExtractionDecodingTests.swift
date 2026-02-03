@@ -1,8 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import MinuteCore
 
-final class MeetingExtractionDecodingTests: XCTestCase {
-    func testDecoding_matchesFixedSchemaKeys() throws {
+struct MeetingExtractionDecodingTests {
+    @Test
+    func decoding_matchesFixedSchemaKeys() throws {
         let json = #"""
         {
           "title": "Weekly Sync",
@@ -18,12 +20,12 @@ final class MeetingExtractionDecodingTests: XCTestCase {
         let data = Data(json.utf8)
         let extraction = try JSONDecoder().decode(MeetingExtraction.self, from: data)
 
-        XCTAssertEqual(extraction.title, "Weekly Sync")
-        XCTAssertEqual(extraction.date, "2025-12-19")
-        XCTAssertEqual(extraction.summary, "We aligned on next steps.")
-        XCTAssertEqual(extraction.decisions, ["Ship v1"])
-        XCTAssertEqual(extraction.actionItems, [ActionItem(owner: "Alex", task: "Draft release notes")])
-        XCTAssertEqual(extraction.openQuestions, ["Do we need ffmpeg?"])
-        XCTAssertEqual(extraction.keyPoints, ["Local-only processing"])
+        expectEqual(extraction.title, "Weekly Sync")
+        expectEqual(extraction.date, "2025-12-19")
+        expectEqual(extraction.summary, "We aligned on next steps.")
+        expectEqual(extraction.decisions, ["Ship v1"])
+        expectEqual(extraction.actionItems, [ActionItem(owner: "Alex", task: "Draft release notes")])
+        expectEqual(extraction.openQuestions, ["Do we need ffmpeg?"])
+        expectEqual(extraction.keyPoints, ["Local-only processing"])
     }
 }

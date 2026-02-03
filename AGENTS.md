@@ -139,3 +139,10 @@ If CI is added, prefer using `xcodebuild` so it matches local behavior.
   - Validate sandbox + security-scoped bookmark flows
   - Validate that only model downloads touch the network
   - Follow `docs/releasing.md` for notarization, appcast, and Homebrew updates
+
+## Active Technologies
+- Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore, (001-swift-testing-refactor)
+- Files (Obsidian vault output, app support directories) (001-swift-testing-refactor)
+
+## Recent Changes
+- 001-swift-testing-refactor: Added Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore,
