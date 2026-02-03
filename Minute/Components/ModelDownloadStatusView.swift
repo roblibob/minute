@@ -39,7 +39,8 @@ struct ModelDownloadStatusView: View {
                 Button(buttonTitle) {
                     action()
                 }
-                .minuteStandardButtonStyle()
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
                 .disabled(!buttonEnabled)
 
                 Spacer()

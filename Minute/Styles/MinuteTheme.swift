@@ -2,6 +2,9 @@ import AppKit
 import SwiftUI
 
 enum MinuteTheme {
+    static let windowBackground = Color(nsColor: NSColor.windowBackgroundColor)
+    static let sidebarBackground = Color(nsColor: NSColor.controlBackgroundColor)
+
     static let backgroundGradient = LinearGradient(
         colors: [
             Color.minuteMidnight,
@@ -78,6 +81,7 @@ extension Color {
     static let minuteWaveMid = Color(red: 0.62, green: 0.38, blue: 0.96)
     static let minuteWaveEnd = Color(red: 0.46, green: 0.55, blue: 0.98)
     static let minuteGlow = Color(red: 0.72, green: 0.46, blue: 0.96)
+    static let minuteAccent = Color(nsColor: NSColor.controlAccentColor)
 
     private static func dynamicColor(
         name: String,

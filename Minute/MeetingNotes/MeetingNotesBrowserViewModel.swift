@@ -231,6 +231,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
     private func loadTranscriptIfNeeded() {
         guard let item = selectedItem else { return }
+        guard item.hasTranscript else { return }
         guard transcriptContent == nil, transcriptErrorMessage == nil, !isLoadingTranscript else { return }
         startLoadingTranscript(for: item, force: false)
     }

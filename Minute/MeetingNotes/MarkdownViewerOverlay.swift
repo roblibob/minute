@@ -11,6 +11,7 @@ struct MarkdownViewerOverlay: View {
     var transcriptErrorMessage: String?
     var renderSummaryPlainText: Bool
     var renderTranscriptPlainText: Bool
+    var hasTranscript: Bool
     var selectedTab: MeetingNotePreviewTab
     var onSelectTab: (MeetingNotePreviewTab) -> Void
     var onClose: () -> Void
@@ -21,11 +22,17 @@ struct MarkdownViewerOverlay: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            tabBar
             Rectangle()
-                .fill(Color.white.opacity(0.08))
+                .fill(Color(nsColor: .separatorColor))
                 .frame(height: 1)
             bodyContent
+        }
+        .onChange(of: isTranscriptionAvailable) { _, newValue in
+            if !newValue, selectedTab == .transcription {
+                DispatchQueue.main.async {
+                    onSelectTab(.summary)
+                }
+            }
         }
         .onExitCommand(perform: onClose)
     }
@@ -39,69 +46,70 @@ struct MarkdownViewerOverlay: View {
                 .lineLimit(1)
 
             Spacer()
+            toolbarContent
+        }
+        .padding(16)
+    }
+ 
+    private var toolbarContent: some View {
+        HStack(spacing: 12) {
+            if isTranscriptionAvailable {
+                Button(action: toggleTab) {
+                    Text(toggleTitle)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .help(toggleHelpText)
+            }
 
             if let onOpenInObsidian {
-                Button("Open in Obsidian") {
-                    onOpenInObsidian()
+                Button(action: onOpenInObsidian) {
+                    Image(systemName: "arrow.up.right.square")
                 }
-                .minuteStandardButtonStyle()
+                .buttonStyle(.borderless)
+                .controlSize(.large)
+                .help("Open in Obsidian")
             }
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.minuteTextSecondary)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        Circle()
-                            .fill(Color.minuteSurface)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.minuteOutline, lineWidth: 1)
-                            )
-                    )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
+            .controlSize(.large)
             .accessibilityLabel("Close note preview")
         }
-        .padding(16)
     }
 
-    private var tabBar: some View {
-        HStack(spacing: 6) {
-            ForEach(MeetingNotePreviewTab.allCases) { tab in
-                Button {
-                    onSelectTab(tab)
-                } label: {
-                    Text(tab.title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .tracking(-0.1)
-                        .foregroundStyle(
-                            selectedTab == tab ? Color.minuteTextPrimary : Color.minuteTextSecondary
-                        )
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.plain)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selectedTab == tab ? Color.minuteSurfaceStrong : Color.clear)
-                )
-                .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
-            }
+    private var isTranscriptionAvailable: Bool {
+        if hasTranscript {
+            return true
         }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.minuteSurface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.minuteOutline, lineWidth: 1)
-                )
-        )
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        if isLoadingTranscript {
+            return true
+        }
+        if transcriptContent != nil {
+            return true
+        }
+        if transcriptErrorMessage != nil {
+            return true
+        }
+        return false
+    }
+
+    private var toggleTitle: String {
+        selectedTab == .summary ? "Transcription" : "Summary"
+    }
+
+    private var toggleHelpText: String {
+        selectedTab == .summary ? "Show transcription" : "Show summary"
+    }
+
+    private func toggleTab() {
+        let next: MeetingNotePreviewTab = selectedTab == .summary ? .transcription : .summary
+        DispatchQueue.main.async {
+            onSelectTab(next)
+        }
     }
 
     @ViewBuilder
@@ -220,6 +228,7 @@ struct MarkdownViewerOverlay: View {
         transcriptErrorMessage: nil,
         renderSummaryPlainText: false,
         renderTranscriptPlainText: false,
+        hasTranscript: true,
         selectedTab: .summary,
         onSelectTab: { _ in },
         onClose: {},

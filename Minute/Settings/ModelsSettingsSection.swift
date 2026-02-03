@@ -12,6 +12,8 @@ struct ModelsSettingsSection: View {
                     selection: $model.selectedTranscriptionBackendID
                 )
 
+                Divider()
+
                 if model.isFluidAudioSelected {
                     FluidAudioASRModelPicker(
                         models: model.fluidAudioModels,
@@ -24,10 +26,14 @@ struct ModelsSettingsSection: View {
                     )
                 }
 
+                Divider()
+
                 SummarizationModelPicker(
                     models: model.summarizationModels,
                     selection: $model.selectedSummarizationModelID
                 )
+
+                Divider()
 
                 ModelDownloadStatusView(
                     title: "\(model.selectedTranscriptionBackendDisplayName) + Llama models",
@@ -41,9 +47,6 @@ struct ModelsSettingsSection: View {
                     style: .plain,
                     action: { model.startDownload() }
                 )
-            }
-            .onAppear {
-                model.refresh()
             }
         }
     }

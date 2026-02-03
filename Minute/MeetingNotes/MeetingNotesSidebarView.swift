@@ -27,106 +27,93 @@ struct MeetingNotesSidebarView: View {
     }()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            content
-        }
-        .frame(minWidth: 260, idealWidth: 300, maxWidth: 360, maxHeight: .infinity)
-        .background(Color.minuteMidnightDeep)
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Library")
-                .font(.system(size: 16, weight: .semibold))
-                .tracking(-0.2)
-                .foregroundStyle(Color.minuteTextPrimary)
-
-            Text("Timeline")
-                .minuteFootnote()
-                .textCase(.uppercase)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
+        content
+            .background(MinuteTheme.sidebarBackground)
     }
 
     @ViewBuilder
     private var content: some View {
         if let message = model.sidebarErrorMessage {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(message)
-                    .minuteCaption()
-                    .foregroundStyle(.red)
+            List {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(message)
+                        .minuteCaption()
+                        .foregroundStyle(.red)
 
-                Button("Retry") {
-                    model.refresh()
+                    Button("Retry") {
+                        model.refresh()
+                    }
+                    .minuteStandardButtonStyle()
                 }
-                .minuteStandardButtonStyle()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .listRowBackground(Color.clear)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         } else if model.isRefreshing && model.notes.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                ProgressView()
-                Text("Loading notes…")
-                    .minuteCaption()
+            List {
+                VStack(alignment: .leading, spacing: 8) {
+                    ProgressView()
+                    Text("Loading notes…")
+                        .minuteCaption()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .listRowBackground(Color.clear)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         } else if model.notes.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("No meetings yet.")
-                    .minuteRowTitle()
-                Text("Start a recording to build your second brain.")
-                    .minuteCaption()
+            List {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No meetings yet.")
+                        .minuteRowTitle()
+                    Text("Start a recording to build your second brain.")
+                        .minuteCaption()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .listRowBackground(Color.clear)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    ForEach(timelineSections) { section in
-                        DisclosureGroup(
-                            isExpanded: binding(for: section)
-                        ) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(section.items) { item in
-                                    let preview = model.preview(for: item)
-                                    MeetingNoteCard(
-                                        item: item,
-                                        summaryLine: preview?.summaryLine ?? "No summary yet.",
-                                        timeLabel: timeLabel(for: item),
-                                        durationLabel: durationLabel(for: preview),
-                                        isSelected: model.selectedItem?.id == item.id,
-                                        onSelect: { model.select(item) },
-                                        onDelete: { model.delete(item) }
-                                    )
-                                }
-                            }
-                            .padding(.top, 8)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                        } label: {
-                            HStack(spacing: 8) {
-                                Text(section.title)
-                                    .minuteFootnote()
-                                    .textCase(.uppercase)
-
-                                Text("\(section.items.count)")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(Color.minuteTextMuted)
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    binding(for: section).wrappedValue.toggle()
-                                }
-                            }
+            List {
+                ForEach(timelineSections) { section in
+                    let sectionBinding = binding(for: section)
+                    DisclosureGroup(isExpanded: sectionBinding) {
+                        ForEach(section.items) { item in
+                            let preview = model.preview(for: item)
+                            MeetingNoteRow(
+                                item: item,
+                                summaryLine: preview?.summaryLine ?? "No summary yet.",
+                                timeLabel: timeLabel(for: item),
+                                durationLabel: durationLabel(for: preview),
+                                isSelected: model.selectedItem?.id == item.id,
+                                onSelect: { model.select(item) },
+                                onDelete: { model.delete(item) }
+                            )
+                            .listRowInsets(EdgeInsets(top: 6, leading: 2, bottom: 6, trailing: 8))
                         }
-                        .animation(.easeInOut(duration: 0.2), value: expandedSections)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(section.title)
+                                .minuteFootnote()
+                                .textCase(.uppercase)
+
+                            Text("\(section.items.count)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.minuteTextMuted)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            sectionBinding.wrappedValue.toggle()
+                        }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, 16)
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .animation(.easeInOut(duration: 0.18), value: expandedSections)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .onAppear {
                 updateExpandedSections(with: timelineSections)
             }
@@ -243,7 +230,7 @@ private struct MeetingTimelineSection: Identifiable {
     var id: String { title }
 }
 
-private struct MeetingNoteCard: View {
+private struct MeetingNoteRow: View {
     let item: MeetingNoteItem
     let summaryLine: String
     let timeLabel: String
@@ -254,17 +241,15 @@ private struct MeetingNoteCard: View {
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .tracking(-0.2)
-                    .foregroundStyle(Color.minuteTextPrimary)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
 
                 Text(summaryLine)
-                    .font(.system(size: 12, weight: .medium))
-                    .tracking(-0.1)
-                    .foregroundStyle(Color.minuteTextSecondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
@@ -273,27 +258,15 @@ private struct MeetingNoteCard: View {
                         Text("(\(durationLabel))")
                     }
                 }
-                .font(.system(size: 11, weight: .medium))
-                .tracking(-0.1)
-                .foregroundStyle(Color.minuteTextMuted)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
-            .padding(10)
+            .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .minuteGlassPanel(
-            cornerRadius: 12,
-            fill: isSelected ? Color.minuteGlow.opacity(0.18) : Color.minuteSurface,
-            border: isSelected ? Color.minuteGlow.opacity(0.7) : Color.minuteOutline,
-            shadowOpacity: 0.12
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.minuteGlow.opacity(isSelected ? 0.45 : 0), lineWidth: 1.2)
-        )
-        .padding(.horizontal, 2)
-        .padding(.vertical, 2)
+        .listRowBackground(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
         .contextMenu {
             Button("Rename…") {}
                 .disabled(true)

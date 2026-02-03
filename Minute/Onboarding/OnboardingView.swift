@@ -9,7 +9,11 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 24) {
             OnboardingHeader(stepTitle: stepTitle, stepSubtitle: stepSubtitle)
 
-            stepContent
+            GroupBox {
+                stepContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            }
 
             Spacer(minLength: 0)
 
@@ -155,15 +159,13 @@ private struct OnboardingHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Minute")
-                .font(.largeTitle.bold())
-
             VStack(alignment: .leading, spacing: 8) {
                 Text(stepTitle)
                     .font(.title2.bold())
                 if let stepSubtitle {
                     Text(stepSubtitle)
-                        .minuteRowSubtitle()
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -186,14 +188,16 @@ private struct OnboardingFooter: View {
                     Button("Skip for now") {
                         onSkip()
                     }
-                    .minuteStandardButtonStyle()
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                 }
 
                 Spacer()
                 Button(primaryTitle) {
                     onPrimary()
                 }
-                .minuteStandardButtonStyle()
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .disabled(!primaryEnabled)
             }
         }
@@ -225,17 +229,15 @@ private struct PermissionButtonRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            PermissionStatusRow(
-                title: title,
-                detail: detail,
-                isGranted: isGranted,
-                iconSize: .title2
-            )
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .minuteCardStyle(padding: 12)
-        }
-        .buttonStyle(.plain)
+        PermissionStatusRow(
+            title: title,
+            detail: detail,
+            isGranted: isGranted,
+            actionTitle: "Allow",
+            iconSize: .title2,
+            action: action
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

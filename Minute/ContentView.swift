@@ -5,7 +5,6 @@
 //  Created by Robert Holst on 12/19/25.
 //
 
-import AppKit
 import MinuteCore
 import SwiftUI
 import UniformTypeIdentifiers
@@ -13,33 +12,15 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel
     @StateObject private var onboardingModel = OnboardingViewModel()
-    @State private var allowFocusRings = false
-    @State private var keyDownMonitor: Any?
 
     var body: some View {
         Group {
             contentBody
         }
         .frame(minWidth: 860, minHeight: 620)
-        .background(MinuteTheme.backgroundGradient)
-        .tint(Color.minuteGlow)
-        .focusEffectDisabled(!allowFocusRings)
+        .background(MinuteTheme.windowBackground)
         .onAppear {
             onboardingModel.refreshAll()
-            if keyDownMonitor == nil {
-                keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-                    if event.keyCode == 48 {
-                        allowFocusRings = true
-                    }
-                    return event
-                }
-            }
-        }
-        .onDisappear {
-            if let monitor = keyDownMonitor {
-                NSEvent.removeMonitor(monitor)
-                keyDownMonitor = nil
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .minuteMicActivityShowPipeline)) { _ in
             appState.showPipeline()
@@ -50,7 +31,7 @@ struct ContentView: View {
     private var contentBody: some View {
         if onboardingModel.isComplete {
             ZStack {
-                PipelineContentView(allowFocusRings: allowFocusRings)
+                PipelineContentView()
 
                 if appState.mainContent == .settings {
                     SettingsOverlayView()
@@ -63,7 +44,6 @@ struct ContentView: View {
 }
 
 private struct PipelineContentView: View {
-    let allowFocusRings: Bool
     @StateObject private var model = MeetingPipelineViewModel.live()
     @StateObject private var notesModel = MeetingNotesBrowserViewModel()
     @AppStorage(AppDefaultsKey.screenContextEnabled)
@@ -78,6 +58,7 @@ private struct PipelineContentView: View {
     @State private var screenPickerPurpose: ScreenPickerPurpose?
     @State private var screenTogglePending = false
     @State private var screenPickerHandled = false
+    @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
     private let compactHeightThreshold: CGFloat = 620
     private let floatingBarHeight: CGFloat = 88
 
@@ -86,14 +67,19 @@ private struct PipelineContentView: View {
             let isCompactLayout = proxy.size.height < compactHeightThreshold
 
             ZStack(alignment: .bottom) {
-                HStack(spacing: 0) {
+                NavigationSplitView(columnVisibility: $sidebarVisibility) {
                     MeetingNotesSidebarView(model: notesModel)
-
-                    mainStage(bottomInset: mainStageBottomInset(isCompact: isCompactLayout))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .navigationSplitViewColumnWidth(min: 320, ideal: 320, max: 320)
+                } detail: {
+                    ZStack(alignment: .topTrailing) {
+                        mainStage(bottomInset: mainStageBottomInset(isCompact: isCompactLayout))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    }
+                    .overlay(dropOverlay)
                 }
-                .background(MinuteTheme.backgroundGradient)
-                .overlay(dropOverlay)
+                .background(MinuteTheme.windowBackground)
+                .toolbar(removing: .sidebarToggle)
+                .navigationSplitViewStyle(.balanced)
 
                 floatingControlBar
                     .padding(.bottom, isCompactLayout ? 12 : 22)
@@ -108,7 +94,7 @@ private struct PipelineContentView: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottom)
             .clipped()
-            .background(MinuteTheme.backgroundGradient)
+            .background(MinuteTheme.windowBackground)
             .onAppear {
                 model.refreshVaultStatus()
                 notesModel.refresh()
@@ -189,6 +175,7 @@ private struct PipelineContentView: View {
                     transcriptErrorMessage: notesModel.transcriptErrorMessage,
                     renderSummaryPlainText: notesModel.renderPlainText,
                     renderTranscriptPlainText: notesModel.renderTranscriptPlainText,
+                    hasTranscript: notesModel.selectedItem?.hasTranscript ?? false,
                     selectedTab: notesModel.selectedTab,
                     onSelectTab: notesModel.selectTab,
                     onClose: notesModel.dismissOverlay,
@@ -217,7 +204,6 @@ private struct PipelineContentView: View {
             controlsEnabled: captureTogglesEnabled,
             uploadEnabled: model.state.canImportMedia,
             recordFocus: $recordButtonFocused,
-            allowFocusRings: allowFocusRings,
             onRecordTap: handleRecordButtonTap,
             onAudioModeChange: setAudioCaptureMode,
             onScreenShareToggle: { handleScreenToggleChange(!isScreenToggleOn) },
@@ -504,6 +490,7 @@ private struct PipelineContentView: View {
         screenPickerPurpose = nil
         screenPickerHandled = false
     }
+
 }
 
 private enum RecordButtonState {
@@ -955,7 +942,6 @@ private struct FloatingControlBar: View {
     let controlsEnabled: Bool
     let uploadEnabled: Bool
     let recordFocus: FocusState<Bool>.Binding
-    let allowFocusRings: Bool
     let onRecordTap: () -> Void
     let onAudioModeChange: (AudioCaptureMode) -> Void
     let onScreenShareToggle: () -> Void
@@ -997,7 +983,6 @@ private struct FloatingControlBar: View {
                 state: recordState,
                 isEnabled: recordEnabled,
                 focusBinding: recordFocus,
-                allowFocusRings: allowFocusRings,
                 action: onRecordTap
             )
         }
@@ -1204,7 +1189,6 @@ private struct RecordControlButton: View {
     let state: RecordButtonState
     let isEnabled: Bool
     let focusBinding: FocusState<Bool>.Binding
-    let allowFocusRings: Bool
     let action: () -> Void
 
     @State private var isPulsing = false
@@ -1219,6 +1203,19 @@ private struct RecordControlButton: View {
             return "sparkles"
         case .processing:
             return "hourglass"
+        }
+    }
+
+    private var helpText: String {
+        switch state {
+        case .ready:
+            return "Start recording"
+        case .recording:
+            return "Stop recording"
+        case .recorded:
+            return "Process recording"
+        case .processing:
+            return "Processing"
         }
     }
 
@@ -1241,19 +1238,6 @@ private struct RecordControlButton: View {
             return Color.minuteInk
         case .recording, .recorded, .processing:
             return Color.white
-        }
-    }
-
-    private var helpText: String {
-        switch state {
-        case .ready:
-            return "Start recording"
-        case .recording:
-            return "Stop recording"
-        case .recorded:
-            return "Process recording"
-        case .processing:
-            return "Processing"
         }
     }
 
@@ -1285,22 +1269,11 @@ private struct RecordControlButton: View {
                         .scaleEffect(isPulsing ? 1.4 : 0.9)
                         .opacity(isPulsing ? 0 : 0.8)
                 }
-
-                if allowFocusRings && focusBinding.wrappedValue && isEnabled {
-                    Circle()
-                        .stroke(Color.red.opacity(0.95), lineWidth: 2)
-                        .frame(width: 64, height: 64)
-                    Circle()
-                        .stroke(Color.red.opacity(0.35), lineWidth: 6)
-                        .frame(width: 70, height: 70)
-                        .blur(radius: 0.5)
-                }
             }
             .frame(width: 64, height: 64)
         }
         .buttonStyle(.plain)
         .focused(focusBinding)
-        .focusEffectDisabled()
         .disabled(!isEnabled || state == .processing)
         .opacity(isEnabled ? 1 : 0.6)
         .help(helpText)

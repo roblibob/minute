@@ -41,7 +41,8 @@ struct PermissionStatusRow: View {
                 Button(actionTitle) {
                     action()
                 }
-                .minuteStandardButtonStyle()
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .disabled(isGranted)
             }
         }

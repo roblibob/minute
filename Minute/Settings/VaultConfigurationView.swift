@@ -53,30 +53,17 @@ struct VaultConfigurationView: View {
                 Button("Choose vault...") {
                     Task { await model.chooseVaultRootFolder() }
                 }
-                .minuteStandardButtonStyle()
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
                 Button("Clear") {
                     model.clearVaultSelection()
                 }
                 .disabled(model.vaultRootPathDisplay == "Not selected")
-                .minuteStandardButtonStyle()
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
                 Spacer()
-
-                Button("Verify access") {
-                    model.verifyAccessAndCreateFolders()
-                }
-                .minuteStandardButtonStyle()
-            }
-
-            if let message = model.lastVerificationMessage {
-                Text(message)
-                    .foregroundStyle(.green)
-            }
-
-            if let error = model.lastErrorMessage {
-                Text(error)
-                    .foregroundStyle(.red)
             }
         }
     }

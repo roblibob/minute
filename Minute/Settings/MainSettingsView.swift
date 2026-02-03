@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct MainSettingsView: View {
@@ -6,26 +5,67 @@ struct MainSettingsView: View {
     @EnvironmentObject private var updaterViewModel: UpdaterViewModel
     @StateObject private var vaultModel = VaultSettingsModel()
     @StateObject private var modelsModel = ModelsSettingsViewModel()
-    @State private var selection: SettingsSection = .general
+    @State private var selection: SettingsSection? = .general
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
+        HStack(spacing: 0) {
+            sidebar
             Divider()
-            HStack(spacing: 0) {
-                sidebar
-                Divider()
-                detail
-            }
+            detail
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(backgroundColor)
     }
 
-    private var header: some View {
+    private var detail: some View {
+        VStack(spacing: 8) {
+            settingsHeader
+
+            Group {
+                switch currentSelection {
+                case .general:
+                    Form {
+                        GeneralSettingsSection()
+                        ScreenContextSettingsSection()
+                        VaultConfigurationView(model: vaultModel, style: .settings)
+                    }
+                case .permissions:
+                    Form {
+                        PermissionsSettingsSection()
+                    }
+                case .ai:
+                    Form {
+                        ModelsSettingsSection(model: modelsModel)
+                    }
+                case .updates:
+                    Form {
+                        UpdatesSettingsSection(model: updaterViewModel)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var sidebar: some View {
+        List(SettingsSection.allCases, selection: $selection) { section in
+            Label(section.title, systemImage: section.iconName)
+                .imageScale(.medium)
+                .tag(section)
+        }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .frame(width: 200)
+    }
+
+    private var settingsHeader: some View {
         HStack {
-            Text("Settings")
-                .font(.title2.bold())
+            Text(currentSelection.title)
+                .font(.title3.bold())
 
             Spacer()
 
@@ -33,96 +73,19 @@ struct MainSettingsView: View {
                 appState.showPipeline()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.headline)
-                    .padding(6)
-                    .background(
-                        Circle()
-                            .fill(Color.black.opacity(0.08))
-                    )
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.minuteTextSecondary)
+                    .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close Settings")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(SettingsSection.allCases) { section in
-                SettingsSidebarRow(
-                    title: section.title,
-                    systemImage: section.iconName,
-                    isSelected: selection == section,
-                    action: { selection = section }
-                )
-            }
-
-            Spacer()
-        }
-        .padding(12)
-        .frame(width: 180)
-        .background(backgroundColor)
-    }
-
-    private var detail: some View {
-        Group {
-            switch selection {
-            case .general:
-                Form {
-                    GeneralSettingsSection()
-                    ScreenContextSettingsSection()
-                    VaultConfigurationView(model: vaultModel, style: .settings)
-                }
-            case .permissions:
-                Form {
-                    PermissionsSettingsSection()
-                }
-            case .ai:
-                Form {
-                    ModelsSettingsSection(model: modelsModel)
-                }
-            case .updates:
-                Form {
-                    UpdatesSettingsSection(model: updaterViewModel)
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(backgroundColor)
-    }
-
-    private var backgroundColor: Color {
-        Color(NSColor.windowBackgroundColor)
-    }
-}
-
-private struct SettingsSidebarRow: View {
-    let title: String
-    let systemImage: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .frame(width: 18)
-                Text(title)
-                Spacer()
-            }
-            .foregroundStyle(.primary)
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
+    private var currentSelection: SettingsSection {
+        selection ?? .general
     }
 }
 
