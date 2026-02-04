@@ -115,6 +115,24 @@ During a court hearing in the 27th Judicial District, Rod Ponton experienced a p
 
 ```
 
+## Project Structure
+```mermaid
+graph TD
+    Root[Repository] --> Minute[Minute App Target]
+    Root --> MinuteCore[MinuteCore Package]
+    Root --> Vendor[External Binaries]
+    
+    Minute --> App[Sources/App]
+    Minute --> Views[Sources/Views]
+    Minute --> VM[Sources/ViewModels]
+    
+    MinuteCore --> Services[Services]
+    MinuteCore --> Domain[Domain Logic]
+    MinuteCore --> Libs[Inference Libs]
+    
+    Vendor --> ffmpeg[ffmpeg]
+```
+
 ## Requirements
 - macOS 14+
 - Apple Silicon (M1 or newer)

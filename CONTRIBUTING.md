@@ -7,6 +7,17 @@ Thanks for helping improve Minute. This project focuses on a local-first, determ
 2. Open `Minute.xcworkspace` in Xcode.
 3. Build the app target or run from Xcode.
 
+## Project Structure
+- **Minute/**: The compiled macOS application.
+  - `Sources/App`: App entry point (`MinuteApp.swift`) and configuration.
+  - `Sources/Views`: All SwiftUI views, organized by feature.
+  - `Sources/ViewModels`: View logic and state integration.
+  - `Assets.xcassets`: App icons and colors.
+- **MinuteCore/**: The local Swift Package containing all business logic.
+  - `Domain/`: Types, entities, and data structures.
+  - `Services/`: Audio pipeline, transcription, and summarization services.
+- **Vendor/**: Pre-compiled binaries (ffmpeg).
+
 ## Build and test
 Build:
 ```

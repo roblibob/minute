@@ -19,10 +19,16 @@ Hard requirements:
 
 ## Repository structure
 - `Minute/` — App target (SwiftUI)
+  - `Sources/App/` — App entry point and entitlements
+  - `Sources/Views/` — SwiftUI Views
+  - `Sources/ViewModels/` — View Models
 - `Minute.xcodeproj/` — Xcode project
 - `MinuteCore/` — Swift Package (non-UI logic, services, rendering, contracts)
+  - `Sources/MinuteCore/`
+  - `Vendor/` — Inference libraries (whisper, llama)
+- `Vendor/` — External binaries (ffmpeg)
 - `docs/` — Product docs
-- `docs/tasks/` — Execution-ordered implementation plan
+- `specs/` — Implementation specs and plans
 
 ## Architecture guidance
 Follow the plan in `docs/tasks/`.
