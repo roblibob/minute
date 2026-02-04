@@ -1,9 +1,8 @@
-import MinuteCore
 import OSLog
 import UserNotifications
 
 @MainActor
-final class MicActivityNotificationCoordinator {
+public final class MicActivityNotificationCoordinator {
     private let monitor: MicrophoneActivityMonitor
     private let notificationCenter: UNUserNotificationCenter
     private let logger = Logger(subsystem: "roblibob.Minute", category: "mic-activity-notifications")
@@ -13,7 +12,7 @@ final class MicActivityNotificationCoordinator {
     private var lastNotificationAt: Date?
     private let minimumNotificationInterval: TimeInterval = 30
 
-    init(
+    public init(
         monitor: MicrophoneActivityMonitor = MicrophoneActivityMonitor(),
         notificationCenter: UNUserNotificationCenter = .current()
     ) {
@@ -21,7 +20,7 @@ final class MicActivityNotificationCoordinator {
         self.notificationCenter = notificationCenter
     }
 
-    func setEnabled(_ enabled: Bool) {
+    public func setEnabled(_ enabled: Bool) {
         isEnabled = enabled
         if enabled {
             start()
@@ -31,11 +30,11 @@ final class MicActivityNotificationCoordinator {
         }
     }
 
-    func updatePipelineState(_ state: MeetingPipelineState) {
+    public func updatePipelineState(_ state: MeetingPipelineState) {
         pipelineState = state
     }
 
-    func stop() {
+    public func stop() {
         task?.cancel()
         task = nil
         notificationCenter.removePendingNotificationRequests(withIdentifiers: [MicActivityNotification.notificationIdentifier])

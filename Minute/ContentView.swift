@@ -538,7 +538,6 @@ private struct MainStageView: View {
             if case .recording(let session) = model.state {
                 RecordingStageView(
                     session: session,
-                    transcriptLine: model.liveTranscriptionLine,
                     levels: model.audioLevelSamples
                 )
             } else {
@@ -731,7 +730,6 @@ private struct StatusDrawerView: View {
 
 private struct RecordingStageView: View {
     let session: RecordingSession
-    let transcriptLine: String
     let levels: [CGFloat]
 
     var body: some View {
@@ -754,8 +752,6 @@ private struct RecordingStageView: View {
             }
             .frame(height: 180)
 
-            StreamingTranscriptView(text: transcriptLine)
-
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -772,10 +768,6 @@ private struct RecordingHeaderView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .tracking(-0.4)
                     .foregroundStyle(Color.minuteTextPrimary)
-
-                Text("Live transcription updates below.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.minuteTextSecondary)
             }
 
             Spacer()
@@ -837,52 +829,6 @@ private struct RecordingTimerView: View {
     }
 }
 
-private struct StreamingTranscriptView: View {
-    let text: String
-
-    var body: some View {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            Text("Listening...")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Color.minuteTextMuted)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            let segments = TranscriptSegments(text: trimmed)
-            (Text(segments.confirmed)
-                .foregroundStyle(Color.minuteTextPrimary)
-             + Text(segments.pending)
-                .foregroundStyle(Color.minuteTextMuted))
-                .font(.system(size: 18, weight: .medium))
-                .tracking(-0.2)
-                .lineSpacing(6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private struct TranscriptSegments {
-        let confirmed: String
-        let pending: String
-
-        init(text: String) {
-            let words = text.split(separator: " ")
-            let pendingCount = min(4, words.count)
-            let confirmedWords = words.dropLast(pendingCount)
-            let pendingWords = words.suffix(pendingCount)
-
-            let confirmedText = confirmedWords.joined(separator: " ")
-            let pendingText = pendingWords.joined(separator: " ")
-
-            if confirmedText.isEmpty {
-                self.confirmed = ""
-                self.pending = pendingText
-            } else {
-                self.confirmed = "\(confirmedText) "
-                self.pending = pendingText
-            }
-        }
-    }
-}
 
 private struct WaveformRibbonView: View {
     let levels: [CGFloat]

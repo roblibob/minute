@@ -9,16 +9,6 @@ import Foundation
         threads: Int,
         reply: @escaping (Data?, String?) -> Void
     )
-
-    func transcribeLive(
-        samples: Data,
-        sampleRateHz: Double,
-        modelPath: String,
-        detectLanguage: Bool,
-        language: String,
-        threads: Int,
-        reply: @escaping (Data?, String?) -> Void
-    )
 }
 
 public struct WhisperXPCSegment: Codable, Sendable, Equatable {
@@ -40,15 +30,5 @@ public struct WhisperXPCTranscriptionResult: Codable, Sendable, Equatable {
     public init(text: String, segments: [WhisperXPCSegment]) {
         self.text = text
         self.segments = segments
-    }
-}
-
-public struct WhisperXPCLiveTranscriptionResult: Codable, Sendable, Equatable {
-    public var text: String
-    public var detectedLanguage: String?
-
-    public init(text: String, detectedLanguage: String?) {
-        self.text = text
-        self.detectedLanguage = detectedLanguage
     }
 }

@@ -6,7 +6,7 @@ import os
 ///
 /// This implementation uses an AudioToolbox `ExtAudioFile` conversion step for deterministic output.
 /// Task 09 may introduce an `ffmpeg`-backed conversion path.
-public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptureControlling, LiveAudioSinkConfiguring {
+public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptureControlling {
     private let logger = Logger(subsystem: "roblibob.Minute", category: "audio")
     private let levelMixer = AudioLevelMixer()
 
@@ -18,7 +18,6 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
     private var systemCaptureURL: URL?
     private var microphoneEnabled = true
     private var systemAudioEnabled = true
-    private var liveAudioSink: (any LiveAudioChunkSinking)?
 
     public init() {}
 
@@ -40,10 +39,6 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
         if !enabled {
             levelMixer.updateSystem(0)
         }
-    }
-
-    public func setLiveAudioSink(_ sink: (any LiveAudioChunkSinking)?) async {
-        liveAudioSink = sink
     }
 
     private struct CaptureComponents: @unchecked Sendable {
@@ -81,7 +76,6 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
         let levelMixer = levelMixer
 
         let micEnabled = microphoneEnabled
-        let liveAudioSink = liveAudioSink
         let components: CaptureComponents = try await MainActor.run {
             let engine = AVAudioEngine()
             let inputNode = engine.inputNode
@@ -93,9 +87,6 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
             inputNode.installTap(onBus: 0, bufferSize: 4_096, format: format) { @Sendable [tapWriter] buffer, _ in
                 tapWriter.write(buffer)
                 levelMixer.updateMic(Self.level(for: buffer))
-                if let liveAudioSink {
-                    Self.emitLiveAudioChunk(from: buffer, source: .microphone, sink: liveAudioSink)
-                }
             }
 
             engine.prepare()
@@ -116,8 +107,7 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
                 levelHandler: { level in
                     levelMixer.updateSystem(level)
                 },
-                isEnabled: systemAudioEnabled,
-                liveAudioSink: liveAudioSink
+                isEnabled: systemAudioEnabled
             )
         } catch {
             await MainActor.run {
@@ -230,24 +220,6 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
         }
 
         return 0
-    }
-
-    private static func emitLiveAudioChunk(
-        from buffer: AVAudioPCMBuffer,
-        source: LiveAudioSource,
-        sink: any LiveAudioChunkSinking
-    ) {
-        let samples = monoSamples(from: buffer)
-        guard !samples.isEmpty else { return }
-        let chunk = LiveAudioChunk(
-            source: source,
-            samples: samples,
-            sampleRateHz: buffer.format.sampleRate,
-            capturedAt: Date()
-        )
-        Task {
-            await sink.handleAudioChunk(chunk)
-        }
     }
 
     private static func monoSamples(from buffer: AVAudioPCMBuffer) -> [Float] {

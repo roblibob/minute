@@ -9,6 +9,7 @@ import AppKit
 import Sparkle
 import SwiftUI
 import UserNotifications
+import MinuteCore
 
 @main
 struct MinuteApp: App {

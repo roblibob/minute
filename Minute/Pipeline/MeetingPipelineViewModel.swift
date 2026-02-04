@@ -33,7 +33,6 @@ final class MeetingPipelineViewModel: ObservableObject {
     @Published private(set) var audioLevelSamples: [CGFloat] = Array(repeating: 0, count: 24)
     @Published private(set) var screenInferenceStatus: ScreenInferenceStatus? = nil
     @Published private(set) var latestScreenCaptureImage: NSImage? = nil
-    @Published private(set) var liveTranscriptionLine: String = ""
     @Published private(set) var recoverableRecordings: [RecoverableRecording] = []
 
     private let audioService: any AudioServicing
@@ -55,14 +54,9 @@ final class MeetingPipelineViewModel: ObservableObject {
     private var screenCaptureSelection: ScreenContextWindowSelection?
     private var screenCaptureBaseProcessedCount = 0
     private var screenCaptureBaseSkippedCount = 0
-    private var liveTranscriptionMixer: LiveAudioStreamMixer?
-    private var liveTranscriptionResult: TranscriptionResult?
-    private var liveTranscriptionTickerTask: Task<Void, Never>?
 
     private let audioLevelBucketCount = 24
     private let audioLevelUpdateInterval: CFTimeInterval = 1.0 / 24.0
-    private let liveTranscriptionTickerIntervalNanos: UInt64 = 250_000_000
-    private let liveTranscriptionTickerMaxLength = 220
     private var screenContextFrameIntervalSeconds: TimeInterval {
         screenContextSettingsStore.captureIntervalSeconds
     }
@@ -220,8 +214,6 @@ final class MeetingPipelineViewModel: ObservableObject {
 
         processingTask?.cancel()
         progress = nil
-        stopLiveTranscriptionTicker()
-        liveTranscriptionResult = nil
         screenContextEvents = []
         screenInferenceStatus = nil
         screenCaptureBaseProcessedCount = 0
@@ -380,10 +372,8 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenInferenceStatus = nil
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
-                liveTranscriptionResult = nil
 
                 let session = RecordingSession()
-                await startLiveTranscription(session: session)
                 await applyAudioCaptureToggles()
                 try await audioService.startRecording()
                 await startScreenContextCaptureIfNeeded(selection: selection, offsetSeconds: 0)
@@ -393,7 +383,6 @@ final class MeetingPipelineViewModel: ObservableObject {
             } catch let minuteError as MinuteError {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
-                await stopLiveTranscription(shouldKeepResult: false)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -403,7 +392,6 @@ final class MeetingPipelineViewModel: ObservableObject {
             } catch {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
-                await stopLiveTranscription(shouldKeepResult: false)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -425,7 +413,6 @@ final class MeetingPipelineViewModel: ObservableObject {
                 _ = await stopScreenContextCaptureAndAppend()
                 await stopAudioLevelMonitoring()
                 resetAudioLevelSamples()
-                await stopLiveTranscription(shouldKeepResult: true)
                 state = .recorded(
                     audioTempURL: result.wavURL,
                     durationSeconds: result.duration,
@@ -437,7 +424,6 @@ final class MeetingPipelineViewModel: ObservableObject {
             } catch let minuteError as MinuteError {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
-                await stopLiveTranscription(shouldKeepResult: false)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -447,7 +433,6 @@ final class MeetingPipelineViewModel: ObservableObject {
             } catch {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
-                await stopLiveTranscription(shouldKeepResult: false)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -463,9 +448,6 @@ final class MeetingPipelineViewModel: ObservableObject {
 
         processingTask?.cancel()
         progress = nil
-        stopLiveTranscriptionTicker()
-        liveTranscriptionResult = nil
-        liveTranscriptionLine = ""
         screenContextEvents = []
         screenInferenceStatus = nil
         screenCaptureBaseProcessedCount = 0
@@ -566,77 +548,12 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenCaptureSelection = nil
         screenCaptureBaseProcessedCount = 0
         screenCaptureBaseSkippedCount = 0
-        stopLiveTranscriptionTicker()
-        liveTranscriptionResult = nil
-        liveTranscriptionLine = ""
     }
 
     private func applyAudioCaptureToggles() async {
         guard let controller = audioService as? (any AudioCaptureControlling) else { return }
         await controller.setMicrophoneEnabled(microphoneCaptureEnabled)
         await controller.setSystemAudioEnabled(systemAudioCaptureEnabled)
-    }
-
-    private func startLiveTranscription(session: RecordingSession) async {
-        guard let audioService = audioService as? (any LiveAudioSinkConfiguring) else { return }
-        let backend = TranscriptionBackendSelectionStore().selectedBackend()
-        if backend == .fluidAudio {
-            let selected = FluidAudioASRModelSelectionStore().selectedModel()
-            logger.info("Starting live transcription: backend=\(backend.displayName, privacy: .public) model=\(selected.displayName, privacy: .public)")
-        } else {
-            logger.info("Starting live transcription: backend=\(backend.displayName, privacy: .public)")
-        }
-        let liveService: any LiveTranscriptionServicing
-        switch backend {
-        case .whisper:
-            liveService = WhisperXPCLiveTranscriptionService.liveDefault()
-        case .fluidAudio:
-            liveService = FluidAudioLiveTranscriptionService.liveDefault()
-        }
-        let liveSession = LiveTranscriptionSession(
-            service: liveService,
-            configuration: LiveTranscriptionConfiguration(
-                recordTimeoutSeconds: 2.0,
-                phraseTimeoutSeconds: 3.0
-            )
-        )
-        let mixer = LiveAudioStreamMixer(transcriptionSession: liveSession)
-        await mixer.start(at: session.startedAt)
-        await audioService.setLiveAudioSink(mixer)
-        liveTranscriptionMixer = mixer
-        liveTranscriptionLine = ""
-        startLiveTranscriptionTicker(session: liveSession)
-    }
-
-    private func stopLiveTranscription(shouldKeepResult: Bool) async {
-        stopLiveTranscriptionTicker()
-        liveTranscriptionLine = ""
-        guard let mixer = liveTranscriptionMixer else { return }
-        if let audioService = audioService as? (any LiveAudioSinkConfiguring) {
-            await audioService.setLiveAudioSink(nil)
-        }
-        let result = await mixer.stop()
-        liveTranscriptionMixer = nil
-        liveTranscriptionResult = shouldKeepResult ? result : nil
-    }
-
-    private func startLiveTranscriptionTicker(session: LiveTranscriptionSession) {
-        liveTranscriptionTickerTask?.cancel()
-        liveTranscriptionTickerTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                let line = await session.tickerText(maxLength: liveTranscriptionTickerMaxLength)
-                await MainActor.run {
-                    self.liveTranscriptionLine = line
-                }
-                try? await Task.sleep(nanoseconds: liveTranscriptionTickerIntervalNanos)
-            }
-        }
-    }
-
-    private func stopLiveTranscriptionTicker() {
-        liveTranscriptionTickerTask?.cancel()
-        liveTranscriptionTickerTask = nil
     }
 
     private func updateScreenInferenceStatus(_ status: ScreenContextCaptureStatus) {
@@ -819,7 +736,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             saveAudio: configuration.saveAudio,
             saveTranscript: configuration.saveTranscript,
             screenContextEvents: screenContextEvents,
-            transcriptionOverride: liveTranscriptionResult
+            transcriptionOverride: nil
         )
     }
 

@@ -19,8 +19,7 @@ final class SystemAudioCapture: @unchecked Sendable {
         outputURL: URL,
         logger: Logger,
         levelHandler: (@Sendable (Float) -> Void)?,
-        isEnabled: Bool = true,
-        liveAudioSink: (any LiveAudioChunkSinking)? = nil
+        isEnabled: Bool = true
     ) async throws -> SystemAudioCapture {
         let content = try await fetchShareableContent()
         guard let display = content.displays.first else {
@@ -39,8 +38,7 @@ final class SystemAudioCapture: @unchecked Sendable {
             outputURL: outputURL,
             logger: logger,
             levelHandler: levelHandler,
-            isEnabled: isEnabled,
-            liveAudioSink: liveAudioSink
+            isEnabled: isEnabled
         )
         let output = SystemAudioOutput(writer: writer)
 
@@ -121,7 +119,6 @@ private final class SampleBufferAudioWriter {
     private let outputURL: URL
     private let logger: Logger
     private let levelHandler: (@Sendable (Float) -> Void)?
-    private let liveAudioSink: (any LiveAudioChunkSinking)?
     private let lock = NSLock()
     private var audioFile: AVAudioFile?
     private var writeError: Error?
@@ -131,14 +128,12 @@ private final class SampleBufferAudioWriter {
         outputURL: URL,
         logger: Logger,
         levelHandler: (@Sendable (Float) -> Void)?,
-        isEnabled: Bool,
-        liveAudioSink: (any LiveAudioChunkSinking)?
+        isEnabled: Bool
     ) {
         self.outputURL = outputURL
         self.logger = logger
         self.levelHandler = levelHandler
         self.isEnabled = isEnabled
-        self.liveAudioSink = liveAudioSink
     }
 
     func write(_ sampleBuffer: CMSampleBuffer) {
@@ -159,9 +154,6 @@ private final class SampleBufferAudioWriter {
             }
             try file.write(from: pcmBuffer)
             levelHandler?(Self.level(for: pcmBuffer))
-            if let liveAudioSink {
-                Self.emitLiveAudioChunk(from: pcmBuffer, sink: liveAudioSink)
-            }
         } catch {
             record(error)
         }
@@ -290,37 +282,5 @@ private final class SampleBufferAudioWriter {
         }
 
         return 0
-    }
-
-    private static func emitLiveAudioChunk(
-        from buffer: AVAudioPCMBuffer,
-        sink: any LiveAudioChunkSinking
-    ) {
-        let frameLength = Int(buffer.frameLength)
-        guard frameLength > 0 else { return }
-        let samples: [Float]
-        if let channelData = buffer.floatChannelData {
-            let channel = channelData[0]
-            samples = Array(UnsafeBufferPointer(start: channel, count: frameLength))
-        } else if let channelData = buffer.int16ChannelData {
-            let channel = channelData[0]
-            let scale = 1.0 / Float(Int16.max)
-            var converted = [Float](repeating: 0, count: frameLength)
-            for index in 0..<frameLength {
-                converted[index] = Float(channel[index]) * scale
-            }
-            samples = converted
-        } else {
-            return
-        }
-        let chunk = LiveAudioChunk(
-            source: .system,
-            samples: samples,
-            sampleRateHz: buffer.format.sampleRate,
-            capturedAt: Date()
-        )
-        Task {
-            await sink.handleAudioChunk(chunk)
-        }
     }
 }

@@ -1,23 +1,22 @@
 import Foundation
-import MinuteCore
 
-enum ProcessingStage: String, Sendable {
+public enum ProcessingStage: String, Sendable {
     case downloadingModels
     case transcribing
     case summarizing
 }
 
-struct RecordingSession: Sendable {
-    var id: UUID
-    var startedAt: Date
+public struct RecordingSession: Sendable {
+    public var id: UUID
+    public var startedAt: Date
 
-    init(id: UUID = UUID(), startedAt: Date = Date()) {
+    public init(id: UUID = UUID(), startedAt: Date = Date()) {
         self.id = id
         self.startedAt = startedAt
     }
 }
 
-enum MeetingPipelineState {
+public enum MeetingPipelineState {
     case idle
     case importing(sourceURL: URL)
     case recording(session: RecordingSession)
@@ -27,7 +26,7 @@ enum MeetingPipelineState {
     case done(noteURL: URL, audioURL: URL?)
     case failed(error: MinuteError, debugOutput: String?)
 
-    var statusLabel: String {
+    public var statusLabel: String {
         switch self {
         case .idle:
             return "Idle"
@@ -55,12 +54,12 @@ enum MeetingPipelineState {
         }
     }
 
-    var canStartRecording: Bool {
+    public var canStartRecording: Bool {
         if case .idle = self { return true }
         return false
     }
 
-    var canImportMedia: Bool {
+    public var canImportMedia: Bool {
         switch self {
         case .idle, .recorded, .done, .failed:
             return true
@@ -69,17 +68,17 @@ enum MeetingPipelineState {
         }
     }
 
-    var canStopRecording: Bool {
+    public var canStopRecording: Bool {
         if case .recording = self { return true }
         return false
     }
 
-    var canProcess: Bool {
+    public var canProcess: Bool {
         if case .recorded = self { return true }
         return false
     }
 
-    var canCancelProcessing: Bool {
+    public var canCancelProcessing: Bool {
         switch self {
         case .importing, .processing, .writing:
             return true
@@ -88,7 +87,7 @@ enum MeetingPipelineState {
         }
     }
 
-    var canReset: Bool {
+    public var canReset: Bool {
         switch self {
         case .done, .failed:
             return true
@@ -97,7 +96,7 @@ enum MeetingPipelineState {
         }
     }
 
-    var recordedContextIfAvailable: (audioTempURL: URL, durationSeconds: TimeInterval, startedAt: Date, stoppedAt: Date)? {
+    public var recordedContextIfAvailable: (audioTempURL: URL, durationSeconds: TimeInterval, startedAt: Date, stoppedAt: Date)? {
         switch self {
         case .recorded(let audioTempURL, let durationSeconds, let startedAt, let stoppedAt):
             return (audioTempURL: audioTempURL, durationSeconds: durationSeconds, startedAt: startedAt, stoppedAt: stoppedAt)
@@ -111,7 +110,7 @@ enum MeetingPipelineState {
     }
 }
 
-enum MeetingPipelineAction: Sendable {
+public enum MeetingPipelineAction: Sendable {
     case startRecording
     case startRecordingWithWindow(ScreenContextWindowSelection)
     case stopRecording
