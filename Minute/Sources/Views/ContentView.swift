@@ -207,7 +207,8 @@ private struct PipelineContentView: View {
             onRecordTap: handleRecordButtonTap,
             onAudioModeChange: setAudioCaptureMode,
             onScreenShareToggle: { handleScreenToggleChange(!isScreenToggleOn) },
-            onUploadTap: { isImportingFile = true }
+            onUploadTap: { isImportingFile = true },
+            meetingType: $model.meetingType
         )
         .frame(maxWidth: 560)
         .animation(.easeInOut(duration: 0.2), value: statusDrawerModel != nil)
@@ -893,6 +894,7 @@ private struct FloatingControlBar: View {
     let onAudioModeChange: (AudioCaptureMode) -> Void
     let onScreenShareToggle: () -> Void
     let onUploadTap: () -> Void
+    @Binding var meetingType: MeetingType
 
     var body: some View {
         ZStack {
@@ -902,8 +904,19 @@ private struct FloatingControlBar: View {
                     isEnabled: controlsEnabled,
                     onSelect: onAudioModeChange
                 )
-
+                
                 Spacer(minLength: 16)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Meeting type")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+
+                    MeetingTypePicker(selection: $meetingType)
+                        .disabled(!controlsEnabled && recordState != .recording)
+                        // Allow while recording, but maybe not while processing
+                }
 
                 HStack(spacing: 12) {
                     if showsScreenShareControl {

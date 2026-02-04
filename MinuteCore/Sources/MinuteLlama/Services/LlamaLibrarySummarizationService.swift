@@ -57,20 +57,41 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         )
     }
 
-    public func summarize(transcript: String, meetingDate: Date) async throws -> String {
-        try await runLlama(
-            prompt: PromptBuilder.summarizationPrompt(
-                transcript: transcript,
-                meetingDate: meetingDate
-            )
+    public func summarize(transcript: String, meetingDate: Date, meetingType: MeetingType) async throws -> String {
+        let strategy = PromptFactory.strategy(for: meetingType)
+        // Prepend date context to transcript for the model
+        let datedTranscript = "Meeting Date: \(MinuteISODate.format(meetingDate))\n\n\(transcript)"
+        
+        return try await runLlama(
+            systemPrompt: strategy.systemPrompt(),
+            userPrompt: strategy.userPrompt(for: datedTranscript)
         )
     }
 
-    public func repairJSON(_ invalidJSON: String) async throws -> String {
-        try await runLlama(prompt: PromptBuilder.repairPrompt(invalidOutput: invalidJSON))
+    public func classify(transcript: String) async throws -> MeetingType {
+        // Use the first 2000 chars (approx) for efficient classification
+        let snippet = String(transcript.prefix(3000)) 
+        let prompt = MeetingTypeClassifier.prompt(for: snippet)
+        
+        // Run specific classification config (low temp, max tokens = 20)
+        // Note: runLlama uses `configuration` which might have maxTokens=1024.
+        // We might want to override configs.
+        // For simplicity in V1, we let it run with default config but the model will stop early due to prompt instruction "Return ONLY...".
+        // Ideally we'd pass override options.
+        
+        let response = try await runLlama(systemPrompt: nil, userPrompt: prompt)
+        return MeetingTypeClassifier.parseResponse(response)
     }
 
-    private func runLlama(prompt: String) async throws -> String {
+    public func repairJSON(_ invalidJSON: String) async throws -> String {
+        // Repair prompt usually doesn't need system/user separation rigidly, 
+        // using the old single-prompt style as a user message is fine, 
+        // or we can adapt to system/user if we had a RepairStrategy.
+        // For now, keeping it simple: treat it as user message.
+        try await runLlama(systemPrompt: nil, userPrompt: PromptBuilder.repairPrompt(invalidOutput: invalidJSON))
+    }
+
+    private func runLlama(systemPrompt: String?, userPrompt: String) async throws -> String {
         try Task.checkCancellation()
 
         guard FileManager.default.fileExists(atPath: configuration.modelURL.path) else {
@@ -89,7 +110,7 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         defer { llama_model_free(model) }
 
         let vocab = llama_model_get_vocab(model)
-        let formattedPrompt = formatPrompt(prompt: prompt, model: model)
+        let formattedPrompt = formatPrompt(systemPrompt: systemPrompt, userPrompt: userPrompt, model: model)
 
         var promptTokens = tokenize(formattedPrompt, vocab: vocab)
         guard !promptTokens.isEmpty else {
@@ -185,14 +206,19 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         return chain
     }
 
-    private func formatPrompt(prompt: String, model: OpaquePointer?) -> String {
+    private func formatPrompt(systemPrompt: String?, userPrompt: String, model: OpaquePointer?) -> String {
         guard let model, let template = llama_model_chat_template(model, nil) else {
-            return prompt
+            return systemPrompt.map { $0 + "\n\n" + userPrompt } ?? userPrompt
         }
 
-        let messages = [ChatMessage(role: "user", content: prompt)]
+        var messages: [ChatMessage] = []
+        if let systemPrompt {
+            messages.append(ChatMessage(role: "system", content: systemPrompt))
+        }
+        messages.append(ChatMessage(role: "user", content: userPrompt))
+
         guard let formatted = applyChatTemplate(template: template, messages: messages) else {
-            return prompt
+             return systemPrompt.map { $0 + "\n\n" + userPrompt } ?? userPrompt
         }
 
         return formatted
@@ -323,7 +349,7 @@ private enum PromptBuilder {
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript. Do not infer feelings, motives, or details not explicitly spoken. If a point is ambiguous, omit it rather than guessing.
         2. **ASR Error Correction:** The transcript is machine-generated and may contain phonetic errors (e.g., "sink" instead of "sync"). Use context to interpret the correct meaning, but do not alter the factual substance.
         3. **Filter Noise:** Ignore small talk, pleasantries, incomplete sentences, and non-substantive filler (um, ah). Focus on the "business" of the meeting.
-        4. **Language Handling:** Detect the dominant language of the business discussion. Output the summary in that language. Retain specific technical terms or proper nouns in their original language.
+        4. **Language Handling:** Detect the dominant language of the business discussion. But output summary in English. Retain specific technical terms or proper nouns in their original language.
 
         ### OUTPUT FORMAT
         You must output a single, valid JSON object. Do not include markdown formatting (```json), explanations, or raw text outside the braces.
@@ -332,7 +358,7 @@ private enum PromptBuilder {
         {
             "title": "string (3-8 words, filename-safe, summarizes the main topic)",
             "date": "YYYY-MM-DD (use provided date unless transcript explicitly mentions a different meeting date)",
-            "summary": "string (A concise executive summary of 2-5 sentences. Focus on the 'what' and 'why' of the meeting outcomes. Also a summary of the full names of the main participants )",
+            "summary": "string (A concise executive summary of 3-8 sentences. Focus on the 'what' and 'why' of the meeting outcomes. Also a summary of the full names of the main participants )",
             "decisions": ["string (Explicit agreements or conclusions reached. Empty if none.)"],
             "action_items": [
                 {

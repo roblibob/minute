@@ -12,6 +12,7 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
     public var actionItems: [ActionItem]
     public var openQuestions: [String]
     public var keyPoints: [String]
+    public var meetingType: MeetingType?
 
     public init(
         title: String,
@@ -20,7 +21,8 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
         decisions: [String],
         actionItems: [ActionItem],
         openQuestions: [String],
-        keyPoints: [String]
+        keyPoints: [String],
+        meetingType: MeetingType? = nil
     ) {
         self.title = title
         self.date = date
@@ -29,6 +31,7 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
         self.actionItems = actionItems
         self.openQuestions = openQuestions
         self.keyPoints = keyPoints
+        self.meetingType = meetingType
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -39,6 +42,7 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
         case actionItems = "action_items"
         case openQuestions = "open_questions"
         case keyPoints = "key_points"
+        case meetingType = "meeting_type"
     }
 }
 

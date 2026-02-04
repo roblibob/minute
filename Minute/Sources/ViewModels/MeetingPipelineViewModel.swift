@@ -34,6 +34,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     @Published private(set) var screenInferenceStatus: ScreenInferenceStatus? = nil
     @Published private(set) var latestScreenCaptureImage: NSImage? = nil
     @Published private(set) var recoverableRecordings: [RecoverableRecording] = []
+    @Published var meetingType: MeetingType = .autodetect
 
     private let audioService: any AudioServicing
     private let mediaImportService: any MediaImporting
@@ -548,6 +549,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenCaptureSelection = nil
         screenCaptureBaseProcessedCount = 0
         screenCaptureBaseSkippedCount = 0
+        meetingType = .autodetect
     }
 
     private func applyAudioCaptureToggles() async {
@@ -736,7 +738,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             saveAudio: configuration.saveAudio,
             saveTranscript: configuration.saveTranscript,
             screenContextEvents: screenContextEvents,
-            transcriptionOverride: nil
+            transcriptionOverride: nil,
+            meetingType: meetingType
         )
     }
 

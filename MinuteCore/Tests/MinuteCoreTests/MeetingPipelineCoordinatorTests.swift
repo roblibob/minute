@@ -166,10 +166,14 @@ private struct TestSummarizationService: SummarizationServicing {
     var summarizationJSON: String
     var repairJSON: String
 
-    func summarize(transcript: String, meetingDate: Date) async throws -> String {
+    func summarize(transcript: String, meetingDate: Date, meetingType: MeetingType) async throws -> String {
         _ = transcript
         _ = meetingDate
         return summarizationJSON
+    }
+
+    func classify(transcript: String) async throws -> MeetingType {
+        return .general
     }
 
     func repairJSON(_ invalidJSON: String) async throws -> String {

@@ -81,15 +81,24 @@ public actor MeetingPipelineCoordinator {
 
             let summarizationService = summarizationServiceProvider()
             let meetingDate = context.startedAt
+            
+            var effectiveType = context.meetingType
+            if effectiveType == .autodetect {
+                effectiveType = try await summarizationService.classify(transcript: timelineText)
+                logger.info("Autodetected meeting type: \(effectiveType.rawValue, privacy: .public)")
+            }
+            
             let rawJSON = try await summarizationService.summarize(
                 transcript: timelineText,
-                meetingDate: meetingDate
+                meetingDate: meetingDate,
+                meetingType: effectiveType
             )
-            let extraction = try await decodeOrRepairExtraction(
+            var extraction = try await decodeOrRepairExtraction(
                 rawJSON: rawJSON,
                 meetingDate: meetingDate,
                 summarizationService: summarizationService
             )
+            extraction.meetingType = effectiveType
 
             try Task.checkCancellation()
             progress?(.writing(fractionCompleted: 0.85, extraction: extraction))

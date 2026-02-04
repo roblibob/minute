@@ -130,8 +130,14 @@ public protocol SummarizationServicing: Sendable {
     /// Returns raw JSON produced by the model.
     func summarize(
         transcript: String,
-        meetingDate: Date
+        meetingDate: Date,
+        meetingType: MeetingType
     ) async throws -> String
+
+    /// Classifies the meeting type based on the transcript.
+    func classify(
+        transcript: String
+    ) async throws -> MeetingType
 
     /// Attempts to repair invalid JSON to match the schema.
     func repairJSON(_ invalidJSON: String) async throws -> String

@@ -9,6 +9,7 @@ What the app does
 - Record microphone + system audio locally.
 - Transcribe audio locally (Fluidaudio).
 - Optionally capture screen context locally for summaries.
+- **Tailor summaries based on meeting type (Standup, Presentation, etc.).**
 - Summarize locally with a JSON-only LLM prompt (llama).
 - Render a deterministic Markdown note from JSON.
 - Write exactly three files to the vault per meeting.

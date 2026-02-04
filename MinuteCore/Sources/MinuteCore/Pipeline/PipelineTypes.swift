@@ -56,6 +56,7 @@ public struct PipelineContext: Sendable {
     public var saveTranscript: Bool
     public var screenContextEvents: [ScreenContextEvent]
     public var transcriptionOverride: TranscriptionResult?
+    public var meetingType: MeetingType
 
     public init(
         vaultFolders: MeetingFileContract.VaultFolders,
@@ -67,7 +68,8 @@ public struct PipelineContext: Sendable {
         saveAudio: Bool,
         saveTranscript: Bool,
         screenContextEvents: [ScreenContextEvent] = [],
-        transcriptionOverride: TranscriptionResult? = nil
+        transcriptionOverride: TranscriptionResult? = nil,
+        meetingType: MeetingType = .autodetect
     ) {
         self.vaultFolders = vaultFolders
         self.audioTempURL = audioTempURL
@@ -79,5 +81,6 @@ public struct PipelineContext: Sendable {
         self.saveTranscript = saveTranscript
         self.screenContextEvents = screenContextEvents
         self.transcriptionOverride = transcriptionOverride
+        self.meetingType = meetingType
     }
 }

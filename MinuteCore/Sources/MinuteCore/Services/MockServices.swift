@@ -119,9 +119,14 @@ public struct MissingTranscriptionService: TranscriptionServicing {
 /// Used by the live pipeline when the llama executable is not yet bundled / configured.
 public struct MissingSummarizationService: SummarizationServicing {
     public init() {}
-    public func summarize(transcript: String, meetingDate: Date) async throws -> String {
+    public func summarize(transcript: String, meetingDate: Date, meetingType: MeetingType) async throws -> String {
         _ = transcript
         _ = meetingDate
+        _ = meetingType
+        throw MinuteError.llamaMissing
+    }
+
+    public func classify(transcript: String) async throws -> MeetingType {
         throw MinuteError.llamaMissing
     }
 
@@ -149,25 +154,30 @@ public struct MockScreenContextInferenceService: ScreenContextInferencing {
 
 public struct MockSummarizationService: SummarizationServicing {
     public init() {}
-    public func summarize(transcript: String, meetingDate: Date) async throws -> String {
+    public func summarize(transcript: String, meetingDate: Date, meetingType: MeetingType) async throws -> String {
         try await Task.sleep(nanoseconds: 800_000_000)
 
         // Do NOT include the transcript in outputs.
         _ = transcript
         let iso = MinuteISODate.format(meetingDate)
-        let title = "Meeting \(iso)"
+        let title = "Meeting \(iso) (\(meetingType.rawValue))"
 
         return """
         {
           \"title\": \"\(title)\",
           \"date\": \"\(iso)\",
-          \"summary\": \"Mock summary.\",
+          \"summary\": \"Mock summary for \(meetingType.rawValue).\",
           \"decisions\": [\"Mock decision\"],
           \"action_items\": [{\"owner\": \"\", \"task\": \"Mock action\"}],
           \"open_questions\": [\"Mock question\"],
           \"key_points\": [\"Mock key point\"]
         }
         """
+    }
+    
+    public func classify(transcript: String) async throws -> MeetingType {
+        try await Task.sleep(nanoseconds: 200_000_000)
+        return .general
     }
 
     public func repairJSON(_ invalidJSON: String) async throws -> String {

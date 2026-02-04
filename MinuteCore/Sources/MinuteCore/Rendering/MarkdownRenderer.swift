@@ -26,6 +26,9 @@ public struct MarkdownRenderer: Sendable {
         lines.append("date: \(date)")
         lines.append("title: \(StringNormalizer.yamlDoubleQuoted(title))")
         lines.append("source: \"Minute\"")
+        if let type = extraction.meetingType {
+            lines.append("meeting_type: \(type.rawValue)")
+        }
         if let length {
             lines.append("length: \(length)")
         }
