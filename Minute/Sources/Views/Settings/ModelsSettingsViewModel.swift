@@ -131,16 +131,29 @@ final class ModelsSettingsViewModel: ObservableObject {
             return
         }
 
-        state = .checking
+        guard !Task.isCancelled else { return }
+
+        let wasReady: Bool
+        if case .ready = state {
+            wasReady = true
+        } else {
+            wasReady = false
+        }
+
+        if !wasReady {
+            state = .checking
+        }
 
         do {
             let result = try await modelManager.validateModels()
+            guard !Task.isCancelled else { return }
             if result.isReady {
                 state = .ready
             } else {
                 state = .needsDownload(message: modelMessage(from: result))
             }
         } catch {
+            guard !Task.isCancelled else { return }
             let message = ErrorHandler.userMessage(for: error, fallback: "Failed to check model status.")
             state = .needsDownload(message: message)
         }

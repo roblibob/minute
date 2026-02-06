@@ -314,16 +314,29 @@ final class OnboardingViewModel: ObservableObject {
             return
         }
 
-        modelsState = .checking
+        guard !Task.isCancelled else { return }
+
+        let wasReady: Bool
+        if case .ready = modelsState {
+            wasReady = true
+        } else {
+            wasReady = false
+        }
+
+        if !wasReady {
+            modelsState = .checking
+        }
 
         do {
             let result = try await modelManager.validateModels()
+            guard !Task.isCancelled else { return }
             if result.isReady {
                 modelsState = .ready
             } else {
                 modelsState = .needsDownload(message: modelMessage(from: result))
             }
         } catch {
+            guard !Task.isCancelled else { return }
             let message = ErrorHandler.userMessage(for: error, fallback: "Failed to check model status.")
             modelsState = .needsDownload(message: message)
         }
