@@ -349,12 +349,9 @@ public actor DefaultModelManager: ModelManaging {
                     continue
                 }
 
-                do {
-                    let current = try directoryChecksumHex(of: spec.destinationURL)
-                    if current.lowercased() != marker.verifiedSHA256Hex.lowercased() {
-                        invalid.append(spec.id)
-                    }
-                } catch {
+                // Fast path: the marker is written only after a successful verified extraction.
+                // Re-hashing the entire directory on every app launch can be very slow.
+                if marker.verifiedSHA256Hex.isEmpty {
                     invalid.append(spec.id)
                 }
             } else {
@@ -363,11 +360,49 @@ public actor DefaultModelManager: ModelManaging {
                     continue
                 }
 
+                // Fast path: if we have a checksum marker that matches the currently pinned expected SHA,
+                // avoid re-hashing large model files on every validation.
+                let marker: ChecksumMarker?
+                do {
+                    marker = try readChecksumMarker(for: spec.destinationURL)
+                } catch {
+                    marker = nil
+                }
+
+                if let marker,
+                   marker.expectedSHA256Hex.lowercased() == spec.expectedSHA256Hex.lowercased(),
+                   marker.verifiedSHA256Hex.lowercased() == spec.expectedSHA256Hex.lowercased()
+                {
+                    do {
+                        if let expectedSize = spec.expectedFileSizeBytes {
+                            let attrs = try fileManager.attributesOfItem(atPath: spec.destinationURL.path)
+                            let size = (attrs[.size] as? NSNumber)?.int64Value
+                            if size != expectedSize {
+                                invalid.append(spec.id)
+                            }
+                        }
+                    } catch {
+                        invalid.append(spec.id)
+                    }
+                    continue
+                }
+
                 do {
                     let sha = try sha256Hex(of: spec.destinationURL)
                     if sha.lowercased() != spec.expectedSHA256Hex.lowercased() {
                         invalid.append(spec.id)
                         continue
+                    }
+
+                    // Cache the verification result for future fast-path validations.
+                    do {
+                        try writeChecksumMarker(
+                            for: spec.destinationURL,
+                            expectedSHA256Hex: spec.expectedSHA256Hex,
+                            verifiedSHA256Hex: sha
+                        )
+                    } catch {
+                        // Non-fatal; validation already succeeded.
                     }
 
                     if let expectedSize = spec.expectedFileSizeBytes {
@@ -480,6 +515,7 @@ public actor DefaultModelManager: ModelManaging {
 
         var hasher = SHA256()
         while true {
+            try Task.checkCancellation()
             let chunk = try handle.read(upToCount: 1024 * 1024)
             guard let chunk, !chunk.isEmpty else { break }
             hasher.update(data: chunk)
@@ -497,6 +533,7 @@ public actor DefaultModelManager: ModelManaging {
 
         var files: [URL] = []
         for case let fileURL as URL in enumerator {
+            try Task.checkCancellation()
             let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
             if values.isRegularFile == true {
                 files.append(fileURL)
@@ -509,6 +546,7 @@ public actor DefaultModelManager: ModelManaging {
         let basePath = directoryURL.path
 
         for fileURL in files {
+            try Task.checkCancellation()
             let relativePath = fileURL.path.replacingOccurrences(of: basePath + "/", with: "")
             if let pathData = relativePath.data(using: .utf8) {
                 hasher.update(data: pathData)
@@ -518,6 +556,7 @@ public actor DefaultModelManager: ModelManaging {
             defer { try? handle.close() }
 
             while true {
+                try Task.checkCancellation()
                 let chunk = try handle.read(upToCount: 1024 * 1024)
                 guard let chunk, !chunk.isEmpty else { break }
                 hasher.update(data: chunk)

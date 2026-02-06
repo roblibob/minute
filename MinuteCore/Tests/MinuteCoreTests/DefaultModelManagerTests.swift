@@ -78,6 +78,45 @@ struct DefaultModelManagerTests {
     }
 
     @Test
+    func validateModels_usesChecksumMarkerFastPath_butStillDetectsSizeMismatch() async throws {
+        let fm = FileManager.default
+        let tempDir = fm.temporaryDirectory.appendingPathComponent("minute-model-manager-tests-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: tempDir) }
+
+        let sourceURL = tempDir.appendingPathComponent("source.bin")
+        let content = Data("hello".utf8)
+        try content.write(to: sourceURL, options: [.atomic])
+
+        let destinationURL = tempDir.appendingPathComponent("dest.bin")
+        let expectedSHA = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+
+        let manager = DefaultModelManager(
+            requiredModels: [
+                DefaultModelManager.ModelSpec(
+                    id: "test",
+                    destinationURL: destinationURL,
+                    sourceURL: sourceURL,
+                    expectedSHA256Hex: expectedSHA,
+                    expectedFileSizeBytes: Int64(content.count)
+                ),
+            ]
+        )
+
+        try await manager.ensureModelsPresent(progress: Optional<(@Sendable (ModelDownloadProgress) -> Void)>.none)
+
+        let ready = try await manager.validateModels()
+        #expect(ready.isReady)
+
+        // Mutate the file so its size no longer matches the pinned spec.
+        try Data("hello!".utf8).write(to: destinationURL, options: [.atomic])
+
+        let afterMutation = try await manager.validateModels()
+        #expect(afterMutation.missingModelIDs.isEmpty)
+        #expect(afterMutation.invalidModelIDs.contains("test"))
+    }
+
+    @Test
     func defaultRequiredModels_usesSelectedTranscriptionModel() {
         let models = DefaultModelManager.defaultRequiredModels(
             selectedSummarizationModelID: nil,

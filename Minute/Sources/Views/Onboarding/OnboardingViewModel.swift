@@ -30,28 +30,28 @@ final class OnboardingViewModel: ObservableObject {
         didSet {
             guard oldValue != selectedSummarizationModelID else { return }
             summarizationModelStore.setSelectedModelID(selectedSummarizationModelID)
-            Task { await refreshModelsStatus() }
+            scheduleModelsValidation()
         }
     }
     @Published var selectedTranscriptionBackendID: String {
         didSet {
             guard oldValue != selectedTranscriptionBackendID else { return }
             transcriptionBackendStore.setSelectedBackendID(selectedTranscriptionBackendID)
-            Task { await refreshModelsStatus() }
+            scheduleModelsValidation()
         }
     }
     @Published var selectedTranscriptionModelID: String {
         didSet {
             guard oldValue != selectedTranscriptionModelID else { return }
             transcriptionModelStore.setSelectedModelID(selectedTranscriptionModelID)
-            Task { await refreshModelsStatus() }
+            scheduleModelsValidation()
         }
     }
     @Published var selectedFluidAudioModelID: String {
         didSet {
             guard oldValue != selectedFluidAudioModelID else { return }
             fluidAudioModelStore.setSelectedModelID(selectedFluidAudioModelID)
-            Task { await refreshModelsStatus() }
+            scheduleModelsValidation()
         }
     }
 
@@ -65,6 +65,7 @@ final class OnboardingViewModel: ObservableObject {
 
     private var defaultsObserver: AnyCancellable?
     private var modelTask: Task<Void, Never>?
+    private var modelsValidationTask: Task<Void, Never>?
 
     private enum DefaultsKey {
         static let didShowIntro = "didShowOnboardingIntro"
@@ -135,6 +136,7 @@ final class OnboardingViewModel: ObservableObject {
 
     deinit {
         modelTask?.cancel()
+        modelsValidationTask?.cancel()
     }
 
     var permissionsReady: Bool {
@@ -209,7 +211,7 @@ final class OnboardingViewModel: ObservableObject {
     func refreshAll() {
         refreshPermissions()
         refreshVaultStatus()
-        Task { await refreshModelsStatus() }
+        scheduleModelsValidation()
         updateCurrentStepIfNeeded()
     }
 
@@ -327,6 +329,14 @@ final class OnboardingViewModel: ObservableObject {
         }
 
         updateCurrentStepIfNeeded()
+    }
+
+    private func scheduleModelsValidation() {
+        modelsValidationTask?.cancel()
+        modelsValidationTask = Task { [weak self] in
+            guard let self else { return }
+            await refreshModelsStatus()
+        }
     }
 
     private func modelMessage(from result: ModelValidationResult) -> String {

@@ -47,6 +47,7 @@ final class ModelsSettingsViewModel: ObservableObject {
     private let transcriptionBackendStore: TranscriptionBackendSelectionStore
     private let fluidAudioModelStore: FluidAudioASRModelSelectionStore
     private var modelTask: Task<Void, Never>?
+    private var modelsValidationTask: Task<Void, Never>?
 
     init(
         modelManager: (any ModelManaging)? = nil,
@@ -90,10 +91,11 @@ final class ModelsSettingsViewModel: ObservableObject {
 
     deinit {
         modelTask?.cancel()
+        modelsValidationTask?.cancel()
     }
 
     func refresh() {
-        Task { await refreshModelsStatus() }
+        scheduleModelsValidation()
     }
 
     func startDownload() {
@@ -141,6 +143,14 @@ final class ModelsSettingsViewModel: ObservableObject {
         } catch {
             let message = ErrorHandler.userMessage(for: error, fallback: "Failed to check model status.")
             state = .needsDownload(message: message)
+        }
+    }
+
+    private func scheduleModelsValidation() {
+        modelsValidationTask?.cancel()
+        modelsValidationTask = Task { [weak self] in
+            guard let self else { return }
+            await refreshModelsStatus()
         }
     }
 
