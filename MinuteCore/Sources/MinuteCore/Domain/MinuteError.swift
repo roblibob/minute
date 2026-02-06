@@ -19,6 +19,7 @@ public enum MinuteError: Error, LocalizedError, Sendable {
 
     case llamaMissing
     case llamaFailed(exitCode: Int32, output: String)
+    case llamaModelTooLarge(modelSizeBytes: Int64, physicalMemoryBytes: UInt64)
 
     case modelMissing
     case mmprojMissing
@@ -59,6 +60,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "Summarization component is missing."
         case .llamaFailed:
             return "Summarization failed."
+        case .llamaModelTooLarge:
+            return "Selected summarization model is too large for this Mac. Choose a smaller model in Settings → Models."
 
         case .modelMissing:
             return "Required model files are missing."
@@ -90,6 +93,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "transcription failed\n\(underlyingDescription)"
         case .llamaFailed(let exitCode, let output):
             return "llama failed (exitCode=\(exitCode))\n\(output)"
+        case .llamaModelTooLarge(let modelSizeBytes, let physicalMemoryBytes):
+            return "llama model too large (modelSizeBytes=\(modelSizeBytes), physicalMemoryBytes=\(physicalMemoryBytes))"
         case .modelDownloadFailed(let underlyingDescription):
             return "model download failed\n\(underlyingDescription)"
         case .ffmpegMissing:

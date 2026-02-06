@@ -98,10 +98,43 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
             throw MinuteError.modelMissing
         }
 
+        let environment = ProcessInfo.processInfo.environment
+        let physicalMemoryBytes = ProcessInfo.processInfo.physicalMemory
+        let modelSizeBytes: Int64? = {
+            guard let size = (try? FileManager.default.attributesOfItem(atPath: configuration.modelURL.path)[.size]) as? NSNumber else {
+                return nil
+            }
+            return size.int64Value
+        }()
+
+        if environment["MINUTE_ALLOW_LARGE_LLM"] != "1",
+           let modelSizeBytes,
+           modelSizeBytes > 0 {
+            // Heuristic guardrail: large GGUF models can map successfully but still crash
+            // under GPU offload / residency pressure. Prefer a clear user error.
+            let minHeadroomBytes: Int64 = 4 * 1024 * 1024 * 1024
+            if Int64(physicalMemoryBytes) - modelSizeBytes < minHeadroomBytes {
+                throw MinuteError.llamaModelTooLarge(
+                    modelSizeBytes: modelSizeBytes,
+                    physicalMemoryBytes: physicalMemoryBytes
+                )
+            }
+        }
+
         LlamaLibraryRuntime.ensureBackendInitialized()
 
         var modelParams = llama_model_default_params()
-        if llama_supports_gpu_offload() {
+
+        let gpuExplicitlyDisabled = environment["MINUTE_DISABLE_LLAMA_GPU"] == "1"
+        let gpuExplicitlyEnabled = environment["MINUTE_PREFER_LLAMA_GPU"] == "1"
+        let modelLooksSmallEnoughForGPU: Bool = {
+            // Very conservative default to avoid Metal driver aborts on huge models.
+            guard let modelSizeBytes else { return false }
+            return modelSizeBytes <= 5 * 1024 * 1024 * 1024
+        }()
+
+        let shouldUseGPUOffload = llama_supports_gpu_offload() && !gpuExplicitlyDisabled && (modelLooksSmallEnoughForGPU || gpuExplicitlyEnabled)
+        if shouldUseGPUOffload {
             modelParams.n_gpu_layers = Int32.max
         }
         guard let model = llama_model_load_from_file(configuration.modelURL.path, modelParams) else {
@@ -127,7 +160,7 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         ctxParams.n_ctx = UInt32(nCtx)
         ctxParams.n_batch = UInt32(nBatch)
         ctxParams.n_seq_max = 1
-        if llama_supports_gpu_offload() {
+        if shouldUseGPUOffload {
             ctxParams.flash_attn_type = LLAMA_FLASH_ATTN_TYPE_ENABLED
             ctxParams.offload_kqv = true
             ctxParams.op_offload = true

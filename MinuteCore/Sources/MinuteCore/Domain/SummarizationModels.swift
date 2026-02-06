@@ -50,7 +50,7 @@ public struct SummarizationModel: Sendable, Equatable, Identifiable {
 }
 
 public enum SummarizationModelCatalog {
-    public static let defaultModelID = "llm/gemma-3-27b-it-q4_k_m"
+    public static let defaultModelID = "llm/gemma-3-4b-it-q4_k_m"
 
     public static let all: [SummarizationModel] = [
         SummarizationModel(
@@ -69,7 +69,7 @@ public enum SummarizationModelCatalog {
         SummarizationModel(
             id: "llm/gemma-3-27b-it-q4_k_m",
             displayName: "Gemma 3 27B IT (Q4_K_M)",
-            summary: "Best quality summaries. Large download. Multimodal.",
+            summary: "Best quality summaries. Large download. Needs a lot of memory (24+GB). Multimodal.",
             fileName: "gemma-3-27b-it-Q4_K_M.gguf",
             sourceURL: URL(string: "https://huggingface.co/ggml-org/gemma-3-27b-it-GGUF/resolve/main/gemma-3-27b-it-Q4_K_M.gguf")!,
             expectedSHA256Hex: "edc9aff4d811a285b9157618130b08688b0768d94ee5355b02dc0cb713012e15",
