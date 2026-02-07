@@ -69,9 +69,8 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
     }
 
     public func classify(transcript: String) async throws -> MeetingType {
-        // Use the first 2000 chars (approx) for efficient classification
-        let snippet = String(transcript.prefix(3000)) 
-        let prompt = MeetingTypeClassifier.prompt(for: snippet)
+        // Note: `MeetingTypeClassifier.prompt(for:)` applies its own bounded transcript truncation.
+        let prompt = MeetingTypeClassifier.prompt(for: transcript)
 
         var classifyConfiguration = configuration
         classifyConfiguration.temperature = 0.0

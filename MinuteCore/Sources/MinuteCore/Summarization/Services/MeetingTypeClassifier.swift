@@ -19,7 +19,7 @@ public enum MeetingTypeClassifier {
     ]
     
     /// Generates the prompt for the first-pass classification.
-    /// - Parameter transcript: A representative snippet of the transcript (e.g. first 2000 tokens).
+    /// - Parameter transcript: A representative snippet of the transcript (truncated by character count).
     /// - Returns: The classification prompt string.
     public static func prompt(for transcript: String) -> String {
         let maxSnippetCharacters = 3_000
