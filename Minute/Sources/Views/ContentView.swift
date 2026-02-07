@@ -337,8 +337,8 @@ private struct PipelineContentView: View {
             }
 
             let baseDetail = isDeferred
-                ? "Previous meeting is processing. First screen inference is deferred to keep recording smooth."
-                : "Previous meeting is processing in the background."
+                ? "Your recorded meeting is processing. Screen context disabled until processing is done."
+                : "Your recorded meeting is processing in the background."
 
             let detail = hasPending
                 ? baseDetail + " Another meeting is pending next."
