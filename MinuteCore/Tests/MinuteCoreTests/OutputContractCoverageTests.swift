@@ -43,6 +43,9 @@ struct OutputContractCoverageTests {
             let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
             let transcript = try String(contentsOf: transcriptURL, encoding: .utf8)
             #expect(transcript.contains("Hello world"))
+            #expect(!transcript.contains("participants:\n"))
+            #expect(!transcript.contains("speaker_map:\n"))
+            #expect(!transcript.contains("speaker_order:\n"))
         }
 
         let naming = MeetingSpeakerNamingService(vaultWriter: TestVaultWriter())
@@ -61,6 +64,7 @@ struct OutputContractCoverageTests {
         let updatedNote = try String(contentsOf: result.noteURL, encoding: .utf8)
         #expect(updatedNote.contains("participants:\n"))
         #expect(updatedNote.contains("speaker_map:\n"))
+        #expect(updatedNote.contains("speaker_order:\n"))
 
         let transcriptRelativePathsAfterFrontmatter = filesAfterFrontmatter.filter { $0.contains("/_transcripts/") }
         #expect(transcriptRelativePathsAfterFrontmatter == transcriptRelativePaths)

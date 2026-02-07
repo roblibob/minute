@@ -26,8 +26,8 @@ struct TranscriptSpeakerHeadingRewriterTests {
             speakerDisplayNames: [1: "Alice", 2: "Bob"]
         )
 
-        #expect(output.contains("Alice [00:00 - 00:05]\nHello Speaker 1."))
-        #expect(output.contains("Bob [00:05 - 00:08]\nHi there."))
+        #expect(output.contains("Speaker 1 (Alice) [00:00 - 00:05]\nHello Speaker 1."))
+        #expect(output.contains("Speaker 2 (Bob) [00:05 - 00:08]\nHi there."))
         #expect(output.contains("Speaker 1 is not a heading."))
     }
 
@@ -40,5 +40,17 @@ struct TranscriptSpeakerHeadingRewriterTests {
         )
 
         #expect(output.hasSuffix("\n"))
+    }
+
+    @Test
+    func rewrite_updatesAlreadyRenamedHeading_whenPriorMappingProvided() {
+        let input = "Alice [00:00 - 00:01]\nHi\n"
+        let output = TranscriptSpeakerHeadingRewriter.rewrite(
+            transcriptMarkdown: input,
+            speakerDisplayNames: [1: "Bob"],
+            priorSpeakerDisplayNames: [1: "Alice"]
+        )
+
+        #expect(output == "Speaker 1 (Bob) [00:00 - 00:01]\nHi\n")
     }
 }

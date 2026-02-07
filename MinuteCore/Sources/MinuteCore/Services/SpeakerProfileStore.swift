@@ -108,6 +108,23 @@ public actor SpeakerProfileStore {
         return updated
     }
 
+    public func updateProfileEmbedding(profileID: String, embedding: [Float], embeddingModelVersion: String) throws -> SpeakerProfile {
+        var store = try loadStoreFile()
+        guard let index = store.profiles.firstIndex(where: { $0.id == profileID }) else {
+            throw SpeakerProfileStoreError.profileNotFound
+        }
+
+        var updated = store.profiles[index]
+        updated.embedding = embedding
+        updated.embeddingModelVersion = embeddingModelVersion
+        updated.updatedAt = now()
+        updated = try updated.validated()
+
+        store.profiles[index] = updated
+        try saveStoreFile(store)
+        return updated
+    }
+
     public func deleteProfile(profileID: String) throws {
         var store = try loadStoreFile()
         let beforeCount = store.profiles.count

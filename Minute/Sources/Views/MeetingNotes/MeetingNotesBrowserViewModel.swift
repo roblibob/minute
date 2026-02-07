@@ -52,6 +52,10 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     @Published private(set) var speakerTranscriptRewriteErrorMessage: String?
     @Published private(set) var isRewritingTranscriptHeadings: Bool = false
 
+    // US4: Known speaker enrollment (explicit user action).
+    @Published private(set) var speakerEnrollmentErrorMessage: String?
+    @Published private(set) var enrollingSpeakerID: Int?
+
     // Speaker IDs discovered from the transcript file, independent of which tab is currently selected.
     @Published private(set) var transcriptSpeakerIDs: [Int] = []
 
@@ -135,9 +139,62 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         isSavingSpeakerNames = false
         speakerTranscriptRewriteErrorMessage = nil
         isRewritingTranscriptHeadings = false
+        speakerEnrollmentErrorMessage = nil
+        enrollingSpeakerID = nil
         transcriptSpeakerIDs = []
         transcriptSpeakerIDsTask?.cancel()
         transcriptSpeakerIDsTask = nil
+    }
+
+    func enrollKnownSpeaker(speakerId: Int) {
+        guard let item = selectedItem else { return }
+        speakerEnrollmentErrorMessage = nil
+
+        let trimmedName = (speakerNameDrafts[speakerId] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            speakerEnrollmentErrorMessage = "Enter a name for this speaker first."
+            return
+        }
+
+        enrollingSpeakerID = speakerId
+        let meetingKey = item.fileURL.path
+
+        let policy = SpeakerProfileEnrollmentPolicy()
+        let service = SpeakerProfileEnrollmentService()
+
+        Task { [weak self] in
+            let availability = await policy.availability(meetingKey: meetingKey, speakerID: speakerId)
+            switch availability {
+            case .available:
+                do {
+                    _ = try await service.createProfileFromMeeting(
+                        meetingKey: meetingKey,
+                        speakerID: speakerId,
+                        name: trimmedName
+                    )
+                    await MainActor.run {
+                        self?.enrollingSpeakerID = nil
+                        self?.speakerEnrollmentErrorMessage = nil
+                    }
+                } catch {
+                    let message = ErrorHandler.userMessage(for: error, fallback: "Failed to save known speaker profile.")
+                    await MainActor.run {
+                        self?.enrollingSpeakerID = nil
+                        self?.speakerEnrollmentErrorMessage = message
+                    }
+                }
+            case .missingMeetingEmbeddings:
+                await MainActor.run {
+                    self?.enrollingSpeakerID = nil
+                    self?.speakerEnrollmentErrorMessage = "Embeddings for this meeting aren’t available. Reprocess the meeting with Known Speaker Suggestions enabled, then try again."
+                }
+            case .missingSpeakerEmbedding:
+                await MainActor.run {
+                    self?.enrollingSpeakerID = nil
+                    self?.speakerEnrollmentErrorMessage = "Embeddings for this speaker aren’t available. Reprocess the meeting and try again."
+                }
+            }
+        }
     }
 
     func retryLoadContent() {
@@ -197,6 +254,13 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         speakerTranscriptRewriteErrorMessage = nil
         isSavingSpeakerNames = true
 
+        // Capture the current persisted mapping before we write updates.
+        // This allows the transcript heading rewriter to update headings that were previously renamed
+        // (e.g., "Alice [..]" -> "Bob [..]") in the same explicit user action.
+        let priorOwned = MeetingSpeakerNamingService(vaultWriter: DefaultVaultWriter())
+            .loadOwnedParticipantFrontmatter(from: noteContent ?? "")
+        let priorSpeakerDisplayNames = priorOwned.speakerMap
+
         // Build deterministic owned frontmatter from current drafts.
         let orderedSpeakerIDs = speakerIDs.sorted()
 
@@ -247,7 +311,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                 // so the transcript file itself reflects the chosen speaker names.
                 if item.hasTranscript {
                     await MainActor.run {
-                        self?.rewriteTranscriptHeadings()
+                        self?.rewriteTranscriptHeadings(priorSpeakerDisplayNames: priorSpeakerDisplayNames)
                     }
                 }
             } catch is CancellationError {
@@ -264,7 +328,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         }
     }
 
-    func rewriteTranscriptHeadings() {
+    func rewriteTranscriptHeadings(priorSpeakerDisplayNames: [Int: String] = [:]) {
         guard let item = selectedItem else { return }
         guard item.hasTranscript else { return }
 
@@ -297,7 +361,8 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     let content = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
                     let output = TranscriptSpeakerHeadingRewriter.rewrite(
                         transcriptMarkdown: content,
-                        speakerDisplayNames: speakerDisplayNames
+                        speakerDisplayNames: speakerDisplayNames,
+                        priorSpeakerDisplayNames: priorSpeakerDisplayNames
                     )
 
                     if output != content {
@@ -562,16 +627,20 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
         for lineSub in lines {
             let line = String(lineSub)
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let leadingWhitespace = line.prefix { $0.isWhitespace }
+            let remainder = line.dropFirst(leadingWhitespace.count)
+            let trimmed = remainder.trimmingCharacters(in: .whitespaces)
+
             if trimmed.hasPrefix("Speaker ") {
                 let afterPrefix = trimmed.dropFirst("Speaker ".count)
                 let digits = afterPrefix.prefix { $0.isNumber }
                 if let id = Int(digits),
                    let name = speakerDisplayNames[id]?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !name.isEmpty,
-                   let range = line.range(of: "Speaker \(id)") {
-                    let replaced = line.replacingCharacters(in: range, with: name)
-                    out.append(replaced)
+                   let bracketRange = trimmed.range(of: " [") {
+                    // Replace the entire heading token (Speaker N + optional " (Name)") with the current name.
+                    let suffix = String(trimmed[bracketRange.lowerBound...])
+                    out.append(String(leadingWhitespace) + name + suffix)
                     continue
                 }
             }

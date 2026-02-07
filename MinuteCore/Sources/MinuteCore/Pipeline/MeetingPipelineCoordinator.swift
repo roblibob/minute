@@ -10,6 +10,7 @@ public actor MeetingPipelineCoordinator {
     private let vaultAccess: VaultAccess
     private let vaultWriter: any VaultWriting
     private let speakerProfileStore: SpeakerProfileStore
+    private let meetingSpeakerEmbeddingCache: MeetingSpeakerEmbeddingCache
     private let dateProvider: @Sendable () -> Date
 
     private let logger = Logger(subsystem: "roblibob.Minute", category: "pipeline")
@@ -23,6 +24,7 @@ public actor MeetingPipelineCoordinator {
         vaultAccess: VaultAccess,
         vaultWriter: some VaultWriting,
         speakerProfileStore: SpeakerProfileStore = SpeakerProfileStore(),
+        meetingSpeakerEmbeddingCache: MeetingSpeakerEmbeddingCache = MeetingSpeakerEmbeddingCache(),
         dateProvider: @escaping @Sendable () -> Date = Date.init
     ) {
         self.transcriptionService = transcriptionService
@@ -33,6 +35,7 @@ public actor MeetingPipelineCoordinator {
         self.vaultAccess = vaultAccess
         self.vaultWriter = vaultWriter
         self.speakerProfileStore = speakerProfileStore
+        self.meetingSpeakerEmbeddingCache = meetingSpeakerEmbeddingCache
         self.dateProvider = dateProvider
     }
 
@@ -140,11 +143,13 @@ public actor MeetingPipelineCoordinator {
             try Task.checkCancellation()
             progress?(.writing(fractionCompleted: 0.85, extraction: extraction))
 
-            let participantFrontmatter = await suggestKnownSpeakersFrontmatterIfEnabled(
+            let suggestionResult = await suggestKnownSpeakersFrontmatterIfEnabled(
                 context: context,
                 diarizationSegments: diarizationSegments,
                 embeddingExportURL: embeddingExportURL
             )
+
+            let participantFrontmatter = suggestionResult?.frontmatter
 
             let outputs = try writeOutputsToVault(
                 context: context,
@@ -154,6 +159,15 @@ public actor MeetingPipelineCoordinator {
                 originalAudioData: originalAudioData,
                 participantFrontmatter: participantFrontmatter
             )
+
+            if let embeddingsBySpeakerID = suggestionResult?.embeddingsBySpeakerID, !embeddingsBySpeakerID.isEmpty {
+                // Persist in app-owned storage (never the vault) for later explicit enrollment.
+                try await meetingSpeakerEmbeddingCache.upsert(
+                    meetingKey: outputs.noteURL.path,
+                    embeddingsBySpeakerID: embeddingsBySpeakerID,
+                    embeddingModelVersion: SpeakerEmbeddingModelVersions.fluidAudioOfflineVbx256
+                )
+            }
 
             cleanupTemporaryArtifacts(for: context)
             return outputs
@@ -226,11 +240,13 @@ public actor MeetingPipelineCoordinator {
 
         let transcriptData: Data?
         if transcriptRelativePath != nil {
+            let speakerDisplayNames = participantFrontmatter?.speakerMap ?? [:]
             let transcriptMarkdown = TranscriptMarkdownRenderer().render(
                 title: extraction.title,
                 dateISO: meetingDateISO,
                 transcript: transcription.text,
-                attributedSegments: attributedSegments
+                attributedSegments: attributedSegments,
+                speakerDisplayNames: speakerDisplayNames
             )
             transcriptData = Data(transcriptMarkdown.utf8)
         } else {
@@ -346,7 +362,7 @@ public actor MeetingPipelineCoordinator {
         context: PipelineContext,
         diarizationSegments: [SpeakerSegment],
         embeddingExportURL: URL?
-    ) async -> MeetingParticipantFrontmatter? {
+    ) async -> KnownSpeakerSuggestionResult? {
         guard context.knownSpeakerSuggestionsEnabled else { return nil }
         guard let embeddingExportURL else { return nil }
 
@@ -372,8 +388,20 @@ public actor MeetingPipelineCoordinator {
                 clusterToSpeakerId = Dictionary(uniqueKeysWithValues: clusters.map { ($0, $0) })
             }
 
+            var embeddingsBySpeakerID: [Int: [Float]] = [:]
+            embeddingsBySpeakerID.reserveCapacity(aggregated.count)
+            for item in aggregated {
+                let speakerId = clusterToSpeakerId[item.speakerCluster] ?? item.speakerCluster
+                embeddingsBySpeakerID[speakerId] = item.embedding
+            }
+
             let profiles = try await speakerProfileStore.listProfiles()
-            if profiles.isEmpty { return nil }
+            if profiles.isEmpty {
+                return KnownSpeakerSuggestionResult(
+                    frontmatter: nil,
+                    embeddingsBySpeakerID: embeddingsBySpeakerID
+                )
+            }
 
             let matcher = SpeakerEmbeddingMatcher()
 
@@ -390,19 +418,29 @@ public actor MeetingPipelineCoordinator {
             }
 
             let participants = Array(Set(speakerMap.values)).sorted()
-            if participants.isEmpty && speakerMap.isEmpty { return nil }
+            let frontmatter: MeetingParticipantFrontmatter?
+            if participants.isEmpty && speakerMap.isEmpty {
+                frontmatter = nil
+            } else {
+                let speakerOrder = meetingSpeakerOrder
+                frontmatter = MeetingParticipantFrontmatter(
+                    participants: participants,
+                    speakerMap: speakerMap,
+                    speakerOrder: speakerOrder
+                )
+            }
 
-            let speakerOrder = meetingSpeakerOrder
-            return MeetingParticipantFrontmatter(
-                participants: participants,
-                speakerMap: speakerMap,
-                speakerOrder: speakerOrder
-            )
+            return KnownSpeakerSuggestionResult(frontmatter: frontmatter, embeddingsBySpeakerID: embeddingsBySpeakerID)
         } catch {
             // Suggestions are best-effort: never fail the pipeline.
             logger.error("Known-speaker suggestion step failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             return nil
         }
+    }
+
+    private struct KnownSpeakerSuggestionResult: Sendable {
+        var frontmatter: MeetingParticipantFrontmatter?
+        var embeddingsBySpeakerID: [Int: [Float]]
     }
 
     private func cleanupTemporaryArtifacts(for context: PipelineContext) {

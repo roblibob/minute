@@ -24,9 +24,11 @@ Audio format: mono, 16 kHz, 16-bit PCM WAV.
 
 Note structure (deterministic)
 - YAML frontmatter with fixed schema.
-- Speaker naming metadata (if the user edits it) is stored in the meeting note YAML frontmatter:
-   - `participants`: list of participant display names
-   - `speaker_map`: mapping of speaker numbers (as strings) to participant names
+- Speaker naming metadata (if the user edits it) is stored in the meeting note YAML frontmatter under app-owned keys:
+   - `participants`: list of participant display names (strings)
+   - `speaker_map`: mapping of speaker IDs to participant names
+     - YAML keys are strings (e.g. `"1"`), but represent stable speaker IDs as integers.
+   - `speaker_order`: optional list of speaker IDs used to display speakers in a stable order
 - Sections: Summary, Decisions, Action Items, Open Questions, Key Points.
 - Links to the audio and transcript files in the vault.
 
@@ -56,6 +58,8 @@ Permissions and privacy
 - All audio and inference runs locally.
 - The only network access is for downloading model weights.
 - No transcript content is logged by default.
+- Known-speaker profiles and diarization embeddings (when enabled) are stored in app support, not in the vault.
+- The vault output contract remains exactly three files per meeting.
 
 Storage locations
 - Vault: user-selected Obsidian vault root (files written only within this tree).

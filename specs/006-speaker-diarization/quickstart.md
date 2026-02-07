@@ -31,9 +31,10 @@ Planned additions (this feature):
 - Run Xcode tests (if needed):
   - `xcodebuild -workspace Minute.xcworkspace -scheme MinuteCore -configuration Debug test -destination 'platform=macOS'`
 
-## Manual QA checklist (future)
+## Manual QA checklist
 
 - Process a multi-speaker meeting twice; verify deterministic speaker segmentation and stable note rendering.
-- Rename speakers; verify transcript labels and meeting note frontmatter update.
-- Enable known-speaker suggestions; enroll a speaker; verify suggestion appears in a subsequent meeting.
+- Open the in-meeting Speakers UI; rename speakers; confirm the meeting note frontmatter updates (`participants`, `speaker_map`, `speaker_order`).
+- Enable known-speaker suggestions in Settings; in the Speakers UI, use “Save as Known Speaker…” for a speaker.
+- Process another meeting; confirm suggestions are best-effort and non-destructive (no overwrites of existing `speaker_map`).
 - Confirm no extra files are written beyond the 3-file meeting contract.

@@ -18,7 +18,7 @@ struct TranscriptSpeakerDisplayNameTests {
             speakerDisplayNames: [1: "Alice"]
         )
 
-        #expect(markdown.contains("Alice [00:00 - 00:05]\nHello."))
+        #expect(markdown.contains("Speaker 1 (Alice) [00:00 - 00:05]\nHello."))
         #expect(markdown.contains("Speaker 2 [00:05 - 00:08]\nHi there."))
     }
 }

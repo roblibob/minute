@@ -7,7 +7,8 @@ import Foundation
 public enum TranscriptSpeakerHeadingRewriter {
     public static func rewrite(
         transcriptMarkdown: String,
-        speakerDisplayNames: [Int: String]
+        speakerDisplayNames: [Int: String],
+        priorSpeakerDisplayNames: [Int: String] = [:]
     ) -> String {
         let hasTrailingNewline = transcriptMarkdown.hasSuffix("\n")
         let normalized = transcriptMarkdown
@@ -21,7 +22,11 @@ public enum TranscriptSpeakerHeadingRewriter {
 
         for lineSub in lines {
             let line = String(lineSub)
-            let rewritten = rewriteLineIfHeading(line, speakerDisplayNames: speakerDisplayNames)
+            let rewritten = rewriteLineIfHeading(
+                line,
+                speakerDisplayNames: speakerDisplayNames,
+                priorSpeakerDisplayNames: priorSpeakerDisplayNames
+            )
             if rewritten != line {
                 didChange = true
             }
@@ -43,25 +48,45 @@ public enum TranscriptSpeakerHeadingRewriter {
 
     private static func rewriteLineIfHeading(
         _ line: String,
-        speakerDisplayNames: [Int: String]
+        speakerDisplayNames: [Int: String],
+        priorSpeakerDisplayNames: [Int: String]
     ) -> String {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("Speaker ") else { return line }
+        let leadingWhitespace = line.prefix { $0.isWhitespace }
+        let remainder = line.dropFirst(leadingWhitespace.count)
+        let trimmed = remainder.trimmingCharacters(in: .whitespaces)
 
-        // Match: "Speaker <digits> ["
-        let afterPrefix = trimmed.dropFirst("Speaker ".count)
-        let digits = afterPrefix.prefix { $0.isNumber }
-        guard let id = Int(digits) else { return line }
+        // Headings must contain the timestamp delimiter.
+        guard let bracketRange = trimmed.range(of: " [") else { return line }
+        let suffix = String(trimmed[bracketRange.lowerBound...])
 
-        let remainder = afterPrefix.dropFirst(digits.count)
-        guard remainder.hasPrefix(" [") else { return line }
+        // Canonical heading: "Speaker <digits> ... ["
+        if trimmed.hasPrefix("Speaker ") {
+            let afterPrefix = trimmed.dropFirst("Speaker ".count)
+            let digits = afterPrefix.prefix { $0.isNumber }
+            guard let id = Int(digits) else { return line }
 
-        guard let nameRaw = speakerDisplayNames[id] else { return line }
-        let name = nameRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return line }
+            guard let nameRaw = speakerDisplayNames[id] else { return line }
+            let name = nameRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return line }
 
-        // Replace only the first occurrence of "Speaker <id>" in the original line.
-        guard let range = line.range(of: "Speaker \(id)") else { return line }
-        return line.replacingCharacters(in: range, with: name)
+            // Always preserve the stable speaker id in the output.
+            return String(leadingWhitespace) + "Speaker \(id) (\(name))" + suffix
+        }
+
+        // Legacy heading (from older behavior): "<Name> [".
+        // If we know which speaker id that name belonged to, migrate to the canonical format.
+        for (id, priorNameRaw) in priorSpeakerDisplayNames {
+            let priorName = priorNameRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !priorName.isEmpty else { continue }
+            guard trimmed.hasPrefix("\(priorName)") else { continue }
+
+            guard let newNameRaw = speakerDisplayNames[id] else { continue }
+            let newName = newNameRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !newName.isEmpty else { continue }
+
+            return String(leadingWhitespace) + "Speaker \(id) (\(newName))" + suffix
+        }
+
+        return line
     }
 }

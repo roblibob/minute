@@ -44,9 +44,14 @@ public struct TranscriptMarkdownRenderer: Sendable {
                 let end = formatTimestamp(segment.endSeconds)
 
                 let mappedName = speakerDisplayNames[segment.speakerId]?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let headingName = (mappedName?.isEmpty == false) ? mappedName! : "Speaker \(segment.speakerId)"
+                let heading: String
+                if let mappedName, !mappedName.isEmpty {
+                    heading = "Speaker \(segment.speakerId) (\(mappedName)) [\(start) - \(end)]"
+                } else {
+                    heading = "Speaker \(segment.speakerId) [\(start) - \(end)]"
+                }
 
-                lines.append("\(headingName) [\(start) - \(end)]")
+                lines.append(heading)
                 lines.append(segment.text.trimmingCharacters(in: .whitespacesAndNewlines))
                 if index < attributedSegments.count - 1 {
                     lines.append("")

@@ -12,6 +12,7 @@
 - Q: Where should per-meeting speaker naming be persisted to satisfy the 3-file vault contract? → A: Store `participants` + `speaker_map` only in the meeting note YAML frontmatter; optionally update transcript speaker headings only on explicit user action (no automatic rewrites).
 - Q: What loudness normalization approach should be used for analysis audio? → A: Use bundled `ffmpeg` `loudnorm` with a pinned preset and deterministic 2-pass flow (target `I=-16`, `TP=-1.5`, `LRA=11`, `linear=true`, `print_format=json`).
 - Q: What is the canonical source of speaker embeddings for cross-meeting suggestions? → A: Use OfflineDiarizer embedding export to the meeting working directory (temporary, non-vault), then aggregate deterministically per speaker and persist profiles in app-owned storage.
+- Q: How does a user enroll a “known speaker” profile ("Save as Known Speaker…") if embeddings are temporary? → A: Enrollment MUST be an explicit user action; the app MUST either retain a small app-owned cache of per-meeting aggregated speaker embeddings long enough for enrollment, or require a user-initiated reprocess to make enrollment possible later.
 - Q: Should cross-meeting known-speaker suggestions be enabled by default? → A: Default OFF; user must explicitly enable “Known speaker suggestions” in Settings.
 - Q: What deterministic ordering should be used when rendering speakers/segments? → A: Order speakers by total speaking duration (descending), tie-break by earliest segment start time (ascending), then by stable internal speaker identifier.
 
@@ -61,6 +62,22 @@ As a user viewing a meeting, I want a subtle UI that lets me rename speakers to 
 2. **Given** the meeting note includes participant metadata, **When** the user renames a speaker, **Then** the participant metadata is updated accordingly (without creating any additional meeting output files).
 3. **Given** the user has renamed speakers for a meeting, **When** they return later, **Then** the meeting still shows the same participant names.
 
+---
+
+### User Story 4 - Enroll a “known speaker” from a meeting (Priority: P3, optional)
+
+As a user, I want to explicitly save a meeting’s speaker as a reusable “known speaker” profile, so future meetings can suggest names without me re-typing them.
+
+**Why this priority**: This reduces repeated manual naming for recurring participants, while keeping privacy and user control.
+
+**Independent Test**: Process two meetings with at least one recurring speaker, enroll that speaker as a known profile from meeting 1, then verify meeting 2 surfaces the suggestion without overwriting user edits.
+
+**Acceptance Scenarios**:
+
+1. **Given** a processed meeting with diarized speakers, **When** the user chooses “Save as Known Speaker…” for a speaker and provides a name, **Then** a local-only profile is created/updated and can be removed later.
+2. **Given** a later meeting with a recurring speaker and known-speaker suggestions enabled, **When** the meeting is processed, **Then** the app surfaces a suggested participant mapping for that speaker without overwriting any existing user-provided mappings.
+3. **Given** a processed meeting where speaker embeddings are not available (e.g., cache expired or artifacts removed), **When** the user attempts enrollment, **Then** the app provides an actionable path (e.g., “Reprocess to enable enrollment”) rather than silently failing.
+
 ### Edge Cases
 
 - Single-speaker meetings should not prompt manual speaker identification.
@@ -91,11 +108,16 @@ As a user viewing a meeting, I want a subtle UI that lets me rename speakers to 
 - **FR-007a**: Participant metadata MUST be stored ONLY in the meeting note YAML frontmatter (`participants`, `speaker_map`) and MUST NOT create any additional vault files.
 - **FR-007b**: Updating transcript speaker headings (if supported) MUST be an explicit user action and MUST NOT automatically rewrite the transcript file during normal viewing.
 - **FR-008**: System MUST support an optional local-only speaker profile capability that can suggest/auto-assign names for speakers in new meetings.
+- **FR-008**: System MUST support an optional local-only speaker profile capability that can suggest participant names for speakers in new meetings.
 - **FR-008a**: If speaker profiles are enabled, the system MUST source embeddings from the offline diarization pipeline (e.g., OfflineDiarizer embedding export) written only to the meeting working directory (temporary, non-vault).
 - **FR-008b**: The system MUST deterministically aggregate per-segment embeddings into a per-speaker embedding before matching/storing (aggregation method defined in implementation and tested for determinism).
 - **FR-008c**: Known-speaker suggestions MUST be opt-in and disabled by default; enabling/disabling MUST be controlled via a user setting.
+- **FR-008d**: The system MUST provide an explicit user action to enroll a meeting speaker into a known speaker profile (create or update) without writing any additional vault files.
+- **FR-008e**: The system MUST define and implement a user-friendly enrollment availability policy: if enrollment requires embedding data that is no longer available, the system MUST present an actionable recovery option (e.g., reprocess) and MUST NOT invent or guess a profile.
 - **FR-009**: Users MUST be able to manage their known speaker profiles, including removing a profile.
+- **FR-009a**: Profile enrollment MUST NOT overwrite or mutate meeting note frontmatter automatically; it only affects future suggestions unless the user explicitly applies a suggested mapping to the meeting.
 - **FR-010**: System MUST not overwrite user edits to the meeting note or transcript unless the user explicitly requests a reprocess/regenerate action.
+- **FR-010a**: Suggestions MUST NOT overwrite any existing non-empty user-provided `speaker_map` entries; they may only fill missing mappings or be presented as non-destructive suggestions.
 
 ### Non-Functional Requirements *(mandatory)*
 

@@ -9,6 +9,9 @@ struct MarkdownViewerOverlay: View {
         var save: () -> Void
         var isSaving: Bool
         var errorMessage: String?
+        var enrollmentErrorMessage: String?
+        var enrollKnownSpeaker: (Int) -> Void
+        var isEnrollingKnownSpeaker: (Int) -> Bool
         var isRewritingTranscriptHeadings: Bool
         var rewriteErrorMessage: String?
     }
@@ -155,6 +158,12 @@ struct MarkdownViewerOverlay: View {
                     .foregroundStyle(.red)
             }
 
+            if let message = editor.enrollmentErrorMessage {
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+            }
+
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(editor.speakerIDs, id: \.self) { speakerId in
                     HStack(spacing: 8) {
@@ -171,6 +180,22 @@ struct MarkdownViewerOverlay: View {
                         )
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 220)
+
+                        if editor.isEnrollingKnownSpeaker(speakerId) {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Button {
+                                editor.enrollKnownSpeaker(speakerId)
+                            } label: {
+                                Image(systemName: "person.crop.circle.badge.plus")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .frame(width: 28, height: 28)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Save as Known Speaker…")
+                            .disabled(editor.isSaving || editor.isRewritingTranscriptHeadings)
+                        }
                     }
                 }
             }

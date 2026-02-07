@@ -9,6 +9,8 @@ Improve diarization quality by switching meeting processing to FluidAudio’s of
 
 Optionally (opt-in, default OFF), introduce local-only known speaker suggestions via embedding similarity using embeddings sourced from the offline diarizer (exported only to the meeting working directory; never to the vault).
 
+Add an explicit user-facing enrollment action (“Save as Known Speaker…”) so users can create/update known speaker profiles from a meeting’s diarized speaker, with a clear embedding availability policy (retain a small app-owned cache long enough for enrollment, or require reprocessing when unavailable).
+
 ## Technical Context
 
 **Language/Version**: Swift 5.9+ (Xcode 15.x), macOS 14+.
@@ -137,6 +139,11 @@ Design decisions:
 4) Optional known-speaker suggestions (opt-in)
 - Local-only profiles stored in Application Support JSON with atomic writes.
 - When enabled, derive per-speaker embeddings from the offline diarizer and match deterministically via cosine similarity.
+
+5) Known-speaker enrollment (explicit user action)
+- Provide an in-meeting action to enroll a diarized speaker into a known speaker profile (create/update).
+- Define embedding availability: enrollment uses a per-meeting aggregated embedding sourced from offline diarization output; if unavailable, require an explicit user recovery path (e.g., reprocess).
+- Enrollment never writes to the vault automatically; applying any suggested mapping to meeting frontmatter is always user-driven and non-destructive.
 
 ## Phase 1 — Agent context update
 
