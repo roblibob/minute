@@ -8,11 +8,18 @@ public struct ScreenContextCaptureStatus: Sendable, Equatable {
     public var processedCount: Int
     public var skippedCount: Int
     public var isInferenceRunning: Bool
+    public var isFirstInferenceDeferred: Bool
 
-    public init(processedCount: Int, skippedCount: Int, isInferenceRunning: Bool) {
+    public init(
+        processedCount: Int,
+        skippedCount: Int,
+        isInferenceRunning: Bool,
+        isFirstInferenceDeferred: Bool
+    ) {
         self.processedCount = processedCount
         self.skippedCount = skippedCount
         self.isInferenceRunning = isInferenceRunning
+        self.isFirstInferenceDeferred = isFirstInferenceDeferred
     }
 }
 
@@ -53,6 +60,7 @@ public actor ScreenContextCaptureService {
         selections: [ScreenContextWindowSelection],
         minimumFrameInterval: TimeInterval = 10.0,
         timestampOffsetSeconds: TimeInterval = 0,
+        processingBusyGate: ProcessingBusyGate? = nil,
         statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)? = nil,
         frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)? = nil
     ) async throws {
@@ -67,10 +75,11 @@ public actor ScreenContextCaptureService {
         }
 
         session = try await ScreenContextCaptureSession.start(
-            windows: resolved,
+            sources: ScreenContextCaptureSource.makeSources(from: resolved),
             inferencer: inferencer,
             minimumFrameInterval: minimumFrameInterval,
             timestampOffsetSeconds: timestampOffsetSeconds,
+            processingBusyGate: processingBusyGate,
             logger: logger,
             statusHandler: statusHandler,
             frameHandler: frameHandler
@@ -88,14 +97,55 @@ public actor ScreenContextCaptureService {
         self.session = nil
         await session.cancel()
     }
+
+    // Internal testing seam: bypasses ScreenCaptureKit window resolution and uses in-memory capture sources.
+    func _testStartCapture(
+        sources: [ScreenContextCaptureSource],
+        minimumFrameInterval: TimeInterval = 10.0,
+        timestampOffsetSeconds: TimeInterval = 0,
+        processingBusyGate: ProcessingBusyGate? = nil,
+        statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)? = nil,
+        frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)? = nil
+    ) async throws {
+        guard session == nil else { return }
+        guard !sources.isEmpty else { return }
+
+        session = try await ScreenContextCaptureSession.start(
+            sources: sources,
+            inferencer: inferencer,
+            minimumFrameInterval: minimumFrameInterval,
+            timestampOffsetSeconds: timestampOffsetSeconds,
+            processingBusyGate: processingBusyGate,
+            logger: logger,
+            statusHandler: statusHandler,
+            frameHandler: frameHandler
+        )
+    }
+}
+
+struct ScreenContextCaptureSource: Sendable {
+    var windowTitle: String
+    var captureImageData: @Sendable () async throws -> Data
+
+    fileprivate static func makeSources(from windows: [ResolvedWindow]) -> [ScreenContextCaptureSource] {
+        windows.map { resolved in
+            ScreenContextCaptureSource(
+                windowTitle: resolved.selection.windowTitle,
+                captureImageData: {
+                    try await ScreenContextCaptureSession.captureImageData(for: resolved.window)
+                }
+            )
+        }
+    }
 }
 
 private final class ScreenContextCaptureSession: @unchecked Sendable {
     private let logger: Logger
-    private let windows: [ResolvedWindow]
+    private let sources: [ScreenContextCaptureSource]
     private let inferencer: any ScreenContextInferencing
     private let collector: ScreenContextEventCollector
     private let statusReporter: ScreenContextStatusReporter
+    private let deferrer: FirstScreenInferenceDeferrer?
     private let minimumFrameInterval: TimeInterval
     private let timestampOffsetSeconds: TimeInterval
     private let frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?
@@ -103,19 +153,21 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
     private var firstTimestampSeconds: Double?
 
     private init(
-        windows: [ResolvedWindow],
+        sources: [ScreenContextCaptureSource],
         inferencer: any ScreenContextInferencing,
         collector: ScreenContextEventCollector,
         statusReporter: ScreenContextStatusReporter,
+        deferrer: FirstScreenInferenceDeferrer?,
         minimumFrameInterval: TimeInterval,
         timestampOffsetSeconds: TimeInterval,
         frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?,
         logger: Logger
     ) {
-        self.windows = windows
+        self.sources = sources
         self.inferencer = inferencer
         self.collector = collector
         self.statusReporter = statusReporter
+        self.deferrer = deferrer
         self.minimumFrameInterval = minimumFrameInterval
         self.timestampOffsetSeconds = timestampOffsetSeconds
         self.frameHandler = frameHandler
@@ -123,22 +175,25 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
     }
 
     static func start(
-        windows: [ResolvedWindow],
+        sources: [ScreenContextCaptureSource],
         inferencer: any ScreenContextInferencing,
         minimumFrameInterval: TimeInterval,
         timestampOffsetSeconds: TimeInterval,
+        processingBusyGate: ProcessingBusyGate?,
         logger: Logger,
         statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)?,
         frameHandler: (@Sendable (ScreenContextCapturedFrame) -> Void)?
     ) async throws -> ScreenContextCaptureSession {
         let collector = ScreenContextEventCollector(maxEvents: 120)
         let statusReporter = ScreenContextStatusReporter(statusHandler: statusHandler)
+        let deferrer = processingBusyGate.map { FirstScreenInferenceDeferrer(processingBusyGate: $0) }
 
         let session = ScreenContextCaptureSession(
-            windows: windows,
+            sources: sources,
             inferencer: inferencer,
             collector: collector,
             statusReporter: statusReporter,
+            deferrer: deferrer,
             minimumFrameInterval: minimumFrameInterval,
             timestampOffsetSeconds: timestampOffsetSeconds,
             frameHandler: frameHandler,
@@ -146,7 +201,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
         )
         session.startCaptureLoop()
 
-        logger.info("Screen context capture started with \(windows.count, privacy: .public) window(s).")
+        logger.info("Screen context capture started with \(sources.count, privacy: .public) window(s).")
         return session
     }
 
@@ -193,7 +248,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
     }
 
     private func captureOnce() async {
-        for resolved in windows {
+        for source in sources {
             if Task.isCancelled { return }
             if statusReporter.snapshot().isInferenceRunning {
                 statusReporter.markSkipped()
@@ -201,7 +256,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
             }
 
             do {
-                let imageData = try await captureImageData(for: resolved.window)
+                let imageData = try await source.captureImageData()
                 let now = CFAbsoluteTimeGetCurrent()
                 if firstTimestampSeconds == nil {
                     firstTimestampSeconds = now
@@ -216,9 +271,19 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                     let frame = ScreenContextCapturedFrame(
                         imageData: imageData,
                         timestampSeconds: timestampSeconds,
-                        windowTitle: resolved.selection.windowTitle
+                        windowTitle: source.windowTitle
                     )
                     frameHandler(frame)
+                }
+
+                if let deferrer {
+                    let shouldStart = await deferrer.shouldStartFirstInferenceAttemptNow()
+                    statusReporter.setFirstInferenceDeferred(await deferrer.isDeferred)
+
+                    if !shouldStart {
+                        statusReporter.markSkipped()
+                        continue
+                    }
                 }
 
                 statusReporter.markInferenceStarted()
@@ -227,7 +292,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                 let collector = collector
                 let statusReporter = statusReporter
                 let logger = logger
-                let windowTitle = resolved.selection.windowTitle
+                let windowTitle = source.windowTitle
                 Task {
                     defer { statusReporter.markInferenceFinished() }
 
@@ -256,7 +321,7 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
         }
     }
 
-    private func captureImageData(for window: SCWindow) async throws -> Data {
+    fileprivate static func captureImageData(for window: SCWindow) async throws -> Data {
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let configuration = Self.makeScreenshotConfiguration(for: filter)
         let image = try await Self.captureImage(filter: filter, configuration: configuration)
@@ -380,6 +445,7 @@ private final class ScreenContextStatusReporter: @unchecked Sendable {
     private var processedCount: Int = 0
     private var skippedCount: Int = 0
     private var inFlightCount: Int = 0
+    private var isFirstInferenceDeferred: Bool = false
     private let statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)?
 
     init(statusHandler: (@Sendable (ScreenContextCaptureStatus) -> Void)?) {
@@ -411,6 +477,14 @@ private final class ScreenContextStatusReporter: @unchecked Sendable {
         statusHandler?(status)
     }
 
+    func setFirstInferenceDeferred(_ deferred: Bool) {
+        lock.lock()
+        isFirstInferenceDeferred = deferred
+        let status = snapshotLocked()
+        lock.unlock()
+        statusHandler?(status)
+    }
+
     func snapshot() -> ScreenContextCaptureStatus {
         lock.lock()
         let status = snapshotLocked()
@@ -436,7 +510,8 @@ private final class ScreenContextStatusReporter: @unchecked Sendable {
         ScreenContextCaptureStatus(
             processedCount: processedCount,
             skippedCount: skippedCount,
-            isInferenceRunning: inFlightCount > 0
+            isInferenceRunning: inFlightCount > 0,
+            isFirstInferenceDeferred: isFirstInferenceDeferred
         )
     }
 }

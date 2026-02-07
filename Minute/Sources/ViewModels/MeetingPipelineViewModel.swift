@@ -20,10 +20,19 @@ final class MeetingPipelineViewModel: ObservableObject {
         var processedCount: Int
         var skippedCount: Int
         var isInferenceRunning: Bool
+        var isFirstInferenceDeferred: Bool
+    }
+
+    enum CaptureState: Equatable {
+        case ready
+        case recording
     }
 
     @Published private(set) var state: MeetingPipelineState = .idle
+    @Published private(set) var captureState: CaptureState = .ready
     @Published private(set) var progress: Double? = nil
+    @Published private(set) var backgroundProcessingSnapshot: BackgroundProcessingSnapshot = BackgroundProcessingSnapshot()
+    @Published private(set) var lastBackgroundProcessedNoteURL: URL? = nil
     @Published private(set) var vaultStatus: VaultStatus = VaultStatus(displayText: "Not selected", isConfigured: false)
     @Published private(set) var microphonePermissionGranted: Bool = false
     @Published private(set) var screenRecordingPermissionGranted: Bool = false
@@ -40,6 +49,8 @@ final class MeetingPipelineViewModel: ObservableObject {
     private let mediaImportService: any MediaImporting
     private let recoveryService: any RecordingRecoveryServicing
     private let pipelineCoordinator: MeetingPipelineCoordinator
+    private let processingBusyGate: ProcessingBusyGate
+    private let processingOrchestrator: MeetingProcessingOrchestrator
     private let screenContextCaptureService: ScreenContextCaptureService
     private let screenContextVideoExtractor: ScreenContextVideoFrameExtractor
     private let screenContextSettingsStore: ScreenContextSettingsStore
@@ -50,6 +61,7 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private var defaultsObserver: AnyCancellable?
     private var processingTask: Task<Void, Never>?
+    private var backgroundProcessingObserverTask: Task<Void, Never>?
     private var lastAudioLevelUpdate: CFTimeInterval = 0
     private var screenContextEvents: [ScreenContextEvent] = []
     private var screenCaptureSelection: ScreenContextWindowSelection?
@@ -76,6 +88,9 @@ final class MeetingPipelineViewModel: ObservableObject {
         self.mediaImportService = mediaImportService
         self.recoveryService = recoveryService
         self.pipelineCoordinator = pipelineCoordinator
+        let busyGate = ProcessingBusyGate()
+        self.processingBusyGate = busyGate
+        self.processingOrchestrator = MeetingProcessingOrchestrator(busyGate: busyGate, coordinator: pipelineCoordinator)
         self.screenContextCaptureService = screenContextCaptureService
         self.screenContextVideoExtractor = screenContextVideoExtractor
         self.screenContextSettingsStore = screenContextSettingsStore
@@ -93,10 +108,13 @@ final class MeetingPipelineViewModel: ObservableObject {
             }
 
         refreshRecoverableRecordings()
+
+        startBackgroundProcessingObservation()
     }
 
     deinit {
         processingTask?.cancel()
+        backgroundProcessingObserverTask?.cancel()
         let captureService = screenContextCaptureService
         Task { [captureService] in
             await captureService.cancelCapture()
@@ -207,6 +225,18 @@ final class MeetingPipelineViewModel: ObservableObject {
             cancelProcessingIfAllowed()
         case .reset:
             resetIfAllowed()
+        }
+    }
+
+    func cancelBackgroundProcessing(clearPending: Bool) {
+        Task { [processingOrchestrator] in
+            await processingOrchestrator.cancelActiveProcessing(clearPending: clearPending)
+        }
+    }
+
+    func retryBackgroundProcessing() {
+        Task { [processingOrchestrator] in
+            _ = await processingOrchestrator.retryLastFailedOrCanceled()
         }
     }
 
@@ -333,7 +363,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     // MARK: - Actions
 
     private func startRecordingIfAllowed(selection: ScreenContextWindowSelection?) {
-        guard state.canStartRecording else { return }
+        guard captureState == .ready else { return }
 
         Task {
             do {
@@ -381,6 +411,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 await startAudioLevelMonitoring()
                 resetAudioLevelSamples()
                 state = .recording(session: session)
+                captureState = .recording
             } catch let minuteError as MinuteError {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
@@ -390,6 +421,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
+                captureState = .ready
             } catch {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
@@ -399,12 +431,14 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
                 state = .failed(error: .audioExportFailed, debugOutput: ErrorHandler.debugMessage(for: error))
+                captureState = .ready
             }
         }
     }
 
     private func stopRecordingIfAllowed() {
         guard case .recording(let session) = state else { return }
+        guard captureState == .recording else { return }
 
         let stoppedAt = Date()
 
@@ -414,14 +448,33 @@ final class MeetingPipelineViewModel: ObservableObject {
                 _ = await stopScreenContextCaptureAndAppend()
                 await stopAudioLevelMonitoring()
                 resetAudioLevelSamples()
-                state = .recorded(
+
+                guard let context = makePipelineContext(
                     audioTempURL: result.wavURL,
-                    durationSeconds: result.duration,
+                    audioDurationSeconds: result.duration,
                     startedAt: session.startedAt,
-                    stoppedAt: stoppedAt
-                )
+                    stoppedAt: stoppedAt,
+                    screenContextEvents: screenContextEvents
+                ) else {
+                    throw MinuteError.vaultUnavailable
+                }
+
+                let accepted = await processingOrchestrator.enqueue(meetingID: session.id, context: context)
+
                 screenCaptureSelection = nil
-                processIfAllowed()
+                captureState = .ready
+                screenContextEvents = []
+
+                if accepted {
+                    state = .idle
+                } else {
+                    state = .recorded(
+                        audioTempURL: result.wavURL,
+                        durationSeconds: result.duration,
+                        startedAt: session.startedAt,
+                        stoppedAt: stoppedAt
+                    )
+                }
             } catch let minuteError as MinuteError {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
@@ -431,6 +484,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
+                captureState = .ready
             } catch {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
@@ -440,6 +494,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureBaseProcessedCount = 0
                 screenCaptureBaseSkippedCount = 0
                 state = .failed(error: .audioExportFailed, debugOutput: ErrorHandler.debugMessage(for: error))
+                captureState = .ready
             }
         }
     }
@@ -460,13 +515,19 @@ final class MeetingPipelineViewModel: ObservableObject {
             do {
                 let result = try await mediaImportService.importMedia(from: url)
                 if screenContextSettingsStore.isVideoImportEnabled, isVideoImportURL(url) {
-                    screenInferenceStatus = ScreenInferenceStatus(processedCount: 0, skippedCount: 0, isInferenceRunning: true)
+                    screenInferenceStatus = ScreenInferenceStatus(
+                        processedCount: 0,
+                        skippedCount: 0,
+                        isInferenceRunning: true,
+                        isFirstInferenceDeferred: false
+                    )
                     if let inferenceResult = await extractScreenContextForImport(sourceURL: url) {
                         screenContextEvents = inferenceResult.events
                         screenInferenceStatus = ScreenInferenceStatus(
                             processedCount: inferenceResult.processedCount,
                             skippedCount: 0,
-                            isInferenceRunning: false
+                            isInferenceRunning: false,
+                            isFirstInferenceDeferred: false
                         )
                     } else {
                         logger.info("Screen context extraction returned nil for \(url.absoluteString, privacy: .public)")
@@ -534,14 +595,21 @@ final class MeetingPipelineViewModel: ObservableObject {
     }
 
     private func cancelProcessingIfAllowed() {
-        guard state.canCancelProcessing else { return }
-        processingTask?.cancel()
+        if state.canCancelProcessing {
+            processingTask?.cancel()
+            return
+        }
+
+        if backgroundProcessingSnapshot.activeMeetingID != nil {
+            cancelBackgroundProcessing(clearPending: true)
+        }
     }
 
     private func resetIfAllowed() {
         guard state.canReset else { return }
         progress = nil
         state = .idle
+        captureState = .ready
         resetAudioLevelSamples()
         screenInferenceStatus = nil
         screenContextEvents = []
@@ -564,7 +632,8 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenInferenceStatus = ScreenInferenceStatus(
             processedCount: processed,
             skippedCount: skipped,
-            isInferenceRunning: status.isInferenceRunning
+            isInferenceRunning: status.isInferenceRunning,
+            isFirstInferenceDeferred: status.isFirstInferenceDeferred
         )
     }
 
@@ -586,7 +655,8 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenInferenceStatus = ScreenInferenceStatus(
             processedCount: screenCaptureBaseProcessedCount,
             skippedCount: screenCaptureBaseSkippedCount,
-            isInferenceRunning: true
+            isInferenceRunning: true,
+            isFirstInferenceDeferred: false
         )
 
         do {
@@ -594,6 +664,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 selections: selections,
                 minimumFrameInterval: screenContextFrameIntervalSeconds,
                 timestampOffsetSeconds: offsetSeconds,
+                processingBusyGate: processingBusyGate,
                 statusHandler: { [weak self] status in
                     Task { @MainActor [weak self] in
                         self?.updateScreenInferenceStatus(status)
@@ -626,9 +697,38 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenInferenceStatus = ScreenInferenceStatus(
             processedCount: screenCaptureBaseProcessedCount,
             skippedCount: screenCaptureBaseSkippedCount,
-            isInferenceRunning: false
+            isInferenceRunning: false,
+            isFirstInferenceDeferred: false
         )
         return captureResult
+    }
+
+    private func startBackgroundProcessingObservation() {
+        backgroundProcessingObserverTask?.cancel()
+
+        let orchestrator = processingOrchestrator
+        backgroundProcessingObserverTask = Task { [weak self] in
+            guard let self else { return }
+
+            var lastCompletedNoteURL: URL?
+
+            while !Task.isCancelled {
+                let snapshot = await orchestrator.snapshot()
+
+                if case let .completed(noteURL, _) = snapshot.lastOutcome {
+                    lastCompletedNoteURL = noteURL
+                }
+
+                await MainActor.run {
+                    self.backgroundProcessingSnapshot = snapshot
+                    if self.lastBackgroundProcessedNoteURL != lastCompletedNoteURL {
+                        self.lastBackgroundProcessedNoteURL = lastCompletedNoteURL
+                    }
+                }
+
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
     }
 
     private func extractScreenContextForImport(sourceURL: URL) async -> ScreenContextVideoInferenceResult? {

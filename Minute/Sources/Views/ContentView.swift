@@ -8,6 +8,7 @@
 import MinuteCore
 import SwiftUI
 import UniformTypeIdentifiers
+import Combine
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel
@@ -109,6 +110,9 @@ private struct PipelineContentView: View {
                     notesModel.refreshAndSelect(noteURL: noteURL)
                 }
                 micActivityCoordinator.updatePipelineState(newState)
+            }
+            .onReceive(model.$lastBackgroundProcessedNoteURL.compactMap { $0 }) { noteURL in
+                notesModel.refreshAndSelect(noteURL: noteURL)
             }
             .onChange(of: micActivityNotificationsEnabled) { _, newValue in
                 micActivityCoordinator.setEnabled(newValue)
@@ -294,14 +298,10 @@ private struct PipelineContentView: View {
     }
 
     private var recordButtonState: RecordButtonState {
-        switch model.state {
+        switch model.captureState {
         case .recording:
             return .recording
-        case .recorded:
-            return .recorded
-        case .processing, .writing, .importing:
-            return .processing
-        case .idle, .done, .failed:
+        case .ready:
             return .ready
         }
     }
@@ -312,14 +312,82 @@ private struct PipelineContentView: View {
             return true
         case .recording:
             return true
-        case .recorded:
-            return model.state.canProcess
-        case .processing:
-            return false
         }
     }
 
     private var statusDrawerModel: StatusDrawerModel? {
+        if model.backgroundProcessingSnapshot.activeMeetingID != nil {
+            let stage = model.backgroundProcessingSnapshot.activeStage
+            let progress = model.backgroundProcessingSnapshot.activeProgress
+            let isDeferred = model.screenInferenceStatus?.isFirstInferenceDeferred == true
+            let hasPending = model.backgroundProcessingSnapshot.pendingMeetingID != nil
+
+            let title: String
+            switch stage {
+            case .downloadingModels:
+                title = "Downloading Models"
+            case .transcribing:
+                title = "Transcribing"
+            case .summarizing:
+                title = "Summarizing"
+            case .writing:
+                title = "Writing"
+            case nil:
+                title = "Processing"
+            }
+
+            let baseDetail = isDeferred
+                ? "Previous meeting is processing. First screen inference is deferred to keep recording smooth."
+                : "Previous meeting is processing in the background."
+
+            let detail = hasPending
+                ? baseDetail + " Another meeting is pending next."
+                : baseDetail
+
+            return StatusDrawerModel(
+                title: title,
+                detail: detail,
+                progress: progress,
+                showsActivity: progress == nil,
+                isError: false,
+                actionTitle: "Cancel",
+                action: { model.cancelBackgroundProcessing(clearPending: true) },
+                secondaryActionTitle: nil,
+                secondaryAction: nil
+            )
+        }
+
+        if case .idle = model.state {
+            switch model.backgroundProcessingSnapshot.lastOutcome {
+            case .failed(let message):
+                return StatusDrawerModel(
+                    title: "Background processing failed",
+                    detail: message,
+                    progress: nil,
+                    showsActivity: false,
+                    isError: true,
+                    actionTitle: "Retry",
+                    action: { model.retryBackgroundProcessing() },
+                    secondaryActionTitle: nil,
+                    secondaryAction: nil
+                )
+            case .canceled:
+                return StatusDrawerModel(
+                    title: "Background processing canceled",
+                    detail: "You can retry this meeting later.",
+                    progress: nil,
+                    showsActivity: false,
+                    isError: false,
+                    actionTitle: "Retry",
+                    action: { model.retryBackgroundProcessing() },
+                    secondaryActionTitle: nil,
+                    secondaryAction: nil
+                )
+            case .completed, nil:
+                break
+            }
+        }
+
         if case .idle = model.state,
            let recovery = model.recoverableRecordings.first {
             let folderName = recovery.sessionURL.lastPathComponent
@@ -339,12 +407,12 @@ private struct PipelineContentView: View {
         case .recorded:
             return StatusDrawerModel(
                 title: "Recording ready",
-                detail: "Tap the record button to process this meeting.",
+                detail: "This meeting is ready to process.",
                 progress: nil,
                 showsActivity: false,
                 isError: false,
-                actionTitle: nil,
-                action: nil,
+                actionTitle: "Process",
+                action: { model.send(.process) },
                 secondaryActionTitle: nil,
                 secondaryAction: nil
             )
@@ -402,27 +470,17 @@ private struct PipelineContentView: View {
     }
 
     private func handleRecordButtonTap() {
-        switch model.state {
-        case .idle:
+        switch model.captureState {
+        case .ready:
             requestStartRecording()
         case .recording:
             model.send(.stopRecording)
-        case .recorded:
-            model.send(.process)
-        case .done, .failed:
-            model.send(.reset)
-            requestStartRecording()
-        default:
-            break
         }
     }
 
     private func handleNotificationStartRecording() {
-        switch model.state {
-        case .idle, .done, .failed:
+        if model.captureState == .ready {
             handleRecordButtonTap()
-        default:
-            break
         }
     }
 
@@ -437,7 +495,7 @@ private struct PipelineContentView: View {
     private func handleScreenToggleChange(_ enabled: Bool) {
         guard screenContextEnabled else { return }
         if enabled {
-            if case .recording = model.state {
+            if model.captureState == .recording {
                 if model.hasScreenCaptureSelection {
                     model.setScreenCaptureEnabled(true)
                 } else {
@@ -497,8 +555,6 @@ private struct PipelineContentView: View {
 private enum RecordButtonState {
     case ready
     case recording
-    case recorded
-    case processing
 }
 
 private enum ScreenPickerPurpose {
@@ -1159,10 +1215,6 @@ private struct RecordControlButton: View {
             return "mic.fill"
         case .recording:
             return "stop.fill"
-        case .recorded:
-            return "sparkles"
-        case .processing:
-            return "hourglass"
         }
     }
 
@@ -1172,10 +1224,6 @@ private struct RecordControlButton: View {
             return "Start recording"
         case .recording:
             return "Stop recording"
-        case .recorded:
-            return "Process recording"
-        case .processing:
-            return "Processing"
         }
     }
 
@@ -1185,10 +1233,6 @@ private struct RecordControlButton: View {
             return Color.white
         case .recording:
             return Color.red
-        case .recorded:
-            return Color.minuteGlow
-        case .processing:
-            return Color.minuteSurfaceStrong
         }
     }
 
@@ -1196,7 +1240,7 @@ private struct RecordControlButton: View {
         switch state {
         case .ready:
             return Color.minuteInk
-        case .recording, .recorded, .processing:
+        case .recording:
             return Color.white
         }
     }
@@ -1212,15 +1256,9 @@ private struct RecordControlButton: View {
                             .stroke(Color.white.opacity(0.2), lineWidth: 1)
                     )
 
-                if state == .processing {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(iconColor)
-                } else {
-                    Image(systemName: iconName)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(iconColor)
-                }
+                Image(systemName: iconName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(iconColor)
 
                 if state == .recording {
                     Circle()
@@ -1234,7 +1272,7 @@ private struct RecordControlButton: View {
         }
         .buttonStyle(.plain)
         .focused(focusBinding)
-        .disabled(!isEnabled || state == .processing)
+        .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.6)
         .help(helpText)
         .accessibilityLabel(Text(helpText))

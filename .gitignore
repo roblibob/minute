@@ -10,3 +10,11 @@ Minute.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 DerivedData/
 *.swiftpm/
 Packages/
+
+# Editor/IDE
+.idea/
+
+# OS/temporary files
+Thumbs.db
+*.swp
+*.tmp

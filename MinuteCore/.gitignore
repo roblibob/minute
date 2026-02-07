@@ -6,3 +6,11 @@ DerivedData/
 .swiftpm/configuration/registries.json
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
+
+# Editor/IDE
+.idea/
+
+# OS/temporary files
+Thumbs.db
+*.swp
+*.tmp
