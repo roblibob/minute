@@ -96,6 +96,76 @@ struct MeetingPipelineCoordinatorTests {
         let transcriptContents = try String(contentsOf: transcriptURL)
         #expect(transcriptContents.contains("Live transcript"))
     }
+
+    @Test
+    func execute_sameMinuteSameTitle_createsUniqueOutputPaths() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let processedAt = Date(timeIntervalSince1970: 1_701_234_567)
+        let coordinator = makeCoordinator(
+            vaultRootURL: vaultRootURL,
+            summarizationJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12"),
+            repairJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12"),
+            dateProvider: { processedAt }
+        )
+
+        let contextA = try makePipelineContext(saveAudio: true, saveTranscript: true)
+        let contextB = try makePipelineContext(saveAudio: true, saveTranscript: true)
+
+        let resultA = try await coordinator.execute(context: contextA)
+        let resultB = try await coordinator.execute(context: contextB)
+
+        #expect(resultA.noteURL != resultB.noteURL)
+        #expect(FileManager.default.fileExists(atPath: resultA.noteURL.path))
+        #expect(FileManager.default.fileExists(atPath: resultB.noteURL.path))
+
+        #expect(resultA.audioURL != nil)
+        #expect(resultB.audioURL != nil)
+        if let audioA = resultA.audioURL, let audioB = resultB.audioURL {
+            #expect(audioA != audioB)
+            #expect(FileManager.default.fileExists(atPath: audioA.path))
+            #expect(FileManager.default.fileExists(atPath: audioB.path))
+        }
+
+        let contract = MeetingFileContract(folders: contextA.vaultFolders)
+        let baseNoteRelativePath = contract.noteRelativePath(date: contextA.startedAt, title: "Weekly Sync")
+        let baseAudioRelativePath = contract.audioRelativePath(date: contextA.startedAt, title: "Weekly Sync")
+        let baseTranscriptRelativePath = contract.transcriptRelativePath(date: contextA.startedAt, title: "Weekly Sync")
+
+        func withSuffix(_ relativePath: String, suffix: String) -> String {
+            let ns = relativePath as NSString
+            let ext = ns.pathExtension
+            let base = ns.deletingPathExtension
+            return ext.isEmpty ? base + suffix : base + suffix + "." + ext
+        }
+
+        let suffix = " (2)"
+        let noteBRelativePath = withSuffix(baseNoteRelativePath, suffix: suffix)
+        let audioBRelativePath = withSuffix(baseAudioRelativePath, suffix: suffix)
+        let transcriptBRelativePath = withSuffix(baseTranscriptRelativePath, suffix: suffix)
+
+        func canonicalFileURL(_ url: URL) -> URL {
+            url.resolvingSymlinksInPath().standardizedFileURL
+        }
+
+        #expect(canonicalFileURL(resultA.noteURL) == canonicalFileURL(vaultRootURL.appendingPathComponent(baseNoteRelativePath)))
+        #expect(canonicalFileURL(resultB.noteURL) == canonicalFileURL(vaultRootURL.appendingPathComponent(noteBRelativePath)))
+
+        let transcriptAURL = vaultRootURL.appendingPathComponent(baseTranscriptRelativePath)
+        let transcriptBURL = vaultRootURL.appendingPathComponent(transcriptBRelativePath)
+        #expect(FileManager.default.fileExists(atPath: transcriptAURL.path))
+        #expect(FileManager.default.fileExists(atPath: transcriptBURL.path))
+
+        if let audioA = resultA.audioURL, let audioB = resultB.audioURL {
+            #expect(canonicalFileURL(audioA) == canonicalFileURL(vaultRootURL.appendingPathComponent(baseAudioRelativePath)))
+            #expect(canonicalFileURL(audioB) == canonicalFileURL(vaultRootURL.appendingPathComponent(audioBRelativePath)))
+        }
+
+        let noteBContents = try String(contentsOf: resultB.noteURL)
+        #expect(noteBContents.contains(audioBRelativePath))
+        #expect(noteBContents.contains(transcriptBRelativePath))
+    }
 }
 
 private final class ProgressStore: @unchecked Sendable {

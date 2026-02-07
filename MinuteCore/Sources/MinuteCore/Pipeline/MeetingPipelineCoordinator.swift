@@ -190,21 +190,28 @@ public actor MeetingPipelineCoordinator {
             transcriptData = nil
         }
 
-        let processedDateTime = MeetingNoteDateFormatter.format(dateProvider())
-        let noteMarkdown = MarkdownRenderer().render(
-            extraction: extraction,
-            noteDateTime: processedDateTime,
-            audioDurationSeconds: context.audioDurationSeconds,
-            audioRelativePath: audioRelativePath,
-            transcriptRelativePath: transcriptRelativePath
-        )
-        let noteData = Data(noteMarkdown.utf8)
-
         return try vaultAccess.withVaultAccess { vaultRootURL in
-            let noteURL = vaultRootURL.appendingPathComponent(noteRelativePath)
+            let resolvedPaths = resolveOutputPaths(
+                vaultRootURL: vaultRootURL,
+                noteRelativePath: noteRelativePath,
+                audioRelativePath: audioRelativePath,
+                transcriptRelativePath: transcriptRelativePath
+            )
+
+            let processedDateTime = MeetingNoteDateFormatter.format(dateProvider())
+            let noteMarkdown = MarkdownRenderer().render(
+                extraction: extraction,
+                noteDateTime: processedDateTime,
+                audioDurationSeconds: context.audioDurationSeconds,
+                audioRelativePath: resolvedPaths.audioRelativePath,
+                transcriptRelativePath: resolvedPaths.transcriptRelativePath
+            )
+            let noteData = Data(noteMarkdown.utf8)
+
+            let noteURL = vaultRootURL.appendingPathComponent(resolvedPaths.noteRelativePath)
 
             // Transcript
-            if let transcriptRelativePath, let transcriptData {
+            if let transcriptRelativePath = resolvedPaths.transcriptRelativePath, let transcriptData {
                 let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
                 try vaultWriter.writeAtomically(data: transcriptData, to: transcriptURL)
             }
@@ -214,7 +221,7 @@ public actor MeetingPipelineCoordinator {
 
             // Audio (temporary implementation reads into memory; task 08 will stream/copy atomically).
             let audioURL: URL?
-            if let audioRelativePath {
+            if let audioRelativePath = resolvedPaths.audioRelativePath {
                 let audioData = try Data(contentsOf: context.audioTempURL)
                 let resolvedURL = vaultRootURL.appendingPathComponent(audioRelativePath)
                 try vaultWriter.writeAtomically(data: audioData, to: resolvedURL)
@@ -225,6 +232,55 @@ public actor MeetingPipelineCoordinator {
 
             return PipelineResult(noteURL: noteURL, audioURL: audioURL)
         }
+    }
+
+    private func resolveOutputPaths(
+        vaultRootURL: URL,
+        noteRelativePath: String,
+        audioRelativePath: String?,
+        transcriptRelativePath: String?
+    ) -> (noteRelativePath: String, audioRelativePath: String?, transcriptRelativePath: String?) {
+        let fileManager = FileManager.default
+
+        func normalizeRelativePath(_ relativePath: String) -> String {
+            relativePath.hasPrefix("/") ? String(relativePath.dropFirst()) : relativePath
+        }
+
+        let noteRelativePath = normalizeRelativePath(noteRelativePath)
+        let audioRelativePath = audioRelativePath.map(normalizeRelativePath)
+        let transcriptRelativePath = transcriptRelativePath.map(normalizeRelativePath)
+
+        func withSuffix(_ relativePath: String, suffix: String) -> String {
+            let ns = relativePath as NSString
+            let ext = ns.pathExtension
+            let base = ns.deletingPathExtension
+            return ext.isEmpty ? base + suffix : base + suffix + "." + ext
+        }
+
+        func exists(_ relativePath: String?) -> Bool {
+            guard let relativePath else { return false }
+            return fileManager.fileExists(atPath: vaultRootURL.appendingPathComponent(relativePath).path)
+        }
+
+        // Fast path: no collision.
+        if !exists(noteRelativePath) {
+            return (noteRelativePath, audioRelativePath, transcriptRelativePath)
+        }
+
+        // Collision: choose a stable, user-readable suffix.
+        for index in 2...99 {
+            let suffix = " (\(index))"
+            let candidateNote = withSuffix(noteRelativePath, suffix: suffix)
+            let candidateAudio = audioRelativePath.map { withSuffix($0, suffix: suffix) }
+            let candidateTranscript = transcriptRelativePath.map { withSuffix($0, suffix: suffix) }
+
+            if !exists(candidateNote), !exists(candidateAudio), !exists(candidateTranscript) {
+                return (candidateNote, candidateAudio, candidateTranscript)
+            }
+        }
+
+        // As a last resort, fall back to the original path (writer will overwrite or throw depending on implementation).
+        return (noteRelativePath, audioRelativePath, transcriptRelativePath)
     }
 
     private func diarizeIfPossible(wavURL: URL) async -> [SpeakerSegment] {
