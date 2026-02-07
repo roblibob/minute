@@ -31,7 +31,8 @@ struct MeetingSpeakerNamingServiceTests {
 
         let owned = MeetingParticipantFrontmatter(
             participants: ["Alice", "Bob"],
-            speakerMap: [1: "Alice", 2: "Bob"]
+            speakerMap: [1: "Alice", 2: "Bob"],
+            speakerOrder: [2, 1]
         )
 
         try service.updateMeetingNote(at: noteURL, ownedFrontmatter: owned)
@@ -40,7 +41,8 @@ struct MeetingSpeakerNamingServiceTests {
         #expect(writer.writeCalls.count == 1)
         #expect(afterFirst.contains("custom_key: keep me\n"))
         #expect(afterFirst.contains("participants:\n  - Alice\n  - Bob\n"))
-        #expect(afterFirst.contains("speaker_map:\n  \"1\": Alice\n  \"2\": Bob\n"))
+        #expect(afterFirst.contains("speaker_map:\n  \"2\": Bob\n  \"1\": Alice\n"))
+        #expect(afterFirst.contains("speaker_order:\n  - 2\n  - 1\n"))
 
         // Second call should be a no-op (deterministic + avoids unnecessary writes).
         try service.updateMeetingNote(at: noteURL, ownedFrontmatter: owned)
@@ -52,20 +54,23 @@ struct MeetingSpeakerNamingServiceTests {
 
     @Test
     func loadOwnedParticipantFrontmatter_parsesParticipantsAndSpeakerMap() throws {
-        let input = """
-        ---
-        type: meeting
-        participants:
-          - Alice
-          - Bob
-        speaker_map:
-          \"1\": Alice
-          \"2\": Bob
-        tags:
-        ---
+                let input = """
+                ---
+                type: meeting
+                participants:
+                    - Alice
+                    - Bob
+                speaker_map:
+                    \"1\": Alice
+                    \"2\": Bob
+                speaker_order:
+                    - 2
+                    - 1
+                tags:
+                ---
 
-        # Title
-        """
+                # Title
+                """
 
         let service = MeetingSpeakerNamingService(vaultWriter: SpyVaultWriter())
         let parsed = service.loadOwnedParticipantFrontmatter(from: input)
@@ -73,6 +78,7 @@ struct MeetingSpeakerNamingServiceTests {
         #expect(parsed.participants == ["Alice", "Bob"])
         #expect(parsed.speakerMap[1] == "Alice")
         #expect(parsed.speakerMap[2] == "Bob")
+        #expect(parsed.speakerOrder == [2, 1])
     }
 }
 

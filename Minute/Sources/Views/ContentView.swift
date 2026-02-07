@@ -197,6 +197,8 @@ private struct PipelineContentView: View {
                         enrollmentErrorMessage: notesModel.speakerEnrollmentErrorMessage,
                         enrollKnownSpeaker: { notesModel.enrollKnownSpeaker(speakerId: $0) },
                         isEnrollingKnownSpeaker: { notesModel.enrollingSpeakerID == $0 },
+                        isKnownSpeaker: { notesModel.isKnownSpeaker(speakerId: $0) },
+                        knownSpeakerName: { notesModel.knownSpeakerName(speakerId: $0) },
                         isRewritingTranscriptHeadings: notesModel.isRewritingTranscriptHeadings,
                         rewriteErrorMessage: notesModel.speakerTranscriptRewriteErrorMessage
                     )

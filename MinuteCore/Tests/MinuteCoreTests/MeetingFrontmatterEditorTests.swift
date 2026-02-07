@@ -27,13 +27,15 @@ struct MeetingFrontmatterEditorTests {
             in: input,
             frontmatter: MeetingParticipantFrontmatter(
                 participants: ["Alice", "Bob"],
-                speakerMap: [1: "Alice", 2: "Bob"]
+            speakerMap: [1: "Alice", 2: "Bob"],
+            speakerOrder: [2, 1]
             )
         )
 
         #expect(updated.contains("custom_key: keep me\n"))
         #expect(updated.contains("participants:\n  - Alice\n  - Bob\n"))
-        #expect(updated.contains("speaker_map:\n  \"1\": Alice\n  \"2\": Bob\n"))
+        #expect(updated.contains("speaker_map:\n  \"2\": Bob\n  \"1\": Alice\n"))
+        #expect(updated.contains("speaker_order:\n  - 2\n  - 1\n"))
         #expect(updated.contains("# Hello\n\nBody stays untouched.\n"))
         #expect(!updated.contains("Old Name"))
     }
@@ -47,6 +49,8 @@ struct MeetingFrontmatterEditorTests {
           - Someone
         speaker_map:
           \"1\": Someone
+        speaker_order:
+          - 1
         tags:
         ---
 
@@ -60,6 +64,7 @@ struct MeetingFrontmatterEditorTests {
 
         #expect(!updated.contains("participants:"))
         #expect(!updated.contains("speaker_map:"))
+        #expect(!updated.contains("speaker_order:"))
         #expect(updated.contains("type: meeting\n"))
         #expect(updated.contains("# Title\n"))
     }

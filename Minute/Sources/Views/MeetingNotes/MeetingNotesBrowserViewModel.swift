@@ -56,6 +56,12 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     @Published private(set) var speakerEnrollmentErrorMessage: String?
     @Published private(set) var enrollingSpeakerID: Int?
 
+    // Known-speaker status for speakers in the selected meeting.
+    // Key: speaker ID. Value: matched profile (id/name).
+    @Published private(set) var knownSpeakerProfileIDBySpeakerID: [Int: String] = [:]
+    @Published private(set) var knownSpeakerProfileNameBySpeakerID: [Int: String] = [:]
+    private var knownSpeakerStatusTask: Task<Void, Never>?
+
     // Speaker IDs discovered from the transcript file, independent of which tab is currently selected.
     @Published private(set) var transcriptSpeakerIDs: [Int] = []
 
@@ -86,6 +92,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         transcriptSpeakerIDsTask?.cancel()
         deleteTask?.cancel()
         previewTask?.cancel()
+        knownSpeakerStatusTask?.cancel()
     }
 
     func refresh() {
@@ -141,9 +148,21 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         isRewritingTranscriptHeadings = false
         speakerEnrollmentErrorMessage = nil
         enrollingSpeakerID = nil
+        knownSpeakerProfileIDBySpeakerID = [:]
+        knownSpeakerProfileNameBySpeakerID = [:]
+        knownSpeakerStatusTask?.cancel()
+        knownSpeakerStatusTask = nil
         transcriptSpeakerIDs = []
         transcriptSpeakerIDsTask?.cancel()
         transcriptSpeakerIDsTask = nil
+    }
+
+    func isKnownSpeaker(speakerId: Int) -> Bool {
+        knownSpeakerProfileIDBySpeakerID[speakerId] != nil
+    }
+
+    func knownSpeakerName(speakerId: Int) -> String? {
+        knownSpeakerProfileNameBySpeakerID[speakerId]
     }
 
     func enrollKnownSpeaker(speakerId: Int) {
@@ -167,7 +186,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             switch availability {
             case .available:
                 do {
-                    _ = try await service.createProfileFromMeeting(
+                    let profile = try await service.createProfileFromMeeting(
                         meetingKey: meetingKey,
                         speakerID: speakerId,
                         name: trimmedName
@@ -175,6 +194,10 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     await MainActor.run {
                         self?.enrollingSpeakerID = nil
                         self?.speakerEnrollmentErrorMessage = nil
+
+                        // Immediately reflect enrollment in the UI.
+                        self?.knownSpeakerProfileIDBySpeakerID[speakerId] = profile.id
+                        self?.knownSpeakerProfileNameBySpeakerID[speakerId] = profile.name
                     }
                 } catch {
                     let message = ErrorHandler.userMessage(for: error, fallback: "Failed to save known speaker profile.")
@@ -582,6 +605,65 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                 if speakerNameDrafts[id] == nil, let existing = existingOwned.speakerMap[id] {
                     speakerNameDrafts[id] = existing
                 }
+            }
+        }
+
+        refreshKnownSpeakerStatusIfPossible()
+    }
+
+    private func refreshKnownSpeakerStatusIfPossible() {
+        guard let item = selectedItem else { return }
+        guard !speakerIDs.isEmpty else { return }
+
+        let meetingKey = item.fileURL.path
+        let speakerIDsSnapshot = speakerIDs
+
+        knownSpeakerStatusTask?.cancel()
+        knownSpeakerStatusTask = Task { [weak self] in
+            let cache = MeetingSpeakerEmbeddingCache()
+            let store = SpeakerProfileStore()
+            let matcher = SpeakerEmbeddingMatcher()
+
+            let meetingEmbeddings: MeetingSpeakerEmbeddingCache.MeetingEmbeddings?
+            do {
+                meetingEmbeddings = try await cache.get(meetingKey: meetingKey)
+            } catch {
+                return
+            }
+            guard let meetingEmbeddings else { return }
+
+            let profiles: [SpeakerProfile]
+            do {
+                profiles = try await store.listProfiles()
+            } catch {
+                return
+            }
+            if profiles.isEmpty { return }
+
+            var idBySpeaker: [Int: String] = [:]
+            var nameBySpeaker: [Int: String] = [:]
+            idBySpeaker.reserveCapacity(speakerIDsSnapshot.count)
+            nameBySpeaker.reserveCapacity(speakerIDsSnapshot.count)
+
+            for speakerID in speakerIDsSnapshot {
+                guard let embedding = meetingEmbeddings.embeddingsBySpeakerID[speakerID] else { continue }
+                do {
+                    if let match = try matcher.bestMatch(
+                        embedding: embedding,
+                        candidates: profiles,
+                        embeddingModelVersion: meetingEmbeddings.embeddingModelVersion
+                    ) {
+                        idBySpeaker[speakerID] = match.profile.id
+                        nameBySpeaker[speakerID] = match.profile.name
+                    }
+                } catch {
+                    // Best-effort only.
+                }
+            }
+
+            await MainActor.run {
+                self?.knownSpeakerProfileIDBySpeakerID = idBySpeaker
+                self?.knownSpeakerProfileNameBySpeakerID = nameBySpeaker
             }
         }
     }

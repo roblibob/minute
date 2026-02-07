@@ -12,6 +12,8 @@ struct MarkdownViewerOverlay: View {
         var enrollmentErrorMessage: String?
         var enrollKnownSpeaker: (Int) -> Void
         var isEnrollingKnownSpeaker: (Int) -> Bool
+        var isKnownSpeaker: (Int) -> Bool
+        var knownSpeakerName: (Int) -> String?
         var isRewritingTranscriptHeadings: Bool
         var rewriteErrorMessage: String?
     }
@@ -184,6 +186,12 @@ struct MarkdownViewerOverlay: View {
                         if editor.isEnrollingKnownSpeaker(speakerId) {
                             ProgressView()
                                 .controlSize(.small)
+                        } else if editor.isKnownSpeaker(speakerId) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.green)
+                                .frame(width: 28, height: 28)
+                                .help(editor.knownSpeakerName(speakerId).map { "Known Speaker: \($0)" } ?? "Known Speaker")
                         } else {
                             Button {
                                 editor.enrollKnownSpeaker(speakerId)

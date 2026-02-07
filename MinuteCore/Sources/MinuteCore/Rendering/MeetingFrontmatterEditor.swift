@@ -6,7 +6,7 @@ public struct MeetingFrontmatterEditor: Sendable {
     /// Updates only the YAML frontmatter keys owned by Minute for speaker naming.
     ///
     /// - Preserves: all other frontmatter keys and the entire markdown body.
-    /// - Replaces: `participants` and `speaker_map` blocks (if present).
+    /// - Replaces: `participants`, `speaker_map`, and `speaker_order` blocks (if present).
     public func updatingOwnedParticipantKeys(
         in markdown: String,
         frontmatter: MeetingParticipantFrontmatter
@@ -30,6 +30,7 @@ public struct MeetingFrontmatterEditor: Sendable {
         var retained = frontmatterLines
         retained = removingTopLevelKey("participants", from: retained)
         retained = removingTopLevelKey("speaker_map", from: retained)
+        retained = removingTopLevelKey("speaker_order", from: retained)
 
         let ownedLines = YAMLFrontmatterCodec.encodeOwnedParticipantKeys(frontmatter)
 

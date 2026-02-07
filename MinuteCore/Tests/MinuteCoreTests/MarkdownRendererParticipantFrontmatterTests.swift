@@ -30,22 +30,25 @@ struct MarkdownRendererParticipantFrontmatterTests {
             participantFrontmatter: frontmatter
         )
 
-        let expectedFrontmatter = """
-        ---
-        type: meeting
-        date: 2025-12-19 09:00
-        title: \"Weekly Sync\"
-        source: \"Minute\"
-        participants:
-          - Alice
-          - Bob
-        speaker_map:
-          \"2\": Bob
-          \"1\": Alice
-        tags:
-        ---
+                let expectedFrontmatter = """
+                ---
+                type: meeting
+                date: 2025-12-19 09:00
+                title: \"Weekly Sync\"
+                source: \"Minute\"
+                participants:
+                  - Alice
+                  - Bob
+                speaker_map:
+                  \"2\": Bob
+                  \"1\": Alice
+                speaker_order:
+                  - 2
+                  - 1
+                tags:
+                ---
 
-        """
+                """
 
         #expect(markdown.hasPrefix(expectedFrontmatter))
     }

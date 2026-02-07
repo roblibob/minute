@@ -23,12 +23,20 @@ public enum YAMLFrontmatterCodec {
             }
         }
 
+        if let order = frontmatter.speakerOrder, !order.isEmpty {
+            lines.append("speaker_order:")
+            for id in order {
+                lines.append("  - \(id)")
+            }
+        }
+
         return lines
     }
 
     public static func decodeOwnedParticipantKeys(from frontmatterLines: [String]) -> MeetingParticipantFrontmatter {
         var participants: [String] = []
         var speakerMap: [Int: String] = [:]
+        var speakerOrder: [Int] = []
 
         var index = 0
         while index < frontmatterLines.count {
@@ -64,10 +72,31 @@ public enum YAMLFrontmatterCodec {
                 continue
             }
 
+            if line == "speaker_order:" {
+                index += 1
+                while index < frontmatterLines.count {
+                    let item = frontmatterLines[index]
+                    if isTopLevelKeyLine(item) {
+                        break
+                    }
+                    if let value = parseYAMLListItem(item), let id = Int(value) {
+                        speakerOrder.append(id)
+                    }
+                    index += 1
+                }
+                continue
+            }
+
             index += 1
         }
 
-        return MeetingParticipantFrontmatter(participants: participants, speakerMap: speakerMap)
+        let order: [Int]?
+        if speakerOrder.isEmpty {
+            order = nil
+        } else {
+            order = speakerOrder
+        }
+        return MeetingParticipantFrontmatter(participants: participants, speakerMap: speakerMap, speakerOrder: order)
     }
 
     private static func orderedSpeakerMapEntries(_ frontmatter: MeetingParticipantFrontmatter) -> [(Int, String)] {
