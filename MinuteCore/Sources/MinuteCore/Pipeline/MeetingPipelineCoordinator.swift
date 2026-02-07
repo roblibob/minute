@@ -4,10 +4,12 @@ import os
 public actor MeetingPipelineCoordinator {
     private let transcriptionService: any TranscriptionServicing
     private let diarizationService: any DiarizationServicing
+    private let audioLoudnessNormalizer: any AudioLoudnessNormalizing
     private let summarizationServiceProvider: () -> any SummarizationServicing
     private let modelManager: any ModelManaging
     private let vaultAccess: VaultAccess
     private let vaultWriter: any VaultWriting
+    private let speakerProfileStore: SpeakerProfileStore
     private let dateProvider: @Sendable () -> Date
 
     private let logger = Logger(subsystem: "roblibob.Minute", category: "pipeline")
@@ -16,17 +18,21 @@ public actor MeetingPipelineCoordinator {
         transcriptionService: some TranscriptionServicing,
         diarizationService: some DiarizationServicing,
         summarizationServiceProvider: @escaping () -> any SummarizationServicing,
+        audioLoudnessNormalizer: any AudioLoudnessNormalizing = NoOpAudioLoudnessNormalizer(),
         modelManager: some ModelManaging,
         vaultAccess: VaultAccess,
         vaultWriter: some VaultWriting,
+        speakerProfileStore: SpeakerProfileStore = SpeakerProfileStore(),
         dateProvider: @escaping @Sendable () -> Date = Date.init
     ) {
         self.transcriptionService = transcriptionService
         self.diarizationService = diarizationService
+        self.audioLoudnessNormalizer = audioLoudnessNormalizer
         self.summarizationServiceProvider = summarizationServiceProvider
         self.modelManager = modelManager
         self.vaultAccess = vaultAccess
         self.vaultWriter = vaultWriter
+        self.speakerProfileStore = speakerProfileStore
         self.dateProvider = dateProvider
     }
 
@@ -35,6 +41,7 @@ public actor MeetingPipelineCoordinator {
         progress: (@Sendable (PipelineProgress) -> Void)? = nil
     ) async throws -> PipelineResult {
         do {
+            var context = context
             try Task.checkCancellation()
 
             progress?(.downloadingModels(fractionCompleted: 0))
@@ -46,13 +53,43 @@ public actor MeetingPipelineCoordinator {
             try Task.checkCancellation()
             progress?(.transcribing(fractionCompleted: 0.1))
 
+            if context.normalizeAnalysisAudio {
+                do {
+                    let normalizedURL = try await audioLoudnessNormalizer.normalizeForAnalysis(
+                        inputURL: context.audioTempURL,
+                        workingDirectoryURL: context.workingDirectoryURL
+                    )
+                    context.analysisAudioURL = normalizedURL
+                } catch {
+                    // Normalization is a quality improvement. If ffmpeg is missing or input audio is unreadable,
+                    // proceed with the original analysis audio rather than failing the whole pipeline.
+                    logger.error("Analysis audio normalization failed; proceeding without normalization: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+                }
+            }
+
+            // Capture the canonical audio bytes early (analysis normalization must not affect vault output).
+            // This also decouples the vault write from the temp-file lifetime across async boundaries.
+            let originalAudioData: Data?
+            if context.saveAudio {
+                originalAudioData = try Data(contentsOf: context.audioTempURL)
+            } else {
+                originalAudioData = nil
+            }
+
             let transcription: TranscriptionResult
             if let override = context.transcriptionOverride, !override.text.isEmpty {
                 transcription = override
             } else {
-                transcription = try await transcriptionService.transcribe(wavURL: context.audioTempURL)
+                transcription = try await transcriptionService.transcribe(wavURL: context.analysisAudioURL)
             }
-            let diarizationSegments = await diarizeIfPossible(wavURL: context.audioTempURL)
+            let embeddingExportURL = context.knownSpeakerSuggestionsEnabled
+                ? context.workingDirectoryURL.appendingPathComponent("diarization-embeddings.json")
+                : nil
+
+            let diarizationSegments = await diarizeIfPossible(
+                wavURL: context.analysisAudioURL,
+                embeddingExportURL: embeddingExportURL
+            )
             let attributedSegments = SpeakerAttribution.attribute(
                 transcriptSegments: transcription.segments,
                 speakerSegments: diarizationSegments
@@ -103,11 +140,19 @@ public actor MeetingPipelineCoordinator {
             try Task.checkCancellation()
             progress?(.writing(fractionCompleted: 0.85, extraction: extraction))
 
+            let participantFrontmatter = await suggestKnownSpeakersFrontmatterIfEnabled(
+                context: context,
+                diarizationSegments: diarizationSegments,
+                embeddingExportURL: embeddingExportURL
+            )
+
             let outputs = try writeOutputsToVault(
                 context: context,
                 extraction: extraction,
                 transcription: transcription,
-                attributedSegments: attributedSegments
+                attributedSegments: attributedSegments,
+                originalAudioData: originalAudioData,
+                participantFrontmatter: participantFrontmatter
             )
 
             cleanupTemporaryArtifacts(for: context)
@@ -165,7 +210,9 @@ public actor MeetingPipelineCoordinator {
         context: PipelineContext,
         extraction: MeetingExtraction,
         transcription: TranscriptionResult,
-        attributedSegments: [AttributedTranscriptSegment]
+        attributedSegments: [AttributedTranscriptSegment],
+        originalAudioData: Data?,
+        participantFrontmatter: MeetingParticipantFrontmatter?
     ) throws -> PipelineResult {
         let recordingDate = context.startedAt
         // Use extraction.date if parseable, otherwise fall back to the recording date.
@@ -204,7 +251,8 @@ public actor MeetingPipelineCoordinator {
                 noteDateTime: processedDateTime,
                 audioDurationSeconds: context.audioDurationSeconds,
                 audioRelativePath: resolvedPaths.audioRelativePath,
-                transcriptRelativePath: resolvedPaths.transcriptRelativePath
+                transcriptRelativePath: resolvedPaths.transcriptRelativePath,
+                participantFrontmatter: participantFrontmatter
             )
             let noteData = Data(noteMarkdown.utf8)
 
@@ -222,7 +270,9 @@ public actor MeetingPipelineCoordinator {
             // Audio (temporary implementation reads into memory; task 08 will stream/copy atomically).
             let audioURL: URL?
             if let audioRelativePath = resolvedPaths.audioRelativePath {
-                let audioData = try Data(contentsOf: context.audioTempURL)
+                guard let audioData = originalAudioData else {
+                    throw MinuteError.audioExportFailed
+                }
                 let resolvedURL = vaultRootURL.appendingPathComponent(audioRelativePath)
                 try vaultWriter.writeAtomically(data: audioData, to: resolvedURL)
                 audioURL = resolvedURL
@@ -283,12 +333,75 @@ public actor MeetingPipelineCoordinator {
         return (noteRelativePath, audioRelativePath, transcriptRelativePath)
     }
 
-    private func diarizeIfPossible(wavURL: URL) async -> [SpeakerSegment] {
+    private func diarizeIfPossible(wavURL: URL, embeddingExportURL: URL?) async -> [SpeakerSegment] {
         do {
-            return try await diarizationService.diarize(wavURL: wavURL)
+            return try await diarizationService.diarize(wavURL: wavURL, embeddingExportURL: embeddingExportURL)
         } catch {
             logger.error("Diarization failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             return []
+        }
+    }
+
+    private func suggestKnownSpeakersFrontmatterIfEnabled(
+        context: PipelineContext,
+        diarizationSegments: [SpeakerSegment],
+        embeddingExportURL: URL?
+    ) async -> MeetingParticipantFrontmatter? {
+        guard context.knownSpeakerSuggestionsEnabled else { return nil }
+        guard let embeddingExportURL else { return nil }
+
+        do {
+            let entries = try OfflineDiarizerEmbeddingExport.load(from: embeddingExportURL)
+            let aggregated = try OfflineDiarizerEmbeddingExport.aggregateByCluster(entries: entries)
+            if aggregated.isEmpty { return nil }
+
+            let meetingSpeakerOrder = SpeakerOrdering.orderedSpeakerIDs(from: diarizationSegments)
+            let clusters = aggregated.map(\.speakerCluster).sorted()
+            let speakerIDsSorted = Array(Set(meetingSpeakerOrder)).sorted()
+
+            // Best-effort mapping: align sorted cluster IDs with sorted speaker IDs.
+            // If counts mismatch, fall back to matching by cluster value.
+            let clusterToSpeakerId: [Int: Int]
+            if clusters.count == speakerIDsSorted.count, !clusters.isEmpty {
+                var map: [Int: Int] = [:]
+                for i in 0..<clusters.count {
+                    map[clusters[i]] = speakerIDsSorted[i]
+                }
+                clusterToSpeakerId = map
+            } else {
+                clusterToSpeakerId = Dictionary(uniqueKeysWithValues: clusters.map { ($0, $0) })
+            }
+
+            let profiles = try await speakerProfileStore.listProfiles()
+            if profiles.isEmpty { return nil }
+
+            let matcher = SpeakerEmbeddingMatcher()
+
+            var speakerMap: [Int: String] = [:]
+            for item in aggregated {
+                let speakerId = clusterToSpeakerId[item.speakerCluster] ?? item.speakerCluster
+                if let match = try matcher.bestMatch(
+                    embedding: item.embedding,
+                    candidates: profiles,
+                    embeddingModelVersion: SpeakerEmbeddingModelVersions.fluidAudioOfflineVbx256
+                ) {
+                    speakerMap[speakerId] = match.profile.name
+                }
+            }
+
+            let participants = Array(Set(speakerMap.values)).sorted()
+            if participants.isEmpty && speakerMap.isEmpty { return nil }
+
+            let speakerOrder = meetingSpeakerOrder
+            return MeetingParticipantFrontmatter(
+                participants: participants,
+                speakerMap: speakerMap,
+                speakerOrder: speakerOrder
+            )
+        } catch {
+            // Suggestions are best-effort: never fail the pipeline.
+            logger.error("Known-speaker suggestion step failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+            return nil
         }
     }
 

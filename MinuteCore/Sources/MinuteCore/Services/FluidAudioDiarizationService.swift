@@ -54,8 +54,11 @@ public struct FluidAudioDiarizationService: DiarizationServicing {
         )
     }
 
-    public func diarize(wavURL: URL) async throws -> [SpeakerSegment] {
+    public func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment] {
         try Task.checkCancellation()
+
+        // Streaming diarization does not support embedding export.
+        _ = embeddingExportURL
 
         let models = try await FluidAudioModelCache.shared.models()
         let config = makeConfig()

@@ -93,6 +93,153 @@ struct MeetingProcessingOrchestratorCancelTests {
         let started = await recorder.startedSnapshot()
         #expect(started == [a])
     }
+
+    @Test
+    func diarizationService_whenCancelledDuringModelPrepare_throwsCancellation_andDoesNotInvokeDiarize() async throws {
+        let recorder = CancellationRecorder()
+        let offlineManager = CancellingOfflineManager(recorder: recorder)
+        let service = FluidAudioOfflineDiarizationService(
+            configuration: FluidAudioOfflineDiarizationConfiguration(),
+            offlineManager: offlineManager
+        )
+
+        let wavURL = try makeTemporaryAudioFile()
+
+        let task = Task {
+            try await service.diarize(wavURL: wavURL, embeddingExportURL: nil)
+        }
+
+        try await recorder.waitUntilPrepareStarted()
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            Issue.record("Expected cancellation")
+        } catch is CancellationError {
+            // expected
+        }
+
+        #expect(await recorder.didStartDiarize == false)
+    }
+
+    @Test
+    func loudnessNormalizer_whenCancelledDuringPass1_throwsCancellation() async throws {
+        let recorder = CancellationRecorder()
+        let runner = CancellingProcessRunner(recorder: recorder)
+        let normalizer = AudioLoudnessNormalizer(
+            processRunner: runner,
+            environment: ["MINUTE_FFMPEG_BIN": "/usr/bin/true"]
+        )
+
+        let workingDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("minute-cancel-loudnorm-\(UUID().uuidString)", isDirectory: true)
+        let inputURL = try makeTemporaryAudioFile()
+
+        let task = Task {
+            try await normalizer.normalizeForAnalysis(inputURL: inputURL, workingDirectoryURL: workingDirectoryURL)
+        }
+
+        try await recorder.waitUntilPass1Started()
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            Issue.record("Expected cancellation")
+        } catch is CancellationError {
+            // expected
+        }
+    }
+}
+
+private actor CancellationRecorder {
+    enum WaitError: Error {
+        case timeout
+    }
+
+    private(set) var prepareStarted = false
+    private(set) var diarizeStarted = false
+
+    private(set) var pass1Started = false
+
+    func markPrepareStarted() {
+        prepareStarted = true
+    }
+
+    func markDiarizeStarted() {
+        diarizeStarted = true
+    }
+
+    func markPass1Started() {
+        pass1Started = true
+    }
+
+    func waitUntilPrepareStarted() async throws {
+        try await waitUntil { prepareStarted }
+    }
+
+    func waitUntilPass1Started() async throws {
+        try await waitUntil { pass1Started }
+    }
+
+    var didStartDiarize: Bool {
+        diarizeStarted
+    }
+
+    private func waitUntil(_ predicate: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(1.0)
+        while !predicate() {
+            if Date() > deadline {
+                throw WaitError.timeout
+            }
+            await Task.yield()
+        }
+    }
+}
+
+private struct CancellingOfflineManager: OfflineDiarizerManaging {
+    let recorder: CancellationRecorder
+
+    func prepareModels() async throws {
+        await recorder.markPrepareStarted()
+        while true {
+            try Task.checkCancellation()
+            await Task.yield()
+        }
+    }
+
+    func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment] {
+        _ = wavURL
+        _ = embeddingExportURL
+        await recorder.markDiarizeStarted()
+        return []
+    }
+}
+
+private struct CancellingProcessRunner: ProcessRunning {
+    let recorder: CancellationRecorder
+
+    func run(
+        executableURL: URL,
+        arguments: [String],
+        environment: [String : String]?,
+        workingDirectoryURL: URL?,
+        maximumOutputBytes: Int
+    ) async throws -> ProcessResult {
+        _ = executableURL
+        _ = arguments
+        _ = environment
+        _ = workingDirectoryURL
+        _ = maximumOutputBytes
+
+        await recorder.markPass1Started()
+
+        while true {
+            try Task.checkCancellation()
+            await Task.yield()
+        }
+
+        throw CancellationError()
+    }
 }
 
 private actor ExecutionRecorder {

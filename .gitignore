@@ -18,3 +18,7 @@ Packages/
 Thumbs.db
 *.swp
 *.tmp
+
+# Xcode test outputs
+*.xcresult/
+TestResults/

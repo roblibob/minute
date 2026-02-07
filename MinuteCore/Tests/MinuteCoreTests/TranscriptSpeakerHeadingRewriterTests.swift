@@ -1,0 +1,44 @@
+import Testing
+import Foundation
+@testable import MinuteCore
+
+struct TranscriptSpeakerHeadingRewriterTests {
+    @Test
+    func rewrite_onlyRewritesMinuteHeadingLines() {
+        let input = """
+        ---
+        type: meeting_transcript
+        ---
+
+        # Weekly Sync — Transcript
+
+        Speaker 1 [00:00 - 00:05]
+        Hello Speaker 1.
+
+        Speaker 2 [00:05 - 00:08]
+        Hi there.
+
+        Speaker 1 is not a heading.
+        """ + "\n"
+
+        let output = TranscriptSpeakerHeadingRewriter.rewrite(
+            transcriptMarkdown: input,
+            speakerDisplayNames: [1: "Alice", 2: "Bob"]
+        )
+
+        #expect(output.contains("Alice [00:00 - 00:05]\nHello Speaker 1."))
+        #expect(output.contains("Bob [00:05 - 00:08]\nHi there."))
+        #expect(output.contains("Speaker 1 is not a heading."))
+    }
+
+    @Test
+    func rewrite_preservesTrailingNewline() {
+        let input = "Speaker 1 [00:00 - 00:01]\nHi\n"
+        let output = TranscriptSpeakerHeadingRewriter.rewrite(
+            transcriptMarkdown: input,
+            speakerDisplayNames: [1: "Alice"]
+        )
+
+        #expect(output.hasSuffix("\n"))
+    }
+}

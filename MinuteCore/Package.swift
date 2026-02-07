@@ -55,7 +55,11 @@ let package = Package(
         ),
         .testTarget(
             name: "MinuteCoreTests",
-            dependencies: ["MinuteCore"]
+            dependencies: ["MinuteCore"],
+            resources: [
+                .process("Fixtures/Transcript"),
+                .process("Fixtures/Frontmatter"),
+            ]
         ),
     ]
 )

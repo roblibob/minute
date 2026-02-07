@@ -10,7 +10,8 @@ public struct TranscriptMarkdownRenderer: Sendable {
         title: String,
         dateISO: String,
         transcript: String,
-        attributedSegments: [AttributedTranscriptSegment] = []
+        attributedSegments: [AttributedTranscriptSegment] = [],
+        speakerDisplayNames: [Int: String] = [:]
     ) -> String {
         let safeTitle = FilenameSanitizer.sanitizeTitle(title)
 
@@ -41,7 +42,11 @@ public struct TranscriptMarkdownRenderer: Sendable {
             for (index, segment) in attributedSegments.enumerated() {
                 let start = formatTimestamp(segment.startSeconds)
                 let end = formatTimestamp(segment.endSeconds)
-                lines.append("Speaker \(segment.speakerId) [\(start) - \(end)]")
+
+                let mappedName = speakerDisplayNames[segment.speakerId]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let headingName = (mappedName?.isEmpty == false) ? mappedName! : "Speaker \(segment.speakerId)"
+
+                lines.append("\(headingName) [\(start) - \(end)]")
                 lines.append(segment.text.trimmingCharacters(in: .whitespacesAndNewlines))
                 if index < attributedSegments.count - 1 {
                     lines.append("")

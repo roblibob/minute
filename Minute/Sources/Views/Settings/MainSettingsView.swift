@@ -27,6 +27,10 @@ struct MainSettingsView: View {
                         ScreenContextSettingsSection()
                         VaultConfigurationView(model: vaultModel, style: .settings)
                     }
+                case .speakers:
+                    Form {
+                        KnownSpeakersSettingsSection(mode: .manage)
+                    }
                 case .permissions:
                     Form {
                         PermissionsSettingsSection()
@@ -91,6 +95,7 @@ struct MainSettingsView: View {
 
 private enum SettingsSection: CaseIterable, Identifiable {
     case general
+    case speakers
     case permissions
     case ai
     case updates
@@ -101,6 +106,8 @@ private enum SettingsSection: CaseIterable, Identifiable {
         switch self {
         case .general:
             return "General"
+        case .speakers:
+            return "Speakers"
         case .permissions:
             return "Permissions"
         case .ai:
@@ -114,6 +121,8 @@ private enum SettingsSection: CaseIterable, Identifiable {
         switch self {
         case .general:
             return "gearshape"
+        case .speakers:
+            return "person.2"
         case .permissions:
             return "hand.raised"
         case .ai:

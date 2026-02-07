@@ -8,8 +8,8 @@ struct CoverageSummaryTests {
         let scriptURL = repositoryRoot().appendingPathComponent("scripts/coverage/generate-coverage-summary.sh")
 
         let process = Process()
-        process.executableURL = scriptURL
-        process.arguments = []
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [scriptURL.path]
 
         try process.run()
         process.waitUntilExit()

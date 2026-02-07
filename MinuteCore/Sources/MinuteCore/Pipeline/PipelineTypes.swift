@@ -48,39 +48,51 @@ public struct PipelineResult: Sendable, Equatable {
 public struct PipelineContext: Sendable {
     public var vaultFolders: MeetingFileContract.VaultFolders
     public var audioTempURL: URL
+    /// Audio URL used as input for analysis steps like transcription/diarization.
+    ///
+    /// Defaults to `audioTempURL`, but may point to a normalized temporary WAV when enabled.
+    public var analysisAudioURL: URL
     public var audioDurationSeconds: TimeInterval
     public var startedAt: Date
     public var stoppedAt: Date
     public var workingDirectoryURL: URL
     public var saveAudio: Bool
     public var saveTranscript: Bool
+    public var normalizeAnalysisAudio: Bool
     public var screenContextEvents: [ScreenContextEvent]
     public var transcriptionOverride: TranscriptionResult?
     public var meetingType: MeetingType
+    public var knownSpeakerSuggestionsEnabled: Bool
 
     public init(
         vaultFolders: MeetingFileContract.VaultFolders,
         audioTempURL: URL,
+        analysisAudioURL: URL? = nil,
         audioDurationSeconds: TimeInterval,
         startedAt: Date,
         stoppedAt: Date,
         workingDirectoryURL: URL,
         saveAudio: Bool,
         saveTranscript: Bool,
+        normalizeAnalysisAudio: Bool = false,
         screenContextEvents: [ScreenContextEvent] = [],
         transcriptionOverride: TranscriptionResult? = nil,
-        meetingType: MeetingType = .autodetect
+        meetingType: MeetingType = .autodetect,
+        knownSpeakerSuggestionsEnabled: Bool = false
     ) {
         self.vaultFolders = vaultFolders
         self.audioTempURL = audioTempURL
+        self.analysisAudioURL = analysisAudioURL ?? audioTempURL
         self.audioDurationSeconds = audioDurationSeconds
         self.startedAt = startedAt
         self.stoppedAt = stoppedAt
         self.workingDirectoryURL = workingDirectoryURL
         self.saveAudio = saveAudio
         self.saveTranscript = saveTranscript
+        self.normalizeAnalysisAudio = normalizeAnalysisAudio
         self.screenContextEvents = screenContextEvents
         self.transcriptionOverride = transcriptionOverride
         self.meetingType = meetingType
+        self.knownSpeakerSuggestionsEnabled = knownSpeakerSuggestionsEnabled
     }
 }

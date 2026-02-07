@@ -102,8 +102,9 @@ public struct MockRecordingRecoveryService: RecordingRecoveryServicing {
 
 public struct MockDiarizationService: DiarizationServicing {
     public init() {}
-    public func diarize(wavURL: URL) async throws -> [SpeakerSegment] {
+    public func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment] {
         _ = wavURL
+        _ = embeddingExportURL
         return []
     }
 }

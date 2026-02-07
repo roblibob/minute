@@ -24,6 +24,9 @@ Audio format: mono, 16 kHz, 16-bit PCM WAV.
 
 Note structure (deterministic)
 - YAML frontmatter with fixed schema.
+- Speaker naming metadata (if the user edits it) is stored in the meeting note YAML frontmatter:
+   - `participants`: list of participant display names
+   - `speaker_map`: mapping of speaker numbers (as strings) to participant names
 - Sections: Summary, Decisions, Action Items, Open Questions, Key Points.
 - Links to the audio and transcript files in the vault.
 

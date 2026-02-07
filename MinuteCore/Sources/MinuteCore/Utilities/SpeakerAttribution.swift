@@ -9,6 +9,8 @@ public enum SpeakerAttribution {
             return []
         }
 
+        let defaultSpeakerId = speakerSegments.map(\.speakerId).min() ?? 0
+
         var attributed: [AttributedTranscriptSegment] = []
         attributed.reserveCapacity(transcriptSegments.count)
 
@@ -21,7 +23,7 @@ public enum SpeakerAttribution {
                 hasOverlap = true
             }
 
-            let speakerId = best?.speakerId ?? lastSpeakerId ?? speakerSegments.first?.speakerId ?? 0
+            let speakerId = best?.speakerId ?? lastSpeakerId ?? defaultSpeakerId
             lastSpeakerId = speakerId
 
             let text = transcript.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -55,6 +57,14 @@ public enum SpeakerAttribution {
             if overlap > bestOverlap {
                 bestOverlap = overlap
                 bestId = speaker.speakerId
+            } else if overlap == bestOverlap {
+                if let currentBest = bestId {
+                    if speaker.speakerId < currentBest {
+                        bestId = speaker.speakerId
+                    }
+                } else {
+                    bestId = speaker.speakerId
+                }
             }
         }
 

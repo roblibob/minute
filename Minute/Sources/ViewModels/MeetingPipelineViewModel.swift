@@ -168,8 +168,9 @@ final class MeetingPipelineViewModel: ObservableObject {
         let vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
         let coordinator = MeetingPipelineCoordinator(
             transcriptionService: transcriptionService,
-            diarizationService: FluidAudioDiarizationService.meetingDefault(),
+            diarizationService: FluidAudioOfflineDiarizationService.meetingDefault(),
             summarizationServiceProvider: summarizationServiceProvider,
+            audioLoudnessNormalizer: AudioLoudnessNormalizer(),
             modelManager: DefaultModelManager(
                 selectionStore: selectionStore,
                 transcriptionSelectionStore: transcriptionSelectionStore,
@@ -837,9 +838,11 @@ final class MeetingPipelineViewModel: ObservableObject {
             workingDirectoryURL: workingDirectoryURL,
             saveAudio: configuration.saveAudio,
             saveTranscript: configuration.saveTranscript,
+            normalizeAnalysisAudio: configuration.normalizeAnalysisAudio,
             screenContextEvents: screenContextEvents,
             transcriptionOverride: nil,
-            meetingType: meetingType
+            meetingType: meetingType,
+            knownSpeakerSuggestionsEnabled: configuration.knownSpeakerSuggestionsEnabled
         )
     }
 

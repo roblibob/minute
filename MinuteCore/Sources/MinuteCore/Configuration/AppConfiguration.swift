@@ -8,6 +8,7 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let transcriptsRelativePathKey = "transcriptsRelativePath"
         public static let saveAudioKey = "saveAudio"
         public static let saveTranscriptKey = "saveTranscript"
+        public static let normalizeAnalysisAudioKey = "normalizeAnalysisAudio"
         public static let screenContextEnabledKey = "screenContextEnabled"
         public static let screenContextSelectedWindowsKey = "screenContextSelectedWindows"
         public static let screenContextVideoImportEnabledKey = "screenContextVideoImportEnabled"
@@ -17,16 +18,19 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let transcriptionBackendIDKey = "transcriptionBackendID"
         public static let fluidAudioAsrModelIDKey = "fluidAudioAsrModelID"
         public static let micActivityNotificationsEnabledKey = "micActivityNotificationsEnabled"
+        public static let knownSpeakerSuggestionsEnabledKey = "knownSpeakerSuggestionsEnabled"
 
         public static let defaultMeetingsRelativePath = "Meetings"
         public static let defaultAudioRelativePath = "Meetings/_audio"
         public static let defaultTranscriptsRelativePath = "Meetings/_transcripts"
         public static let defaultSaveAudio = true
         public static let defaultSaveTranscript = true
+        public static let defaultNormalizeAnalysisAudio = true
         public static let defaultScreenContextEnabled = false
         public static let defaultScreenContextVideoImportEnabled = false
         public static let defaultScreenContextCaptureIntervalSeconds: TimeInterval = 60
         public static let defaultMicActivityNotificationsEnabled = true
+        public static let defaultKnownSpeakerSuggestionsEnabled = false
         public static let defaultTranscriptionBackendID = TranscriptionBackend.whisper.rawValue
         public static let defaultFluidAudioAsrModelID = FluidAudioASRModelCatalog.defaultModelID
     }
@@ -36,10 +40,12 @@ public struct AppConfiguration: Sendable, Equatable {
     public var transcriptsRelativePath: String
     public var saveAudio: Bool
     public var saveTranscript: Bool
+    public var normalizeAnalysisAudio: Bool
     public var screenContextEnabled: Bool
     public var screenContextVideoImportEnabled: Bool
     public var screenContextCaptureIntervalSeconds: TimeInterval
     public var micActivityNotificationsEnabled: Bool
+    public var knownSpeakerSuggestionsEnabled: Bool
 
     public init(defaults: UserDefaults = .standard) {
         meetingsRelativePath = Self.validatedRelativePath(
@@ -56,6 +62,8 @@ public struct AppConfiguration: Sendable, Equatable {
         )
         saveAudio = defaults.object(forKey: Defaults.saveAudioKey) as? Bool ?? Defaults.defaultSaveAudio
         saveTranscript = defaults.object(forKey: Defaults.saveTranscriptKey) as? Bool ?? Defaults.defaultSaveTranscript
+        normalizeAnalysisAudio = defaults.object(forKey: Defaults.normalizeAnalysisAudioKey) as? Bool
+            ?? Defaults.defaultNormalizeAnalysisAudio
         screenContextEnabled = defaults.object(forKey: Defaults.screenContextEnabledKey) as? Bool
             ?? Defaults.defaultScreenContextEnabled
         screenContextVideoImportEnabled = defaults.object(forKey: Defaults.screenContextVideoImportEnabledKey) as? Bool
@@ -68,6 +76,9 @@ public struct AppConfiguration: Sendable, Equatable {
 
         micActivityNotificationsEnabled = defaults.object(forKey: Defaults.micActivityNotificationsEnabledKey) as? Bool
             ?? Defaults.defaultMicActivityNotificationsEnabled
+
+        knownSpeakerSuggestionsEnabled = defaults.object(forKey: Defaults.knownSpeakerSuggestionsEnabledKey) as? Bool
+            ?? Defaults.defaultKnownSpeakerSuggestionsEnabled
     }
 
     public static func validatedRelativePath(_ value: String?, fallback: String) -> String {

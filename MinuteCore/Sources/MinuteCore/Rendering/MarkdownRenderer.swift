@@ -11,7 +11,8 @@ public struct MarkdownRenderer: Sendable {
         noteDateTime: String,
         audioDurationSeconds: TimeInterval?,
         audioRelativePath: String?,
-        transcriptRelativePath: String?
+        transcriptRelativePath: String?,
+        participantFrontmatter: MeetingParticipantFrontmatter? = nil
     ) -> String {
         let title = StringNormalizer.normalizeTitle(extraction.title)
         let date = noteDateTime
@@ -31,6 +32,10 @@ public struct MarkdownRenderer: Sendable {
         }
         if let length {
             lines.append("length: \(length)")
+        }
+
+        if let participantFrontmatter {
+            lines.append(contentsOf: YAMLFrontmatterCodec.encodeOwnedParticipantKeys(participantFrontmatter))
         }
         lines.append("tags:")
         lines.append("---")

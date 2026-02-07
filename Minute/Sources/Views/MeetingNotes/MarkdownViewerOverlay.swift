@@ -2,6 +2,17 @@ import MarkdownUI
 import SwiftUI
 
 struct MarkdownViewerOverlay: View {
+    struct SpeakerEditorConfig {
+        var speakerIDs: [Int]
+        var speakerName: (Int) -> String
+        var setSpeakerName: (Int, String) -> Void
+        var save: () -> Void
+        var isSaving: Bool
+        var errorMessage: String?
+        var isRewritingTranscriptHeadings: Bool
+        var rewriteErrorMessage: String?
+    }
+
     var title: String
     var summaryContent: String?
     var transcriptContent: String?
@@ -17,7 +28,10 @@ struct MarkdownViewerOverlay: View {
     var onClose: () -> Void
     var onRetry: (MeetingNotePreviewTab) -> Void
     var onOpenInObsidian: (() -> Void)?
+    var speakerEditor: SpeakerEditorConfig? = nil
     private let scrollBottomInset: CGFloat = 160
+
+    @State private var isMorePopoverPresented: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,22 +67,29 @@ struct MarkdownViewerOverlay: View {
  
     private var toolbarContent: some View {
         HStack(spacing: 12) {
-            if isTranscriptionAvailable {
-                Button(action: toggleTab) {
-                    Text(toggleTitle)
+            if let onOpenInObsidian {
+                Button(action: onOpenInObsidian) {
+                    Label("Open in Obsidian", systemImage: "arrow.up.right.square")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .help(toggleHelpText)
+                .help("Open in Obsidian")
             }
 
-            if let onOpenInObsidian {
-                Button(action: onOpenInObsidian) {
-                    Image(systemName: "arrow.up.right.square")
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.large)
-                .help("Open in Obsidian")
+            Button {
+                isMorePopoverPresented.toggle()
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.minuteTextPrimary)
+                    .frame(width: 28, height: 28, alignment: .center)
+            }
+            .buttonStyle(.borderless)
+            .contentShape(Rectangle())
+            .help("More")
+            .accessibilityLabel("More")
+            .popover(isPresented: $isMorePopoverPresented, arrowEdge: .bottom) {
+                morePopoverContent
             }
 
             Button(action: onClose) {
@@ -78,6 +99,96 @@ struct MarkdownViewerOverlay: View {
             .buttonStyle(.borderless)
             .controlSize(.large)
             .accessibilityLabel("Close note preview")
+        }
+    }
+
+    private var viewToggleMenuTitle: String {
+        selectedTab == .summary ? "View Transcript" : "View Summary"
+    }
+
+    private var morePopoverContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if isTranscriptionAvailable {
+                Button(viewToggleMenuTitle) {
+                    toggleTab()
+                    isMorePopoverPresented = false
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let speakerEditor, !speakerEditor.speakerIDs.isEmpty {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(height: 1)
+
+                ScrollView {
+                    speakersPopover(editor: speakerEditor)
+                }
+                .frame(maxHeight: 520)
+            } else {
+                Text("No speakers available")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.minuteTextSecondary)
+            }
+        }
+        .padding(14)
+        .frame(minWidth: 380, maxWidth: 520)
+    }
+
+    private func speakersPopover(editor: SpeakerEditorConfig, showsTitle: Bool = true) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if showsTitle {
+                Text("Speakers")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.minuteTextPrimary)
+            }
+
+            if let message = editor.errorMessage {
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+            }
+
+            if let message = editor.rewriteErrorMessage {
+                Text(message)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(editor.speakerIDs, id: \.self) { speakerId in
+                    HStack(spacing: 8) {
+                        Text("Speaker \(speakerId)")
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(width: 90, alignment: .leading)
+
+                        TextField(
+                            "Name",
+                            text: Binding(
+                                get: { editor.speakerName(speakerId) },
+                                set: { editor.setSpeakerName(speakerId, $0) }
+                            )
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+
+                if editor.isSaving || editor.isRewritingTranscriptHeadings {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                Button("Save") {
+                    editor.save()
+                }
+                .disabled(editor.isSaving || editor.isRewritingTranscriptHeadings)
+                .keyboardShortcut(.defaultAction)
+            }
         }
     }
 
@@ -95,14 +206,6 @@ struct MarkdownViewerOverlay: View {
             return true
         }
         return false
-    }
-
-    private var toggleTitle: String {
-        selectedTab == .summary ? "Transcription" : "Summary"
-    }
-
-    private var toggleHelpText: String {
-        selectedTab == .summary ? "Show transcription" : "Show summary"
     }
 
     private func toggleTab() {

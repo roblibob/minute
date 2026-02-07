@@ -172,7 +172,7 @@ private struct PipelineContentView: View {
                 MarkdownViewerOverlay(
                     title: notesModel.selectedItem?.title ?? "",
                     summaryContent: notesModel.noteContent,
-                    transcriptContent: notesModel.transcriptContent,
+                    transcriptContent: notesModel.transcriptDisplayContent ?? notesModel.transcriptContent,
                     isLoadingSummary: notesModel.isLoadingContent,
                     isLoadingTranscript: notesModel.isLoadingTranscript,
                     summaryErrorMessage: notesModel.overlayErrorMessage,
@@ -186,7 +186,17 @@ private struct PipelineContentView: View {
                     onRetry: { tab in
                         notesModel.retryLoadContent(for: tab)
                     },
-                    onOpenInObsidian: notesModel.openInObsidian
+                    onOpenInObsidian: notesModel.openInObsidian,
+                    speakerEditor: MarkdownViewerOverlay.SpeakerEditorConfig(
+                        speakerIDs: notesModel.speakerIDs,
+                        speakerName: { notesModel.speakerName(for: $0) },
+                        setSpeakerName: { id, name in notesModel.setSpeakerName(name, for: id) },
+                        save: notesModel.saveSpeakerNames,
+                        isSaving: notesModel.isSavingSpeakerNames,
+                        errorMessage: notesModel.speakerSaveErrorMessage,
+                        isRewritingTranscriptHeadings: notesModel.isRewritingTranscriptHeadings,
+                        rewriteErrorMessage: notesModel.speakerTranscriptRewriteErrorMessage
+                    )
                 )
             } else {
                 MainStageView(

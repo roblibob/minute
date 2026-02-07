@@ -37,17 +37,30 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     @Published private(set) var renderPlainText: Bool = false
     @Published private(set) var isLoadingTranscript: Bool = false
     @Published private(set) var transcriptContent: String?
+    @Published private(set) var transcriptDisplayContent: String?
     @Published private(set) var transcriptErrorMessage: String?
     @Published private(set) var renderTranscriptPlainText: Bool = false
     @Published private(set) var selectedItem: MeetingNoteItem?
     @Published private(set) var selectedTab: MeetingNotePreviewTab = .summary
     @Published var isOverlayPresented: Bool = false
 
+    // US3: Speaker naming (frontmatter-only persistence).
+    @Published private(set) var speakerIDs: [Int] = []
+    @Published private(set) var speakerNameDrafts: [Int: String] = [:]
+    @Published private(set) var speakerSaveErrorMessage: String?
+    @Published private(set) var isSavingSpeakerNames: Bool = false
+    @Published private(set) var speakerTranscriptRewriteErrorMessage: String?
+    @Published private(set) var isRewritingTranscriptHeadings: Bool = false
+
+    // Speaker IDs discovered from the transcript file, independent of which tab is currently selected.
+    @Published private(set) var transcriptSpeakerIDs: [Int] = []
+
     private let browserProvider: @Sendable () -> any MeetingNotesBrowsing
     private var pendingSelectionURL: URL?
     private var listTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var transcriptLoadTask: Task<Void, Never>?
+    private var transcriptSpeakerIDsTask: Task<Void, Never>?
     private var deleteTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
     private var defaultsObserver: AnyCancellable?
@@ -66,6 +79,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         listTask?.cancel()
         loadTask?.cancel()
         transcriptLoadTask?.cancel()
+        transcriptSpeakerIDsTask?.cancel()
         deleteTask?.cancel()
         previewTask?.cancel()
     }
@@ -102,11 +116,28 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     }
 
     func select(_ item: MeetingNoteItem) {
+        resetSpeakerNamingState()
         selectedItem = item
         selectedTab = .summary
         resetTranscriptState()
         isOverlayPresented = true
         startLoadingSummary(for: item)
+
+        // Load speaker IDs from the transcript in the background so the Speakers UI is consistent
+        // even when the user never switches to the transcript tab.
+        startLoadingTranscriptSpeakerIDsIfNeeded(for: item)
+    }
+
+    private func resetSpeakerNamingState() {
+        speakerIDs = []
+        speakerNameDrafts = [:]
+        speakerSaveErrorMessage = nil
+        isSavingSpeakerNames = false
+        speakerTranscriptRewriteErrorMessage = nil
+        isRewritingTranscriptHeadings = false
+        transcriptSpeakerIDs = []
+        transcriptSpeakerIDsTask?.cancel()
+        transcriptSpeakerIDsTask = nil
     }
 
     func retryLoadContent() {
@@ -147,6 +178,156 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         renderPlainText = false
         isLoadingContent = false
         resetTranscriptState()
+
+        resetSpeakerNamingState()
+    }
+
+    func speakerName(for speakerId: Int) -> String {
+        speakerNameDrafts[speakerId] ?? ""
+    }
+
+    func setSpeakerName(_ name: String, for speakerId: Int) {
+        speakerNameDrafts[speakerId] = name
+        updateTranscriptDisplayContent()
+    }
+
+    func saveSpeakerNames() {
+        guard let item = selectedItem else { return }
+        speakerSaveErrorMessage = nil
+        speakerTranscriptRewriteErrorMessage = nil
+        isSavingSpeakerNames = true
+
+        // Build deterministic owned frontmatter from current drafts.
+        let orderedSpeakerIDs = speakerIDs.sorted()
+
+        var speakerMap: [Int: String] = [:]
+        speakerMap.reserveCapacity(orderedSpeakerIDs.count)
+        for id in orderedSpeakerIDs {
+            let trimmed = (speakerNameDrafts[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                speakerMap[id] = trimmed
+            }
+        }
+
+        var participants: [String] = []
+        var seenParticipants: Set<String> = []
+        for id in orderedSpeakerIDs {
+            guard let name = speakerMap[id] else { continue }
+            let key = name.lowercased()
+            if seenParticipants.insert(key).inserted {
+                participants.append(name)
+            }
+        }
+
+        let owned = MeetingParticipantFrontmatter(
+            participants: participants,
+            speakerMap: speakerMap,
+            speakerOrder: orderedSpeakerIDs
+        )
+
+        let access = Self.makeVaultAccess()
+        let service = MeetingSpeakerNamingService(vaultWriter: DefaultVaultWriter())
+
+        Task { [weak self] in
+            do {
+                try access.withVaultAccess { _ in
+                    try service.updateMeetingNote(at: item.fileURL, ownedFrontmatter: owned)
+                }
+
+                await MainActor.run {
+                    self?.isSavingSpeakerNames = false
+                }
+
+                await MainActor.run {
+                    // Refresh visible content so the user sees updated frontmatter immediately.
+                    self?.startLoadingSummary(for: item)
+                }
+
+                // As part of the same explicit user action, also rewrite transcript headings (if present)
+                // so the transcript file itself reflects the chosen speaker names.
+                if item.hasTranscript {
+                    await MainActor.run {
+                        self?.rewriteTranscriptHeadings()
+                    }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self?.isSavingSpeakerNames = false
+                }
+            } catch {
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to save speakers.")
+                await MainActor.run {
+                    self?.speakerSaveErrorMessage = message
+                    self?.isSavingSpeakerNames = false
+                }
+            }
+        }
+    }
+
+    func rewriteTranscriptHeadings() {
+        guard let item = selectedItem else { return }
+        guard item.hasTranscript else { return }
+
+        speakerTranscriptRewriteErrorMessage = nil
+        isRewritingTranscriptHeadings = true
+
+        let speakerDisplayNames: [Int: String] = speakerNameDrafts.compactMapValues {
+            let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        let access = Self.makeVaultAccess()
+        let defaults = UserDefaults.standard
+        let configuration = AppConfiguration(defaults: defaults)
+        let vaultWriter = DefaultVaultWriter()
+
+        Task { [weak self] in
+            do {
+                try Task.checkCancellation()
+                let rewritten: String = try access.withVaultAccess { vaultRootURL in
+                    try Task.checkCancellation()
+
+                    let transcriptURL = Self.transcriptURL(
+                        for: item,
+                        vaultRootURL: vaultRootURL,
+                        transcriptsRelativePath: configuration.transcriptsRelativePath
+                    )
+
+                    let data = try Data(contentsOf: transcriptURL)
+                    let content = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+                    let output = TranscriptSpeakerHeadingRewriter.rewrite(
+                        transcriptMarkdown: content,
+                        speakerDisplayNames: speakerDisplayNames
+                    )
+
+                    if output != content {
+                        let outData = Data(output.utf8)
+                        try vaultWriter.writeAtomically(data: outData, to: transcriptURL)
+                    }
+
+                    return output
+                }
+
+                await MainActor.run {
+                    self?.transcriptContent = rewritten
+                    self?.renderTranscriptPlainText = Self.shouldRenderPlainText(rewritten)
+                    self?.transcriptErrorMessage = nil
+                    self?.isLoadingTranscript = false
+                    self?.updateTranscriptDisplayContent()
+                    self?.isRewritingTranscriptHeadings = false
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self?.isRewritingTranscriptHeadings = false
+                }
+            } catch {
+                let message = Self.transcriptErrorMessage(for: error)
+                await MainActor.run {
+                    self?.speakerTranscriptRewriteErrorMessage = message
+                    self?.isRewritingTranscriptHeadings = false
+                }
+            }
+        }
     }
 
     func preview(for item: MeetingNoteItem) -> NotePreview? {
@@ -214,6 +395,9 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     self?.noteContent = content
                     self?.renderPlainText = shouldRenderPlainText
                     self?.isLoadingContent = false
+
+                    self?.refreshSpeakerDraftsIfPossible()
+                    self?.updateTranscriptDisplayContent()
                 }
             } catch is CancellationError {
                 await MainActor.run {
@@ -257,6 +441,11 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     self?.transcriptContent = content
                     self?.renderTranscriptPlainText = shouldRenderPlainText
                     self?.isLoadingTranscript = false
+
+                    self?.transcriptSpeakerIDs = Self.parseSpeakerIDs(fromTranscriptMarkdown: content)
+
+                    self?.refreshSpeakerDraftsIfPossible()
+                    self?.updateTranscriptDisplayContent()
                 }
             } catch is CancellationError {
                 await MainActor.run {
@@ -275,9 +464,153 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     private func resetTranscriptState() {
         transcriptLoadTask?.cancel()
         transcriptContent = nil
+        transcriptDisplayContent = nil
         transcriptErrorMessage = nil
         renderTranscriptPlainText = false
         isLoadingTranscript = false
+    }
+
+    private func startLoadingTranscriptSpeakerIDsIfNeeded(for item: MeetingNoteItem) {
+        guard item.hasTranscript else { return }
+        guard transcriptSpeakerIDs.isEmpty else { return }
+        guard transcriptSpeakerIDsTask == nil else { return }
+
+        let provider = browserProvider
+        transcriptSpeakerIDsTask = Task { [weak self] in
+            do {
+                let content = try await provider().loadTranscriptContent(for: item)
+                let ids = Self.parseSpeakerIDs(fromTranscriptMarkdown: content)
+                await MainActor.run {
+                    self?.transcriptSpeakerIDs = ids
+                    self?.refreshSpeakerDraftsIfPossible()
+                }
+            } catch is CancellationError {
+                // Ignore.
+            } catch {
+                // Ignore transcript read failures here; transcript tab handles user-visible errors.
+            }
+
+            await MainActor.run {
+                self?.transcriptSpeakerIDsTask = nil
+            }
+        }
+    }
+
+    private func refreshSpeakerDraftsIfPossible() {
+        let speakerIDsFromTranscript = Set(Self.parseSpeakerIDs(fromTranscriptMarkdown: transcriptContent))
+            .union(transcriptSpeakerIDs)
+
+        // Load existing mapping from the meeting note frontmatter, if present.
+        let existingOwned = MeetingSpeakerNamingService(vaultWriter: DefaultVaultWriter())
+            .loadOwnedParticipantFrontmatter(from: noteContent ?? "")
+
+        let allIDs = speakerIDsFromTranscript.union(existingOwned.speakerMap.keys)
+        let orderedIDs = allIDs.sorted()
+        speakerIDs = orderedIDs
+
+        // Initialize drafts from existing mapping if drafts are empty.
+        if speakerNameDrafts.isEmpty {
+            speakerNameDrafts = existingOwned.speakerMap.mapValues { $0 }
+        } else {
+            // Ensure any newly discovered speaker IDs exist in the draft map.
+            for id in orderedIDs {
+                if speakerNameDrafts[id] == nil, let existing = existingOwned.speakerMap[id] {
+                    speakerNameDrafts[id] = existing
+                }
+            }
+        }
+    }
+
+    private func updateTranscriptDisplayContent() {
+        guard let raw = transcriptContent else {
+            transcriptDisplayContent = nil
+            return
+        }
+
+        // Display-only transform: replace "Speaker N" headings when a name exists.
+        transcriptDisplayContent = Self.rewriteSpeakerHeadingsForDisplay(
+            transcriptMarkdown: raw,
+            speakerDisplayNames: speakerNameDrafts
+        )
+    }
+
+    nonisolated private static func parseSpeakerIDs(fromTranscriptMarkdown markdown: String?) -> [Int] {
+        guard let markdown else { return [] }
+
+        var ids: Set<Int> = []
+        for line in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("Speaker ") else { continue }
+
+            let afterPrefix = trimmed.dropFirst("Speaker ".count)
+            let digits = afterPrefix.prefix { $0.isNumber }
+            if let id = Int(digits) {
+                ids.insert(id)
+            }
+        }
+
+        return ids.sorted()
+    }
+
+    nonisolated private static func rewriteSpeakerHeadingsForDisplay(
+        transcriptMarkdown: String,
+        speakerDisplayNames: [Int: String]
+    ) -> String {
+        let lines = transcriptMarkdown.split(separator: "\n", omittingEmptySubsequences: false)
+        var out: [String] = []
+        out.reserveCapacity(lines.count)
+
+        for lineSub in lines {
+            let line = String(lineSub)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("Speaker ") {
+                let afterPrefix = trimmed.dropFirst("Speaker ".count)
+                let digits = afterPrefix.prefix { $0.isNumber }
+                if let id = Int(digits),
+                   let name = speakerDisplayNames[id]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !name.isEmpty,
+                   let range = line.range(of: "Speaker \(id)") {
+                    let replaced = line.replacingCharacters(in: range, with: name)
+                    out.append(replaced)
+                    continue
+                }
+            }
+            out.append(line)
+        }
+
+        return out.joined(separator: "\n")
+    }
+
+    nonisolated private static func makeVaultAccess() -> VaultAccess {
+        let defaults = UserDefaults.standard
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(
+            defaults: defaults,
+            key: AppConfiguration.Defaults.vaultRootBookmarkKey
+        )
+        return VaultAccess(bookmarkStore: bookmarkStore)
+    }
+
+    nonisolated private static func transcriptURL(
+        for item: MeetingNoteItem,
+        vaultRootURL: URL,
+        transcriptsRelativePath: String
+    ) -> URL {
+        let baseName = item.fileURL.deletingPathExtension().lastPathComponent
+        let root = Self.directoryURL(from: vaultRootURL, relativePath: transcriptsRelativePath)
+        return root.appendingPathComponent("\(baseName).md")
+    }
+
+    nonisolated private static func directoryURL(from vaultRootURL: URL, relativePath: String) -> URL {
+        let components = relativePath
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+
+        return components.reduce(vaultRootURL) { partial, component in
+            partial.appendingPathComponent(component, isDirectory: true)
+        }
     }
 
     nonisolated private static func defaultBrowserProvider() -> any MeetingNotesBrowsing {

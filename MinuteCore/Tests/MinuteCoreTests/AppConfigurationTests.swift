@@ -13,6 +13,7 @@ struct AppConfigurationTests {
         expectEqual(configuration.transcriptsRelativePath, AppConfiguration.Defaults.defaultTranscriptsRelativePath)
         expectEqual(configuration.saveAudio, AppConfiguration.Defaults.defaultSaveAudio)
         expectEqual(configuration.saveTranscript, AppConfiguration.Defaults.defaultSaveTranscript)
+        expectEqual(configuration.normalizeAnalysisAudio, AppConfiguration.Defaults.defaultNormalizeAnalysisAudio)
         expectEqual(configuration.screenContextEnabled, AppConfiguration.Defaults.defaultScreenContextEnabled)
         expectEqual(
             configuration.screenContextVideoImportEnabled,
@@ -63,6 +64,16 @@ struct AppConfigurationTests {
         let configuration = AppConfiguration(defaults: defaults)
 
         expectEqual(configuration.micActivityNotificationsEnabled, false)
+    }
+
+    @Test
+    func defaults_readsNormalizeAnalysisAudio() {
+        let defaults = makeDefaults()
+        defaults.set(false, forKey: AppConfiguration.Defaults.normalizeAnalysisAudioKey)
+
+        let configuration = AppConfiguration(defaults: defaults)
+
+        expectEqual(configuration.normalizeAnalysisAudio, false)
     }
 
     private func makeDefaults() -> UserDefaults {

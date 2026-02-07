@@ -123,7 +123,7 @@ public protocol TranscriptionServicing: Sendable {
 }
 
 public protocol DiarizationServicing: Sendable {
-    func diarize(wavURL: URL) async throws -> [SpeakerSegment]
+    func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment]
 }
 
 public protocol SummarizationServicing: Sendable {

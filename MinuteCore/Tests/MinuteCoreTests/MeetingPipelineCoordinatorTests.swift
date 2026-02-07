@@ -226,8 +226,9 @@ private struct FailingTranscriptionService: TranscriptionServicing {
 private struct TestDiarizationService: DiarizationServicing {
     var segments: [SpeakerSegment]
 
-    func diarize(wavURL: URL) async throws -> [SpeakerSegment] {
+    func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment] {
         _ = wavURL
+        _ = embeddingExportURL
         return segments
     }
 }

@@ -1,0 +1,179 @@
+openapi: 3.1.0
+info:
+  title: Minute Speaker Identification (Internal)
+  version: 0.1.0
+  description: |
+    Internal, local-only contracts for speaker diarization naming and known-speaker profiles.
+    This is NOT a network API; it models app/service boundaries for determinism and testability.
+servers:
+  - url: https://local.minute.invalid
+paths:
+  /meetings/{meetingId}/speakers:
+    get:
+      operationId: getMeetingSpeakers
+      summary: Get diarized speakers and current naming
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Meeting speakers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingSpeakersResponse'
+  /meetings/{meetingId}/speaker-map:
+    put:
+      operationId: putMeetingSpeakerMap
+      summary: Update per-meeting speaker naming map
+      parameters:
+        - name: meetingId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetingSpeakerMap'
+      responses:
+        '200':
+          description: Updated mapping
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingSpeakerMap'
+  /speaker-profiles:
+    get:
+      operationId: listSpeakerProfiles
+      summary: List known speakers
+      responses:
+        '200':
+          description: Profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpeakerProfile'
+    post:
+      operationId: createSpeakerProfile
+      summary: Create a known speaker profile (enroll)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpeakerProfileRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpeakerProfile'
+  /speaker-profiles/{profileId}:
+    put:
+      operationId: updateSpeakerProfile
+      summary: Rename/update profile metadata
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpeakerProfileRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpeakerProfile'
+    delete:
+      operationId: deleteSpeakerProfile
+      summary: Delete a known speaker profile
+      parameters:
+        - name: profileId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Deleted
+components:
+  schemas:
+    SpeakerSegment:
+      type: object
+      required: [speakerId, startSeconds, endSeconds, text]
+      properties:
+        speakerId: { type: string }
+        startSeconds: { type: number, minimum: 0 }
+        endSeconds: { type: number, exclusiveMinimum: 0 }
+        text: { type: string }
+        embedding:
+          type: array
+          items: { type: number }
+          description: Optional 256-dim L2-normalized embedding
+    MeetingSpeakerMap:
+      type: object
+      required: [meetingId, speakerToParticipant, participants, updatedAt]
+      properties:
+        meetingId: { type: string }
+        speakerToParticipant:
+          type: object
+          additionalProperties: { type: string }
+        participants:
+          type: array
+          items: { type: string }
+        updatedAt: { type: string, format: date-time }
+    MeetingSpeakersResponse:
+      type: object
+      required: [meetingId, segments, speakerMap]
+      properties:
+        meetingId: { type: string }
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpeakerSegment'
+        speakerMap:
+          $ref: '#/components/schemas/MeetingSpeakerMap'
+    SpeakerProfile:
+      type: object
+      required: [id, name, embedding, embeddingModelVersion, createdAt, updatedAt, isPermanent]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        embedding:
+          type: array
+          minItems: 256
+          maxItems: 256
+          items: { type: number }
+        embeddingModelVersion: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        isPermanent: { type: boolean }
+    CreateSpeakerProfileRequest:
+      type: object
+      required: [name, embedding, embeddingModelVersion]
+      properties:
+        name: { type: string }
+        embedding:
+          type: array
+          minItems: 256
+          maxItems: 256
+          items: { type: number }
+        embeddingModelVersion: { type: string }
+        isPermanent: { type: boolean, default: false }
+    UpdateSpeakerProfileRequest:
+      type: object
+      properties:
+        name: { type: string }
+        isPermanent: { type: boolean }
