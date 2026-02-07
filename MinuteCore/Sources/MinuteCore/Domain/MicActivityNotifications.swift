@@ -7,6 +7,6 @@ public enum MicActivityNotification {
 }
 
 public extension Notification.Name {
-    public static let minuteMicActivityShowPipeline = Notification.Name("minute.mic-activity.show-pipeline")
-    public static let minuteMicActivityStartRecording = Notification.Name("minute.mic-activity.start-recording")
+    static let minuteMicActivityShowPipeline = Notification.Name("minute.mic-activity.show-pipeline")
+    static let minuteMicActivityStartRecording = Notification.Name("minute.mic-activity.start-recording")
 }

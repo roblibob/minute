@@ -77,17 +77,17 @@ struct WhisperTranscriptionServiceTests {
 
         do {
             _ = try await service.transcribe(wavURL: wav)
-            #expect(false)
+            #expect(Bool(false))
         } catch let error as MinuteError {
             switch error {
             case .whisperFailed(let exitCode, let output):
                 expectEqual(exitCode, 2)
                 #expect(output.contains("boom"))
             default:
-                #expect(false)
+                #expect(Bool(false))
             }
         } catch {
-            #expect(false)
+            #expect(Bool(false))
         }
     }
 
@@ -107,7 +107,7 @@ struct WhisperTranscriptionServiceTests {
         FileManager.default.createFile(atPath: wav.path, contents: Data([0x00]))
 
         let runner = MockProcessRunner { _, _ in
-            #expect(false)
+            #expect(Bool(false))
             return ProcessResult(exitCode: 0, stdout: "", stderr: "")
         }
 
@@ -118,14 +118,14 @@ struct WhisperTranscriptionServiceTests {
 
         do {
             _ = try await service.transcribe(wavURL: wav)
-            #expect(false)
+            #expect(Bool(false))
         } catch let error as MinuteError {
             guard case .whisperMissing = error else {
-                #expect(false)
+                #expect(Bool(false))
                 return
             }
         } catch {
-            #expect(false)
+            #expect(Bool(false))
         }
     }
 
@@ -146,7 +146,7 @@ struct WhisperTranscriptionServiceTests {
         FileManager.default.createFile(atPath: wav.path, contents: Data([0x00]))
 
         let runner = MockProcessRunner { _, _ in
-            #expect(false)
+            #expect(Bool(false))
             return ProcessResult(exitCode: 0, stdout: "", stderr: "")
         }
 
@@ -157,14 +157,14 @@ struct WhisperTranscriptionServiceTests {
 
         do {
             _ = try await service.transcribe(wavURL: wav)
-            #expect(false)
+            #expect(Bool(false))
         } catch let error as MinuteError {
             guard case .modelMissing = error else {
-                #expect(false)
+                #expect(Bool(false))
                 return
             }
         } catch {
-            #expect(false)
+            #expect(Bool(false))
         }
     }
 }

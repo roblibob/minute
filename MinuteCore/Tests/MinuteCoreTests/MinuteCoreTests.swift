@@ -5,6 +5,6 @@ import Foundation
 struct MinuteCoreTests {
     @Test
     func smoke() {
-        #expect(true)
+        #expect(Bool(true))
     }
 }

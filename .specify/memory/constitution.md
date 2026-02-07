@@ -49,6 +49,8 @@ conversion. This protects real-time usability.
 ### VI. Test-Driven Development (NON-NEGOTIABLE)
 All features MUST follow strict TDD workflow using Swift Testing. Write tests → Watch fail (red) → Implement minimal code (green) → Refactor → Commit.
 
+Unit tests SHOULD use Swift Testing by default; use XCTest only when required by platform/framework integration or tooling limitations.
+
 ### VII. SOLID Principles & Functional Programming
 Code MUST follow SOLID principles with emphasis on Single Responsibility, Dependency Inversion. Prefer functional patterns where they improve clarity; imperative is acceptable when clearer.
 

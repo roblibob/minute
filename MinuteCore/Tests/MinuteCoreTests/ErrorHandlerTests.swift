@@ -31,6 +31,6 @@ struct ErrorHandlerTests {
         if case .vaultWriteFailed = minuteError {
             return
         }
-        #expect(false)
+        #expect(Bool(false))
     }
 }

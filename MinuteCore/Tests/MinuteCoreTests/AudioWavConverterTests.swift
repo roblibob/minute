@@ -34,7 +34,7 @@ struct AudioWavConverterTests {
             let inputFormat = inputFile.processingFormat
 
             guard let buffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: frameCount) else {
-                #expect(false)
+                #expect(Bool(false))
                 return
             }
 
@@ -47,12 +47,12 @@ struct AudioWavConverterTests {
                 // One buffer containing LRLRLR...
                 let audioBufferList = buffer.audioBufferList.pointee
                 guard audioBufferList.mNumberBuffers == 1 else {
-                    #expect(false)
+                    #expect(Bool(false))
                     return
                 }
 
                 guard let mData = audioBufferList.mBuffers.mData else {
-                    #expect(false)
+                    #expect(Bool(false))
                     return
                 }
 
@@ -70,7 +70,7 @@ struct AudioWavConverterTests {
             } else {
                 // Non-interleaved: one buffer per channel.
                 guard let ch0 = buffer.floatChannelData?[0], let ch1 = buffer.floatChannelData?[1] else {
-                    #expect(false)
+                    #expect(Bool(false))
                     return
                 }
 
@@ -89,7 +89,7 @@ struct AudioWavConverterTests {
         do {
             let readFile = try AVAudioFile(forReading: inputURL)
             guard let sanityBuffer = AVAudioPCMBuffer(pcmFormat: readFile.processingFormat, frameCapacity: 1024) else {
-                #expect(false)
+                #expect(Bool(false))
                 return
             }
             try readFile.read(into: sanityBuffer)

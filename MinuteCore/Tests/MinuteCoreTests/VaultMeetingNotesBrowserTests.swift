@@ -90,7 +90,7 @@ struct VaultMeetingNotesBrowserTests {
         let browser = try makeBrowser(vaultRootURL: rootURL)
         let notes = try await browser.listNotes()
         guard let note = notes.first else {
-            #expect(false)
+            #expect(Bool(false))
             return
         }
 
@@ -114,7 +114,7 @@ struct VaultMeetingNotesBrowserTests {
 
         let browser = try makeBrowser(vaultRootURL: rootURL)
         guard let note = try await browser.listNotes().first else {
-            #expect(false)
+            #expect(Bool(false))
             return
         }
 

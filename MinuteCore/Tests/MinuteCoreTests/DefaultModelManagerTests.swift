@@ -64,13 +64,13 @@ struct DefaultModelManagerTests {
 
         do {
             try await manager.ensureModelsPresent(progress: Optional<(@Sendable (ModelDownloadProgress) -> Void)>.none)
-            #expect(false)
+            #expect(Bool(false))
         } catch let err as MinuteError {
             switch err {
             case .modelChecksumMismatch:
                 break
             default:
-                #expect(false)
+                #expect(Bool(false))
             }
         }
 

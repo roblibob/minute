@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://minute.local/contracts/meeting-type-classification-output.schema.json",
+  "title": "MeetingTypeClassificationOutput",
+  "type": "string",
+  "description": "Classifier output for meeting type autodetect. Must be exactly one of the allowed labels.",
+  "enum": [
+    "General",
+    "Standup",
+    "Design Review",
+    "One-on-One",
+    "Presentation",
+    "Planning"
+  ]
+}

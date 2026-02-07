@@ -72,14 +72,15 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         // Use the first 2000 chars (approx) for efficient classification
         let snippet = String(transcript.prefix(3000)) 
         let prompt = MeetingTypeClassifier.prompt(for: snippet)
-        
-        // Run specific classification config (low temp, max tokens = 20)
-        // Note: runLlama uses `configuration` which might have maxTokens=1024.
-        // We might want to override configs.
-        // For simplicity in V1, we let it run with default config but the model will stop early due to prompt instruction "Return ONLY...".
-        // Ideally we'd pass override options.
-        
-        let response = try await runLlama(systemPrompt: nil, userPrompt: prompt)
+
+        var classifyConfiguration = configuration
+        classifyConfiguration.temperature = 0.0
+        classifyConfiguration.topP = nil
+        classifyConfiguration.topK = nil
+        classifyConfiguration.seed = nil
+        classifyConfiguration.maxTokens = 16
+
+        let response = try await runLlama(systemPrompt: nil, userPrompt: prompt, configuration: classifyConfiguration)
         return MeetingTypeClassifier.parseResponse(response)
     }
 
@@ -92,6 +93,14 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
     }
 
     private func runLlama(systemPrompt: String?, userPrompt: String) async throws -> String {
+        try await runLlama(systemPrompt: systemPrompt, userPrompt: userPrompt, configuration: configuration)
+    }
+
+    private func runLlama(
+        systemPrompt: String?,
+        userPrompt: String,
+        configuration: LlamaLibrarySummarizationConfiguration
+    ) async throws -> String {
         try Task.checkCancellation()
 
         guard FileManager.default.fileExists(atPath: configuration.modelURL.path) else {
@@ -185,7 +194,7 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
             throw MinuteError.llamaFailed(exitCode: promptDecodeRC, output: "llama_decode(prompt) failed")
         }
 
-        let sampler = try makeSampler()
+        let sampler = try makeSampler(configuration: configuration)
         defer { llama_sampler_free(sampler) }
 
         let eosToken = llama_vocab_eos(vocab)
@@ -214,7 +223,7 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func makeSampler() throws -> UnsafeMutablePointer<llama_sampler> {
+    private func makeSampler(configuration: LlamaLibrarySummarizationConfiguration) throws -> UnsafeMutablePointer<llama_sampler> {
         let params = llama_sampler_chain_default_params()
         guard let chain = llama_sampler_chain_init(params) else {
             throw MinuteError.llamaFailed(exitCode: -1, output: "Failed to init llama sampler")

@@ -28,7 +28,7 @@ struct RecordingRecoveryServiceTests {
 
         let expectedPath = sessionURL.standardizedFileURL.path
         guard let found = recordings.first(where: { $0.sessionURL.standardizedFileURL.path == expectedPath }) else {
-            #expect(false)
+            #expect(Bool(false))
             return
         }
 

@@ -33,7 +33,7 @@ struct ContractWavPCMReaderTests {
             let inputFormat = inputFile.processingFormat
 
             guard let buffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: frameCount) else {
-                #expect(false)
+                #expect(Bool(false))
                 return
             }
 
@@ -45,12 +45,12 @@ struct ContractWavPCMReaderTests {
             if inputFormat.isInterleaved {
                 let audioBufferList = buffer.audioBufferList.pointee
                 guard audioBufferList.mNumberBuffers == 1 else {
-                    #expect(false)
+                    #expect(Bool(false))
                     return
                 }
 
                 guard let mData = audioBufferList.mBuffers.mData else {
-                    #expect(false)
+                    #expect(Bool(false))
                     return
                 }
 
@@ -63,7 +63,7 @@ struct ContractWavPCMReaderTests {
                 }
             } else {
                 guard let ch0 = buffer.floatChannelData?[0] else {
-                    #expect(false)
+                    #expect(Bool(false))
                     return
                 }
 
