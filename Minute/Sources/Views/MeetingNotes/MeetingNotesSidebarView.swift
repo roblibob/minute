@@ -278,35 +278,45 @@ private struct MeetingNoteRow: View {
         .buttonStyle(.plain)
         .listRowBackground(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
         .contextMenu {
-            Button("Open summary") {
+            Button {
                 onOpenSummaryInApp()
+            } label: {
+                Label("View Summary", systemImage: "doc.text")
             }
 
-            Button("Open transcript") {
+            Button {
                 onOpenTranscriptInApp()
+            } label: {
+                Label("View Transcript", systemImage: "text.bubble")
             }
             .disabled(!item.hasTranscript)
 
-            Menu("Obsidian") {
-                Button("Open summary") {
-                    onOpenSummaryInObsidian()
-                }
+            Divider()
 
-                Button("Open transcript") {
-                    onOpenTranscriptInObsidian()
-                }
-                .disabled(!item.hasTranscript)
+            Button {
+                onOpenSummaryInObsidian()
+            } label: {
+                Label("Open Summary in Obsidian", systemImage: "arrow.up.right.square")
             }
 
-            Button("Reveal in Finder") {
+            Button {
+                onOpenTranscriptInObsidian()
+            } label: {
+                Label("Open Transcript in Obsidian", systemImage: "arrow.up.right.square")
+            }
+            .disabled(!item.hasTranscript)
+
+            Button {
                 onRevealInFinder()
+            } label: {
+                Label("Reveal in Finder", systemImage: "finder")
             }
 
             Divider()
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Text("Delete")
+                Label("Delete", systemImage: "trash")
             }
         }
     }

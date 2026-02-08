@@ -28,7 +28,7 @@ public struct SpeakerProfileEnrollmentService: Sendable {
 
     public func createProfileFromMeeting(meetingKey: String, speakerID: Int, name: String, isPermanent: Bool = false) async throws -> SpeakerProfile {
         let embedding = try await loadEmbedding(meetingKey: meetingKey, speakerID: speakerID)
-        return try await store.createProfile(
+        return try await store.createOrAppendProfile(
             name: name,
             embedding: embedding,
             embeddingModelVersion: SpeakerEmbeddingModelVersions.fluidAudioOfflineVbx256,

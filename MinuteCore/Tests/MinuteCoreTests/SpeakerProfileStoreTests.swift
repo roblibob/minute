@@ -12,7 +12,7 @@ struct SpeakerProfileStoreTests {
         let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
 
         let store = SpeakerProfileStore(
-            config: .init(storeURL: storeURL, schemaVersion: 1),
+            config: .init(storeURL: storeURL, schemaVersion: 2),
             now: { fixedNow },
             idGenerator: { "p-1" }
         )
@@ -28,6 +28,7 @@ struct SpeakerProfileStoreTests {
         )
         #expect(created.id == "p-1")
         #expect(created.name == "Alice")
+        #expect(created.embeddings.count == 1)
 
         let afterCreate = try await store.listProfiles()
         #expect(afterCreate.map(\.id) == ["p-1"])
@@ -52,7 +53,7 @@ struct SpeakerProfileStoreTests {
         let p1 = try SpeakerProfile(
             id: "a",
             name: "Alice",
-            embedding: unitEmbedding(index: 0),
+            embeddings: [unitEmbedding(index: 0)],
             embeddingModelVersion: "v1",
             createdAt: now,
             updatedAt: now,
@@ -61,7 +62,7 @@ struct SpeakerProfileStoreTests {
         let p2 = try SpeakerProfile(
             id: "b",
             name: "Bob",
-            embedding: unitEmbedding(index: 1),
+            embeddings: [unitEmbedding(index: 1)],
             embeddingModelVersion: "v1",
             createdAt: now,
             updatedAt: now,
@@ -90,7 +91,7 @@ struct SpeakerProfileStoreTests {
         let p3 = try SpeakerProfile(
             id: "0",
             name: "Alt",
-            embedding: unitEmbedding(index: 0),
+            embeddings: [unitEmbedding(index: 0)],
             embeddingModelVersion: "v1",
             createdAt: now,
             updatedAt: now,
@@ -103,6 +104,86 @@ struct SpeakerProfileStoreTests {
             thresholds: .init(minCosineSimilarity: 0.75)
         )
         #expect(tie?.profile.id == "0")
+
+        // Multi-embedding profiles should match against the best stored embedding.
+        let p4 = try SpeakerProfile(
+            id: "c",
+            name: "Multi",
+            embeddings: [unitEmbedding(index: 2), unitEmbedding(index: 0)],
+            embeddingModelVersion: "v1",
+            createdAt: now,
+            updatedAt: now,
+            isPermanent: false
+        )
+        let multi = try matcher.bestMatch(
+            embedding: unitEmbedding(index: 0),
+            candidates: [p2, p4],
+            embeddingModelVersion: "v1",
+            thresholds: .init(minCosineSimilarity: 0.75)
+        )
+        #expect(multi?.profile.id == "c")
+    }
+
+    @Test
+    func store_migratesSchemaV1ToV2() async throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let storeURL = root.appendingPathComponent("speaker_profiles.json")
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        struct V1Profile: Codable {
+            var id: String
+            var name: String
+            var embedding: [Float]
+            var embeddingModelVersion: String
+            var createdAt: Date
+            var updatedAt: Date
+            var isPermanent: Bool
+        }
+
+        struct V1StoreFile: Codable {
+            var schemaVersion: Int
+            var profiles: [V1Profile]
+        }
+
+        let v1 = V1StoreFile(
+            schemaVersion: 1,
+            profiles: [
+                V1Profile(
+                    id: "p1",
+                    name: "Alice",
+                    embedding: unitEmbedding(index: 0),
+                    embeddingModelVersion: "v1",
+                    createdAt: now,
+                    updatedAt: now,
+                    isPermanent: false
+                )
+            ]
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(v1)
+        try data.write(to: storeURL, options: [.atomic])
+
+        let store = SpeakerProfileStore(
+            config: .init(storeURL: storeURL, schemaVersion: 2),
+            now: { now },
+            idGenerator: { "ignored" }
+        )
+
+        let migrated = try await store.listProfiles()
+        #expect(migrated.count == 1)
+        #expect(migrated.first?.id == "p1")
+        #expect(migrated.first?.name == "Alice")
+        #expect(migrated.first?.embeddings == [unitEmbedding(index: 0)])
+
+        let raw = try String(contentsOf: storeURL, encoding: .utf8)
+        #expect(raw.contains("\"schemaVersion\""))
+        #expect(raw.contains("\"embeddings\""))
+        #expect(!raw.contains("\"embedding\""))
     }
 }
 

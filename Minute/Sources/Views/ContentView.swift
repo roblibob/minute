@@ -173,6 +173,7 @@ private struct PipelineContentView: View {
                     title: notesModel.selectedItem?.title ?? "",
                     summaryContent: notesModel.noteContent,
                     transcriptContent: notesModel.transcriptDisplayContent ?? notesModel.transcriptContent,
+                    rawTranscriptContent: notesModel.transcriptContent,
                     isLoadingSummary: notesModel.isLoadingContent,
                     isLoadingTranscript: notesModel.isLoadingTranscript,
                     summaryErrorMessage: notesModel.overlayErrorMessage,
@@ -187,10 +188,27 @@ private struct PipelineContentView: View {
                         notesModel.retryLoadContent(for: tab)
                     },
                     onOpenInObsidian: notesModel.openInObsidian,
+                    onOpenSummaryInObsidian: {
+                        guard let item = notesModel.selectedItem else { return }
+                        notesModel.openSummaryInObsidian(for: item)
+                    },
+                    onOpenTranscriptInObsidian: {
+                        guard let item = notesModel.selectedItem else { return }
+                        notesModel.openTranscriptInObsidian(for: item)
+                    },
+                    onRevealInFinder: {
+                        guard let item = notesModel.selectedItem else { return }
+                        notesModel.revealInFinder(for: item)
+                    },
+                    onDelete: {
+                        guard let item = notesModel.selectedItem else { return }
+                        notesModel.delete(item)
+                    },
                     speakerEditor: MarkdownViewerOverlay.SpeakerEditorConfig(
                         speakerIDs: notesModel.speakerIDs,
                         speakerName: { notesModel.speakerName(for: $0) },
                         setSpeakerName: { id, name in notesModel.setSpeakerName(name, for: id) },
+                        knownSpeakerProfileNames: notesModel.knownSpeakerProfileNames,
                         save: notesModel.saveSpeakerNames,
                         isSaving: notesModel.isSavingSpeakerNames,
                         errorMessage: notesModel.speakerSaveErrorMessage,

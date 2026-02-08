@@ -60,6 +60,9 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     // Key: speaker ID. Value: matched profile (id/name).
     @Published private(set) var knownSpeakerProfileIDBySpeakerID: [Int: String] = [:]
     @Published private(set) var knownSpeakerProfileNameBySpeakerID: [Int: String] = [:]
+
+    // All known speaker profile names (for autocomplete while editing).
+    @Published private(set) var knownSpeakerProfileNames: [String] = []
     private var knownSpeakerStatusTask: Task<Void, Never>?
 
     // Speaker IDs discovered from the transcript file, independent of which tab is currently selected.
@@ -150,6 +153,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         enrollingSpeakerID = nil
         knownSpeakerProfileIDBySpeakerID = [:]
         knownSpeakerProfileNameBySpeakerID = [:]
+        knownSpeakerProfileNames = []
         knownSpeakerStatusTask?.cancel()
         knownSpeakerStatusTask = nil
         transcriptSpeakerIDs = []
@@ -654,6 +658,23 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             let store = SpeakerProfileStore()
             let matcher = SpeakerEmbeddingMatcher()
 
+            let profiles: [SpeakerProfile]
+            do {
+                profiles = try await store.listProfiles()
+            } catch {
+                return
+            }
+
+            let profileNames = profiles
+                .map(\.name)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+            await MainActor.run {
+                self?.knownSpeakerProfileNames = profileNames
+            }
+
             let meetingEmbeddings: MeetingSpeakerEmbeddingCache.MeetingEmbeddings?
             do {
                 meetingEmbeddings = try await cache.get(meetingKey: meetingKey)
@@ -662,12 +683,6 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             }
             guard let meetingEmbeddings else { return }
 
-            let profiles: [SpeakerProfile]
-            do {
-                profiles = try await store.listProfiles()
-            } catch {
-                return
-            }
             if profiles.isEmpty { return }
 
             var idBySpeaker: [Int: String] = [:]

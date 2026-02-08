@@ -27,7 +27,7 @@ public struct SpeakerEmbeddingMatcher: Sendable {
             self.minCosineSimilarity = minCosineSimilarity
         }
 
-        public static let `default` = Thresholds(minCosineSimilarity: 0.78)
+        public static let `default` = Thresholds(minCosineSimilarity: 0.85)
     }
 
     public init() {}
@@ -47,7 +47,16 @@ public struct SpeakerEmbeddingMatcher: Sendable {
 
         var best: Match?
         for profile in candidates where profile.embeddingModelVersion == embeddingModelVersion {
-            let sim = try cosineSimilarity(a: embedding, b: profile.embedding)
+            var bestSimForProfile: Double?
+            for stored in profile.embeddings {
+                let sim = try cosineSimilarity(a: embedding, b: stored)
+                if let current = bestSimForProfile {
+                    if sim > current { bestSimForProfile = sim }
+                } else {
+                    bestSimForProfile = sim
+                }
+            }
+            guard let sim = bestSimForProfile else { continue }
             if sim < thresholds.minCosineSimilarity { continue }
 
             let candidate = Match(profile: profile, similarity: sim)

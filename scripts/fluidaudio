@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+package_path="$root_dir/MinuteCore/.build/checkouts/FluidAudio"
+
+if [[ ! -d "$package_path" ]]; then
+  echo "ERROR: FluidAudio checkout not found at: $package_path" >&2
+  echo "Hint: run: (cd \"$root_dir/MinuteCore\" && swift package resolve)" >&2
+  exit 1
+fi
+
+exec swift run --package-path "$package_path" fluidaudiocli "$@"

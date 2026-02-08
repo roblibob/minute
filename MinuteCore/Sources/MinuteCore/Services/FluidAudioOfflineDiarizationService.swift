@@ -4,9 +4,14 @@ import os
 
 public struct FluidAudioOfflineDiarizationConfiguration: Sendable, Equatable {
     public var embeddingExportPath: URL?
+    public var clusteringThreshold: Double?
 
-    public init(embeddingExportPath: URL? = nil) {
+    public init(
+        embeddingExportPath: URL? = nil,
+        clusteringThreshold: Double? = nil
+    ) {
         self.embeddingExportPath = embeddingExportPath
+        self.clusteringThreshold = clusteringThreshold
     }
 }
 
@@ -24,9 +29,12 @@ public struct FluidAudioOfflineDiarizationService: DiarizationServicing {
     }
 
     public static func meetingDefault() -> FluidAudioOfflineDiarizationService {
-        FluidAudioOfflineDiarizationService(
-            configuration: FluidAudioOfflineDiarizationConfiguration(),
-            offlineManager: FluidAudioOfflineDiarizerManagerAdapter(configuration: FluidAudioOfflineDiarizationConfiguration())
+        let configuration = FluidAudioOfflineDiarizationConfiguration(
+            clusteringThreshold: 0.8
+        )
+        return FluidAudioOfflineDiarizationService(
+            configuration: configuration,
+            offlineManager: FluidAudioOfflineDiarizerManagerAdapter(configuration: configuration)
         )
     }
 
@@ -47,9 +55,13 @@ public struct FluidAudioOfflineDiarizationService: DiarizationServicing {
         func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment] {
             try Task.checkCancellation()
 
-            let config = makeConfig(configuration, embeddingExportURL: embeddingExportURL)
+            let config = makeOfflineDiarizerConfig(configuration, embeddingExportURL: embeddingExportURL)
 
-            Logger(subsystem: "roblibob.Minute", category: "diarization").info("Running offline diarization")
+            // Fail fast if misconfigured (also confirms the threshold is set on the config).
+            try config.validate()
+
+            Logger(subsystem: "roblibob.Minute", category: "diarization")
+                .info("Running offline diarization (clusteringThreshold=\(config.clusteringThreshold, privacy: .public))")
 
             let manager = OfflineDiarizerManager(config: config)
             let result: DiarizationResult = try await manager.process(wavURL)
@@ -67,19 +79,25 @@ public struct FluidAudioOfflineDiarizationService: DiarizationServicing {
                 )
             }
         }
-
-        private func makeConfig(
-            _ configuration: FluidAudioOfflineDiarizationConfiguration,
-            embeddingExportURL: URL?
-        ) -> OfflineDiarizerConfig {
-            var config = OfflineDiarizerConfig()
-            let exportPath = embeddingExportURL ?? configuration.embeddingExportPath
-            if let exportPath {
-                config.embeddingExportPath = exportPath.path
-            }
-            return config
-        }
     }
+}
+
+func makeOfflineDiarizerConfig(
+    _ configuration: FluidAudioOfflineDiarizationConfiguration,
+    embeddingExportURL: URL?
+) -> OfflineDiarizerConfig {
+    var config = OfflineDiarizerConfig()
+
+    if let clusteringThreshold = configuration.clusteringThreshold {
+        config.clusteringThreshold = clusteringThreshold
+    }
+
+    let exportPath = embeddingExportURL ?? configuration.embeddingExportPath
+    if let exportPath {
+        config.embeddingExportPath = exportPath.path
+    }
+
+    return config
 }
 
 private actor FluidAudioOfflineModelPreparer {
@@ -90,7 +108,7 @@ private actor FluidAudioOfflineModelPreparer {
     func ensurePrepared(configuration: FluidAudioOfflineDiarizationConfiguration) async throws {
         if didPrepare { return }
 
-        let config = OfflineDiarizerConfig()
+        let config = makeOfflineDiarizerConfig(configuration, embeddingExportURL: nil)
 
         let manager = OfflineDiarizerManager(config: config)
         try await manager.prepareModels()

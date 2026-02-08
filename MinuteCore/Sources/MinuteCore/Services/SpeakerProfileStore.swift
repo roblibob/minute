@@ -4,6 +4,7 @@ public enum SpeakerProfileStoreError: Error, LocalizedError, Sendable, Equatable
     case profileNotFound
     case invalidStoreSchemaVersion
     case decodingFailed
+    case embeddingModelVersionMismatch
 
     public var errorDescription: String? {
         switch self {
@@ -13,6 +14,8 @@ public enum SpeakerProfileStoreError: Error, LocalizedError, Sendable, Equatable
             return "Speaker profile store format is not supported."
         case .decodingFailed:
             return "Failed to read speaker profile store."
+        case .embeddingModelVersionMismatch:
+            return "Speaker profile embedding model version does not match."
         }
     }
 }
@@ -22,7 +25,7 @@ public actor SpeakerProfileStore {
         public var storeURL: URL
         public var schemaVersion: Int
 
-        public init(storeURL: URL, schemaVersion: Int = 1) {
+        public init(storeURL: URL, schemaVersion: Int = 2) {
             self.storeURL = storeURL
             self.schemaVersion = schemaVersion
         }
@@ -35,25 +38,47 @@ public actor SpeakerProfileStore {
                 .appendingPathComponent("Minute", isDirectory: true)
                 .appendingPathComponent("speaker_profiles.json")
 
-            return Configuration(storeURL: storeURL, schemaVersion: 1)
+            return Configuration(storeURL: storeURL, schemaVersion: 2)
         }
     }
 
-    private struct StoreFile: Codable, Sendable, Equatable {
+    private struct StoreFileV2: Codable, Sendable, Equatable {
         var schemaVersion: Int
         var profiles: [SpeakerProfile]
+    }
+
+    private struct StoreFileV1: Codable, Sendable, Equatable {
+        var schemaVersion: Int
+        var profiles: [SpeakerProfileV1]
+    }
+
+    private struct SpeakerProfileV1: Codable, Sendable, Equatable {
+        var id: String
+        var name: String
+        var embedding: [Float]
+        var embeddingModelVersion: String
+        var createdAt: Date
+        var updatedAt: Date
+        var isPermanent: Bool
     }
 
     private let config: Configuration
     private let now: @Sendable () -> Date
     private let idGenerator: @Sendable () -> String
 
+    private static let currentSchemaVersion: Int = 2
+    private static let maxEmbeddingsPerProfile: Int = 20
+
     public init(
         config: Configuration = .default(),
         now: @escaping @Sendable () -> Date = { Date() },
         idGenerator: @escaping @Sendable () -> String = { UUID().uuidString }
     ) {
-        self.config = config
+        var effectiveConfig = config
+        if effectiveConfig.schemaVersion < Self.currentSchemaVersion {
+            effectiveConfig.schemaVersion = Self.currentSchemaVersion
+        }
+        self.config = effectiveConfig
         self.now = now
         self.idGenerator = idGenerator
     }
@@ -69,19 +94,70 @@ public actor SpeakerProfileStore {
         }
     }
 
-    public func createProfile(name: String, embedding: [Float], embeddingModelVersion: String, isPermanent: Bool = false) throws -> SpeakerProfile {
+    public func createOrAppendProfile(
+        name: String,
+        embedding: [Float],
+        embeddingModelVersion: String,
+        isPermanent: Bool = false
+    ) throws -> SpeakerProfile {
         var store = try loadStoreFile()
         let timestamp = now()
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let compareLocale = Locale(identifier: "en_US_POSIX")
+        let normalized = trimmedName
+            .folding(options: [.diacriticInsensitive], locale: compareLocale)
+            .lowercased()
+
+        if let index = store.profiles.firstIndex(where: {
+            $0.embeddingModelVersion == embeddingModelVersion &&
+                $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                .folding(options: [.diacriticInsensitive], locale: compareLocale)
+                .lowercased() == normalized
+        }) {
+            var updated = store.profiles[index]
+            updated.name = trimmedName.isEmpty ? updated.name : trimmedName
+            updated.isPermanent = updated.isPermanent || isPermanent
+            updated.updatedAt = timestamp
+
+            updated.embeddings.append(embedding)
+            if updated.embeddings.count > Self.maxEmbeddingsPerProfile {
+                updated.embeddings.removeFirst(updated.embeddings.count - Self.maxEmbeddingsPerProfile)
+            }
+
+            updated = try updated.validated()
+            store.profiles[index] = updated
+            try saveStoreFile(store)
+            return updated
+        }
+
         let profile = try SpeakerProfile(
             id: idGenerator(),
-            name: name,
-            embedding: embedding,
+            name: trimmedName,
+            embeddings: [embedding],
             embeddingModelVersion: embeddingModelVersion,
             createdAt: timestamp,
             updatedAt: timestamp,
             isPermanent: isPermanent
         )
 
+        store.profiles.append(profile)
+        try saveStoreFile(store)
+        return profile
+    }
+
+    public func createProfile(name: String, embedding: [Float], embeddingModelVersion: String, isPermanent: Bool = false) throws -> SpeakerProfile {
+        // Keep a dedicated creator for callers that explicitly want a new profile.
+        var store = try loadStoreFile()
+        let timestamp = now()
+        let profile = try SpeakerProfile(
+            id: idGenerator(),
+            name: name,
+            embeddings: [embedding],
+            embeddingModelVersion: embeddingModelVersion,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            isPermanent: isPermanent
+        )
         store.profiles.append(profile)
         try saveStoreFile(store)
         return profile
@@ -115,8 +191,13 @@ public actor SpeakerProfileStore {
         }
 
         var updated = store.profiles[index]
-        updated.embedding = embedding
-        updated.embeddingModelVersion = embeddingModelVersion
+        guard updated.embeddingModelVersion == embeddingModelVersion else {
+            throw SpeakerProfileStoreError.embeddingModelVersionMismatch
+        }
+        updated.embeddings.append(embedding)
+        if updated.embeddings.count > Self.maxEmbeddingsPerProfile {
+            updated.embeddings.removeFirst(updated.embeddings.count - Self.maxEmbeddingsPerProfile)
+        }
         updated.updatedAt = now()
         updated = try updated.validated()
 
@@ -137,21 +218,52 @@ public actor SpeakerProfileStore {
 
     // MARK: - Persistence
 
-    private func loadStoreFile() throws -> StoreFile {
+    private func loadStoreFile() throws -> StoreFileV2 {
         if !FileManager.default.fileExists(atPath: config.storeURL.path) {
-            return StoreFile(schemaVersion: config.schemaVersion, profiles: [])
+            return StoreFileV2(schemaVersion: config.schemaVersion, profiles: [])
         }
 
         do {
             let data = try Data(contentsOf: config.storeURL)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            let decoded = try decoder.decode(StoreFile.self, from: data)
 
-            guard decoded.schemaVersion == config.schemaVersion else {
+            if var decodedV2 = try? decoder.decode(StoreFileV2.self, from: data) {
+                if decodedV2.schemaVersion == config.schemaVersion {
+                    return decodedV2
+                }
+                if decodedV2.schemaVersion == 1, config.schemaVersion == 2 {
+                    // If a v2-shaped file exists but reports schemaVersion=1, normalize it to v2.
+                    decodedV2.schemaVersion = 2
+                    try saveStoreFile(decodedV2)
+                    return decodedV2
+                }
+
                 throw SpeakerProfileStoreError.invalidStoreSchemaVersion
             }
-            return decoded
+
+            if let decodedV1 = try? decoder.decode(StoreFileV1.self, from: data) {
+                guard decodedV1.schemaVersion == 1, config.schemaVersion == 2 else {
+                    throw SpeakerProfileStoreError.invalidStoreSchemaVersion
+                }
+
+                let migratedProfiles: [SpeakerProfile] = try decodedV1.profiles.map { v1 in
+                    try SpeakerProfile(
+                        id: v1.id,
+                        name: v1.name,
+                        embeddings: [v1.embedding],
+                        embeddingModelVersion: v1.embeddingModelVersion,
+                        createdAt: v1.createdAt,
+                        updatedAt: v1.updatedAt,
+                        isPermanent: v1.isPermanent
+                    )
+                }
+                let migrated = StoreFileV2(schemaVersion: 2, profiles: migratedProfiles)
+                try saveStoreFile(migrated)
+                return migrated
+            }
+
+            throw SpeakerProfileStoreError.decodingFailed
         } catch let error as SpeakerProfileStoreError {
             throw error
         } catch {
@@ -159,7 +271,7 @@ public actor SpeakerProfileStore {
         }
     }
 
-    private func saveStoreFile(_ store: StoreFile) throws {
+    private func saveStoreFile(_ store: StoreFileV2) throws {
         try FileManager.default.createDirectory(
             at: config.storeURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
