@@ -414,6 +414,9 @@ private struct AutocompleteComboBox: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSComboBox, context: Context) {
+        context.coordinator.isApplyingProgrammaticUpdate = true
+        defer { context.coordinator.isApplyingProgrammaticUpdate = false }
+
         if context.coordinator.items != items {
             context.coordinator.items = items
             nsView.removeAllItems()
@@ -434,11 +437,20 @@ private struct AutocompleteComboBox: NSViewRepresentable {
         private var onCommit: (() -> Void)?
         private var onCancel: (() -> Void)?
         fileprivate var items: [String] = []
+        fileprivate var isApplyingProgrammaticUpdate: Bool = false
 
         init(text: Binding<String>, onCommit: (() -> Void)?, onCancel: (() -> Void)?) {
             self.text = text
             self.onCommit = onCommit
             self.onCancel = onCancel
+        }
+
+        private func publishTextChange(_ value: String) {
+            // NSComboBox delegate callbacks can occur during SwiftUI view updates.
+            // Deferring avoids "Publishing changes from within view updates" warnings.
+            DispatchQueue.main.async { [text] in
+                text.wrappedValue = value
+            }
         }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
@@ -455,12 +467,14 @@ private struct AutocompleteComboBox: NSViewRepresentable {
 
         func comboBoxSelectionDidChange(_ notification: Notification) {
             guard let comboBox = notification.object as? NSComboBox else { return }
-            text.wrappedValue = comboBox.stringValue
+            guard !isApplyingProgrammaticUpdate else { return }
+            publishTextChange(comboBox.stringValue)
         }
 
         func controlTextDidChange(_ obj: Notification) {
             guard let comboBox = obj.object as? NSComboBox else { return }
-            text.wrappedValue = comboBox.stringValue
+            guard !isApplyingProgrammaticUpdate else { return }
+            publishTextChange(comboBox.stringValue)
 
             // If completion selected the full string, collapse to a caret at the end
             // so continued typing appends rather than replacing the whole name.
@@ -475,7 +489,8 @@ private struct AutocompleteComboBox: NSViewRepresentable {
 
         func controlTextDidEndEditing(_ obj: Notification) {
             guard let comboBox = obj.object as? NSComboBox else { return }
-            text.wrappedValue = comboBox.stringValue
+            guard !isApplyingProgrammaticUpdate else { return }
+            publishTextChange(comboBox.stringValue)
         }
     }
 }
