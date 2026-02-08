@@ -41,7 +41,7 @@ struct MeetingSpeakerNamingServiceTests {
         #expect(writer.writeCalls.count == 1)
         #expect(afterFirst.contains("custom_key: keep me\n"))
         #expect(afterFirst.contains("participants:\n  - \"[[Alice]]\"\n  - \"[[Bob]]\"\n"))
-        #expect(afterFirst.contains("speaker_map:\n  \"2\": Bob\n  \"1\": Alice\n"))
+        #expect(afterFirst.contains("speaker_map:\n  \"2\": \"Bob\"\n  \"1\": \"Alice\"\n"))
         #expect(afterFirst.contains("speaker_order:\n  - 2\n  - 1\n"))
 
         // Second call should be a no-op (deterministic + avoids unnecessary writes).

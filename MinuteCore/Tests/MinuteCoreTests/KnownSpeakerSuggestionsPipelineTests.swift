@@ -85,7 +85,7 @@ struct KnownSpeakerSuggestionsPipelineTests {
         #expect(note.contains("participants:"))
         #expect(note.contains("- \"[[Alice]]\""))
         #expect(note.contains("speaker_map:"))
-        #expect(note.contains("\"1\": Alice"))
+        #expect(note.contains("\"1\": \"Alice\""))
 
         // Ensure only the contract files exist in the vault.
         let allFiles = try listAllFilesRecursively(root: vaultRootURL)

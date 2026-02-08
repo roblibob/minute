@@ -372,26 +372,26 @@ public actor MeetingPipelineCoordinator {
             if aggregated.isEmpty { return nil }
 
             let meetingSpeakerOrder = SpeakerOrdering.orderedSpeakerIDs(from: diarizationSegments)
-            let clusters = aggregated.map(\.speakerCluster).sorted()
-            let speakerIDsSorted = Array(Set(meetingSpeakerOrder)).sorted()
+            let overlapByClusterSpeakerID = Self.overlapSecondsByClusterSpeakerID(
+                entries: entries,
+                diarizationSegments: diarizationSegments
+            )
 
-            // Best-effort mapping: align sorted cluster IDs with sorted speaker IDs.
-            // If counts mismatch, fall back to matching by cluster value.
-            let clusterToSpeakerId: [Int: Int]
-            if clusters.count == speakerIDsSorted.count, !clusters.isEmpty {
-                var map: [Int: Int] = [:]
-                for i in 0..<clusters.count {
-                    map[clusters[i]] = speakerIDsSorted[i]
-                }
-                clusterToSpeakerId = map
-            } else {
-                clusterToSpeakerId = Dictionary(uniqueKeysWithValues: clusters.map { ($0, $0) })
-            }
+            // Best-effort mapping: infer which diarization `speakerId` each embedding `cluster` corresponds to.
+            // This avoids incorrect assignments when clusters and speaker IDs do not sort-align.
+            let clusterToSpeakerId = Self.bestSpeakerIDByCluster(overlapByClusterSpeakerID)
+            let bestClusterBySpeakerID = Self.bestClusterBySpeakerID(
+                overlapByClusterSpeakerID,
+                clusterToSpeakerId: clusterToSpeakerId
+            )
 
             var embeddingsBySpeakerID: [Int: [Float]] = [:]
             embeddingsBySpeakerID.reserveCapacity(aggregated.count)
             for item in aggregated {
                 let speakerId = clusterToSpeakerId[item.speakerCluster] ?? item.speakerCluster
+                if let preferredCluster = bestClusterBySpeakerID[speakerId], preferredCluster != item.speakerCluster {
+                    continue
+                }
                 embeddingsBySpeakerID[speakerId] = item.embedding
             }
 
@@ -417,7 +417,10 @@ public actor MeetingPipelineCoordinator {
                 }
             }
 
-            let participants = Array(Set(speakerMap.values)).sorted()
+            let participants = Self.participantsOrderedBySpeakerOrder(
+                speakerOrder: meetingSpeakerOrder,
+                speakerMap: speakerMap
+            )
             let frontmatter: MeetingParticipantFrontmatter?
             if participants.isEmpty && speakerMap.isEmpty {
                 frontmatter = nil
@@ -441,6 +444,111 @@ public actor MeetingPipelineCoordinator {
     private struct KnownSpeakerSuggestionResult: Sendable {
         var frontmatter: MeetingParticipantFrontmatter?
         var embeddingsBySpeakerID: [Int: [Float]]
+    }
+
+    private static func overlapSecondsByClusterSpeakerID(
+        entries: [OfflineDiarizerEmbeddingExport.Entry],
+        diarizationSegments: [SpeakerSegment]
+    ) -> [Int: [Int: Double]] {
+        guard !entries.isEmpty, !diarizationSegments.isEmpty else { return [:] }
+
+        var overlaps: [Int: [Int: Double]] = [:]
+
+        for entry in entries {
+            let start = entry.startTime
+            let end = entry.endTime
+            guard end > start else { continue }
+
+            for seg in diarizationSegments {
+                let overlapStart = max(start, seg.startSeconds)
+                let overlapEnd = min(end, seg.endSeconds)
+                let overlap = overlapEnd - overlapStart
+                guard overlap > 0 else { continue }
+
+                overlaps[entry.cluster, default: [:]][seg.speakerId, default: 0] += overlap
+            }
+        }
+
+        return overlaps
+    }
+
+    private static func bestSpeakerIDByCluster(_ overlaps: [Int: [Int: Double]]) -> [Int: Int] {
+        var result: [Int: Int] = [:]
+        result.reserveCapacity(overlaps.count)
+
+        for cluster in overlaps.keys.sorted() {
+            guard let speakerOverlaps = overlaps[cluster], !speakerOverlaps.isEmpty else { continue }
+
+            let best = speakerOverlaps
+                .sorted { lhs, rhs in
+                    if lhs.value != rhs.value { return lhs.value > rhs.value }
+                    return lhs.key < rhs.key
+                }
+                .first
+
+            if let best {
+                result[cluster] = best.key
+            }
+        }
+
+        return result
+    }
+
+    private static func bestClusterBySpeakerID(
+        _ overlaps: [Int: [Int: Double]],
+        clusterToSpeakerId: [Int: Int]
+    ) -> [Int: Int] {
+        // If multiple clusters map to the same speakerId, keep the cluster with the strongest overlap.
+        var best: [Int: (cluster: Int, score: Double)] = [:]
+
+        for (cluster, speakerId) in clusterToSpeakerId {
+            let score = overlaps[cluster]?[speakerId] ?? 0
+
+            if let existing = best[speakerId] {
+                if score > existing.score || (score == existing.score && cluster < existing.cluster) {
+                    best[speakerId] = (cluster: cluster, score: score)
+                }
+            } else {
+                best[speakerId] = (cluster: cluster, score: score)
+            }
+        }
+
+        return best.mapValues { $0.cluster }
+    }
+
+    private static func participantsOrderedBySpeakerOrder(
+        speakerOrder: [Int],
+        speakerMap: [Int: String]
+    ) -> [String] {
+        guard !speakerMap.isEmpty else { return [] }
+
+        var result: [String] = []
+        result.reserveCapacity(speakerMap.count)
+
+        var seenLowercased: Set<String> = []
+
+        for id in speakerOrder {
+            guard let raw = speakerMap[id] else { continue }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            if seenLowercased.insert(key).inserted {
+                result.append(trimmed)
+            }
+        }
+
+        if result.count == speakerMap.count {
+            return result
+        }
+
+        let remaining = speakerMap.values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { !seenLowercased.contains($0.lowercased()) }
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+
+        result.append(contentsOf: remaining)
+        return result
     }
 
     private func cleanupTemporaryArtifacts(for context: PipelineContext) {

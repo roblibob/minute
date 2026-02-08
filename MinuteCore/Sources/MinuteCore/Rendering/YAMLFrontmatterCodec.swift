@@ -19,7 +19,7 @@ public enum YAMLFrontmatterCodec {
             for (speakerId, name) in entries {
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { continue }
-                lines.append("  \"\(speakerId)\": \(trimmed)")
+                lines.append("  \"\(speakerId)\": \(StringNormalizer.yamlDoubleQuoted(trimmed))")
             }
         }
 
@@ -68,7 +68,9 @@ public enum YAMLFrontmatterCodec {
                         break
                     }
                     if let (key, value) = parseYAMLStringMapEntry(item), let intKey = Int(key) {
-                        speakerMap[intKey] = value
+                        let decoded = decodeYAMLDoubleQuotedString(value)
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        speakerMap[intKey] = decoded
                     }
                     index += 1
                 }
@@ -204,7 +206,7 @@ public enum YAMLFrontmatterCodec {
         let rawValue = trimmed[trimmed.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
 
         let key = rawKey.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-        let value = rawValue.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        let value = String(rawValue)
 
         guard !key.isEmpty else { return nil }
         return (key, value)

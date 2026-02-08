@@ -289,7 +289,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         let priorSpeakerDisplayNames = priorOwned.speakerMap
 
         // Build deterministic owned frontmatter from current drafts.
-        let orderedSpeakerIDs = speakerIDs.sorted()
+        let orderedSpeakerIDs = speakerIDs
 
         var speakerMap: [Int: String] = [:]
         speakerMap.reserveCapacity(orderedSpeakerIDs.count)
@@ -627,7 +627,22 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             .loadOwnedParticipantFrontmatter(from: noteContent ?? "")
 
         let allIDs = speakerIDsFromTranscript.union(existingOwned.speakerMap.keys)
-        let orderedIDs = allIDs.sorted()
+        var orderedIDs: [Int] = []
+        orderedIDs.reserveCapacity(allIDs.count)
+
+        var seen: Set<Int> = []
+        if let existingOrder = existingOwned.speakerOrder {
+            for id in existingOrder where allIDs.contains(id) {
+                if seen.insert(id).inserted {
+                    orderedIDs.append(id)
+                }
+            }
+        }
+
+        let remaining = allIDs
+            .subtracting(seen)
+            .sorted()
+        orderedIDs.append(contentsOf: remaining)
         speakerIDs = orderedIDs
 
         // Initialize drafts from existing mapping if drafts are empty.
