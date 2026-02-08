@@ -456,14 +456,44 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
     func openInObsidian() {
         guard let fileURL = selectedItem?.fileURL else { return }
+        openInObsidianOrDefault(fileURL)
+    }
+
+    func openSummaryInApp(for item: MeetingNoteItem) {
+        select(item)
+    }
+
+    func openTranscriptInApp(for item: MeetingNoteItem) {
+        guard item.hasTranscript else { return }
+        select(item)
+        selectTab(.transcription)
+    }
+
+    func openSummaryInObsidian(for item: MeetingNoteItem) {
+        openInObsidianOrDefault(item.fileURL)
+    }
+
+    func openTranscriptInObsidian(for item: MeetingNoteItem) {
+        guard item.hasTranscript else { return }
+        guard let transcriptURL = item.transcriptURL else { return }
+        openInObsidianOrDefault(transcriptURL)
+    }
+
+    func revealInFinder(for item: MeetingNoteItem) {
+        NSWorkspace.shared.activateFileViewerSelecting([item.fileURL])
+    }
+
+    private func openInObsidianOrDefault(_ fileURL: URL) {
         let path = fileURL.path
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&+")
-        guard let encoded = path.addingPercentEncoding(withAllowedCharacters: allowed),
-              let obsidianURL = URL(string: "obsidian://open?path=\(encoded)") else {
+        if let encoded = path.addingPercentEncoding(withAllowedCharacters: allowed),
+           let obsidianURL = URL(string: "obsidian://open?path=\(encoded)"),
+           NSWorkspace.shared.open(obsidianURL) {
             return
         }
-        _ = NSWorkspace.shared.open(obsidianURL)
+
+        _ = NSWorkspace.shared.open(fileURL)
     }
 
     private func startLoadingSummary(for item: MeetingNoteItem) {

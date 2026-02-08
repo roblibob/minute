@@ -9,7 +9,7 @@ public enum YAMLFrontmatterCodec {
             for name in frontmatter.participants {
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { continue }
-                lines.append("  - \(trimmed)")
+                lines.append("  - \(StringNormalizer.yamlDoubleQuoted(encodeObsidianWikiLink(trimmed)))")
             }
         }
 
@@ -50,7 +50,10 @@ public enum YAMLFrontmatterCodec {
                         break
                     }
                     if let value = parseYAMLListItem(item) {
-                        participants.append(value)
+                        let normalized = decodeObsidianWikiLink(value)
+                        if !normalized.isEmpty {
+                            participants.append(normalized)
+                        }
                     }
                     index += 1
                 }
@@ -97,6 +100,57 @@ public enum YAMLFrontmatterCodec {
             order = speakerOrder
         }
         return MeetingParticipantFrontmatter(participants: participants, speakerMap: speakerMap, speakerOrder: order)
+    }
+
+    private static func encodeObsidianWikiLink(_ name: String) -> String {
+        let normalized = decodeObsidianWikiLink(name)
+        return "[[\(normalized)]]"
+    }
+
+    private static func decodeObsidianWikiLink(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scalar = decodeYAMLDoubleQuotedString(trimmed).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard scalar.count >= 4, scalar.hasPrefix("[["), scalar.hasSuffix("]]"),
+              let end = scalar.index(scalar.endIndex, offsetBy: -2, limitedBy: scalar.startIndex) else {
+            return scalar
+        }
+
+        let innerStart = scalar.index(scalar.startIndex, offsetBy: 2)
+        let inner = scalar[innerStart..<end].trimmingCharacters(in: .whitespacesAndNewlines)
+        return String(inner)
+    }
+
+    private static func decodeYAMLDoubleQuotedString(_ value: String) -> String {
+        guard value.count >= 2,
+              value.first == "\"",
+              value.last == "\"" else {
+            return value
+        }
+
+        let inner = value.dropFirst().dropLast()
+        var result = ""
+        result.reserveCapacity(inner.count)
+
+        var index = inner.startIndex
+        while index < inner.endIndex {
+            let ch = inner[index]
+            if ch == "\\", let nextIndex = inner.index(index, offsetBy: 1, limitedBy: inner.endIndex), nextIndex < inner.endIndex {
+                let next = inner[nextIndex]
+                switch next {
+                case "n": result.append("\n")
+                case "\"": result.append("\"")
+                case "\\": result.append("\\")
+                default: result.append(next)
+                }
+                index = inner.index(after: nextIndex)
+                continue
+            }
+
+            result.append(ch)
+            index = inner.index(after: index)
+        }
+
+        return result
     }
 
     private static func orderedSpeakerMapEntries(_ frontmatter: MeetingParticipantFrontmatter) -> [(Int, String)] {

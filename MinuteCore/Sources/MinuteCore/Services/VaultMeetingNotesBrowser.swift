@@ -7,13 +7,22 @@ public struct MeetingNoteItem: Sendable, Identifiable, Equatable {
     public var relativePath: String
     public var fileURL: URL
     public var hasTranscript: Bool
+    public var transcriptURL: URL?
 
-    public init(title: String, date: Date?, relativePath: String, fileURL: URL, hasTranscript: Bool = false) {
+    public init(
+        title: String,
+        date: Date?,
+        relativePath: String,
+        fileURL: URL,
+        hasTranscript: Bool = false,
+        transcriptURL: URL? = nil
+    ) {
         self.title = title
         self.date = date
         self.relativePath = relativePath
         self.fileURL = fileURL
         self.hasTranscript = hasTranscript
+        self.transcriptURL = transcriptURL
     }
 }
 
@@ -102,7 +111,8 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
                     date: parseResult.date,
                     relativePath: relativePath,
                     fileURL: url,
-                    hasTranscript: hasTranscript
+                    hasTranscript: hasTranscript,
+                    transcriptURL: transcriptURL
                 )
                 candidates.append(NoteCandidate(item: item, sortDate: sortDate))
             }
@@ -129,9 +139,14 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
         try Task.checkCancellation()
 
         return try vaultAccess.withVaultAccess { vaultRootURL in
-            let baseName = item.fileURL.deletingPathExtension().lastPathComponent
-            let transcriptRootURL = Self.directoryURL(from: vaultRootURL, relativePath: transcriptsRelativePath)
-            let transcriptURL = transcriptRootURL.appendingPathComponent("\(baseName).md")
+            let transcriptURL: URL
+            if let provided = item.transcriptURL {
+                transcriptURL = provided
+            } else {
+                let baseName = item.fileURL.deletingPathExtension().lastPathComponent
+                let transcriptRootURL = Self.directoryURL(from: vaultRootURL, relativePath: transcriptsRelativePath)
+                transcriptURL = transcriptRootURL.appendingPathComponent("\(baseName).md")
+            }
             let data = try Data(contentsOf: transcriptURL)
             if let content = String(data: data, encoding: .utf8) {
                 return content
@@ -149,7 +164,7 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
             let transcriptRootURL = Self.directoryURL(from: vaultRootURL, relativePath: transcriptsRelativePath)
 
             let audioURL = audioRootURL.appendingPathComponent("\(baseName).wav")
-            let transcriptURL = transcriptRootURL.appendingPathComponent("\(baseName).md")
+            let transcriptURL = item.transcriptURL ?? transcriptRootURL.appendingPathComponent("\(baseName).md")
 
             let urls = [item.fileURL, audioURL, transcriptURL]
             var firstError: Error?
@@ -157,7 +172,8 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
             for url in urls {
                 guard FileManager.default.fileExists(atPath: url.path) else { continue }
                 do {
-                    try FileManager.default.removeItem(at: url)
+                    var trashedURL: NSURL?
+                    try FileManager.default.trashItem(at: url, resultingItemURL: &trashedURL)
                 } catch {
                     if firstError == nil {
                         firstError = error

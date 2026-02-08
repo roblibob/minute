@@ -424,18 +424,88 @@ private struct Frontmatter {
 
     private static func parseEntries(from lines: ArraySlice<Substring>) -> [(String, String)] {
         var entries: [(String, String)] = []
+        var index = lines.startIndex
 
-        for line in lines {
+        func isTopLevelLine(_ line: Substring) -> Bool {
+            guard let first = line.first else { return false }
+            return first != " " && first != "\t"
+        }
+
+        while index < lines.endIndex {
+            let line = lines[index]
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            guard let colonIndex = trimmed.firstIndex(of: ":") else { continue }
+
+            if trimmed.isEmpty || trimmed.hasPrefix("#") {
+                index = lines.index(after: index)
+                continue
+            }
+
+            guard isTopLevelLine(line),
+                  let colonIndex = trimmed.firstIndex(of: ":") else {
+                index = lines.index(after: index)
+                continue
+            }
 
             let key = trimmed[..<colonIndex].trimmingCharacters(in: .whitespacesAndNewlines)
             let rawValue = trimmed[trimmed.index(after: colonIndex)...]
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = trimMatchingQuotes(rawValue)
 
-            entries.append((String(key), String(value)))
+            if !rawValue.isEmpty {
+                entries.append((String(key), unescapeYAMLScalar(trimMatchingQuotes(String(rawValue)))))
+                index = lines.index(after: index)
+                continue
+            }
+
+            var collectedList: [String] = []
+            var collectedMap: [(String, String)] = []
+            var lookahead = lines.index(after: index)
+
+            while lookahead < lines.endIndex {
+                let nextLine = lines[lookahead]
+                let nextTrimmed = nextLine.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if nextTrimmed.isEmpty || nextTrimmed.hasPrefix("#") {
+                    lookahead = lines.index(after: lookahead)
+                    continue
+                }
+
+                if isTopLevelLine(nextLine) {
+                    break
+                }
+
+                let nextContent = nextTrimmed
+                if nextContent.hasPrefix("-") {
+                    let valuePart = nextContent.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+                    let scalar = unescapeYAMLScalar(trimMatchingQuotes(String(valuePart)))
+                    if !scalar.isEmpty {
+                        collectedList.append(scalar)
+                    }
+                } else if let innerColon = nextContent.firstIndex(of: ":") {
+                    let mapKey = nextContent[..<innerColon].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let mapValue = nextContent[nextContent.index(after: innerColon)...]
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let cleanKey = unescapeYAMLScalar(trimMatchingQuotes(String(mapKey)))
+                    let cleanValue = unescapeYAMLScalar(trimMatchingQuotes(String(mapValue)))
+                    if !cleanKey.isEmpty {
+                        collectedMap.append((cleanKey, cleanValue))
+                    }
+                }
+
+                lookahead = lines.index(after: lookahead)
+            }
+
+            if !collectedList.isEmpty {
+                entries.append((String(key), collectedList.joined(separator: ", ")))
+            } else if !collectedMap.isEmpty {
+                let joined = collectedMap
+                    .map { "\($0.0): \($0.1)" }
+                    .joined(separator: ", ")
+                entries.append((String(key), joined))
+            } else {
+                entries.append((String(key), ""))
+            }
+
+            index = lookahead
         }
 
         return entries
@@ -451,6 +521,33 @@ private struct Frontmatter {
         }
 
         return String(value.dropFirst().dropLast())
+    }
+
+    private static func unescapeYAMLScalar(_ value: String) -> String {
+        guard value.contains("\\") else { return value }
+
+        var result = ""
+        result.reserveCapacity(value.count)
+
+        var index = value.startIndex
+        while index < value.endIndex {
+            let ch = value[index]
+            if ch == "\\", let nextIndex = value.index(index, offsetBy: 1, limitedBy: value.endIndex), nextIndex < value.endIndex {
+                let next = value[nextIndex]
+                switch next {
+                case "n": result.append("\n")
+                case "\"": result.append("\"")
+                case "\\": result.append("\\")
+                default: result.append(next)
+                }
+                index = value.index(after: nextIndex)
+                continue
+            }
+            result.append(ch)
+            index = value.index(after: index)
+        }
+
+        return result
     }
 
     private static func renderProperties(_ entries: [(String, String)]) -> String {

@@ -40,7 +40,7 @@ struct MeetingSpeakerNamingServiceTests {
 
         #expect(writer.writeCalls.count == 1)
         #expect(afterFirst.contains("custom_key: keep me\n"))
-        #expect(afterFirst.contains("participants:\n  - Alice\n  - Bob\n"))
+        #expect(afterFirst.contains("participants:\n  - \"[[Alice]]\"\n  - \"[[Bob]]\"\n"))
         #expect(afterFirst.contains("speaker_map:\n  \"2\": Bob\n  \"1\": Alice\n"))
         #expect(afterFirst.contains("speaker_order:\n  - 2\n  - 1\n"))
 
@@ -58,8 +58,8 @@ struct MeetingSpeakerNamingServiceTests {
                 ---
                 type: meeting
                 participants:
-                    - Alice
-                    - Bob
+                    - "[[Alice]]"
+                    - "[[Bob]]"
                 speaker_map:
                     \"1\": Alice
                     \"2\": Bob

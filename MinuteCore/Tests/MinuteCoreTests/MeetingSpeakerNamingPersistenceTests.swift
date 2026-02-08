@@ -42,7 +42,7 @@ struct MeetingSpeakerNamingPersistenceTests {
         let updated = try String(contentsOf: noteURL, encoding: .utf8)
 
         #expect(updated.contains("custom_key: keep me\n"))
-        #expect(updated.contains("participants:\n  - Alice\n  - Bob\n"))
+        #expect(updated.contains("participants:\n  - \"[[Alice]]\"\n  - \"[[Bob]]\"\n"))
         #expect(updated.contains("speaker_map:\n  \"2\": Bob\n  \"1\": Alice\n"))
         #expect(updated.contains("speaker_order:\n  - 2\n  - 1\n"))
 

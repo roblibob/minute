@@ -83,7 +83,7 @@ struct KnownSpeakerSuggestionsPipelineTests {
 
         let note = try String(contentsOf: noteURL)
         #expect(note.contains("participants:"))
-        #expect(note.contains("- Alice"))
+        #expect(note.contains("- \"[[Alice]]\""))
         #expect(note.contains("speaker_map:"))
         #expect(note.contains("\"1\": Alice"))
 
