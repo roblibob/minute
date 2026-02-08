@@ -741,7 +741,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         )
     }
 
-    nonisolated private static func parseSpeakerIDs(fromTranscriptMarkdown markdown: String?) -> [Int] {
+    nonisolated static func parseSpeakerIDs(fromTranscriptMarkdown markdown: String?) -> [Int] {
         guard let markdown else { return [] }
 
         var ids: Set<Int> = []
@@ -759,7 +759,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         return ids.sorted()
     }
 
-    nonisolated private static func rewriteSpeakerHeadingsForDisplay(
+    nonisolated static func rewriteSpeakerHeadingsForDisplay(
         transcriptMarkdown: String,
         speakerDisplayNames: [Int: String]
     ) -> String {

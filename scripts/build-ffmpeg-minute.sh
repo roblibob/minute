@@ -12,17 +12,27 @@ set -euo pipefail
 #   - Run loudnorm filter (pass 1 + pass 2)
 #   - Discard pass-1 output (null muxer)
 #
-# Usage:
-#   scripts/build-ffmpeg-minute.sh [/path/to/ffmpeg/source]
-#
-# Default source path assumes repo layout:
-#   /Users/roblibob/Projects/FLX/Minute/ffmpeg
-
-FFMPEG_SRC="${1:-/Users/roblibob/Projects/FLX/Minute/ffmpeg}"
-
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="$ROOT/Vendor/ffmpeg"
 OUT_BIN="$OUT_DIR/ffmpeg"
+
+# Usage:
+#   scripts/build-ffmpeg-minute.sh [/path/to/ffmpeg/source]
+#
+# If omitted, we try common repo-relative locations. If none exist, require an explicit argument.
+if [ "$#" -ge 1 ]; then
+  FFMPEG_SRC="$1"
+else
+  if [ -d "$ROOT/ffmpeg" ] && [ -f "$ROOT/ffmpeg/configure" ]; then
+    FFMPEG_SRC="$ROOT/ffmpeg"
+  elif [ -d "$ROOT/../ffmpeg" ] && [ -f "$ROOT/../ffmpeg/configure" ]; then
+    FFMPEG_SRC="$ROOT/../ffmpeg"
+  else
+    echo "error: ffmpeg source path not provided and no repo-relative default found" >&2
+    echo "pass an explicit path: scripts/build-ffmpeg-minute.sh /path/to/ffmpeg" >&2
+    exit 1
+  fi
+fi
 
 WORK_DIR="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/minute-ffmpeg-build.XXXXXX")"
 WORK_SRC="$WORK_DIR/ffmpeg-src"

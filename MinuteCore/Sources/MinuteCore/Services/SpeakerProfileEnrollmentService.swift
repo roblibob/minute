@@ -27,31 +27,31 @@ public struct SpeakerProfileEnrollmentService: Sendable {
     }
 
     public func createProfileFromMeeting(meetingKey: String, speakerID: Int, name: String, isPermanent: Bool = false) async throws -> SpeakerProfile {
-        let embedding = try await loadEmbedding(meetingKey: meetingKey, speakerID: speakerID)
+        let (embedding, embeddingModelVersion) = try await loadEmbedding(meetingKey: meetingKey, speakerID: speakerID)
         return try await store.createOrAppendProfile(
             name: name,
             embedding: embedding,
-            embeddingModelVersion: SpeakerEmbeddingModelVersions.fluidAudioOfflineVbx256,
+            embeddingModelVersion: embeddingModelVersion,
             isPermanent: isPermanent
         )
     }
 
     public func updateProfileFromMeeting(meetingKey: String, speakerID: Int, profileID: String) async throws -> SpeakerProfile {
-        let embedding = try await loadEmbedding(meetingKey: meetingKey, speakerID: speakerID)
+        let (embedding, embeddingModelVersion) = try await loadEmbedding(meetingKey: meetingKey, speakerID: speakerID)
         return try await store.updateProfileEmbedding(
             profileID: profileID,
             embedding: embedding,
-            embeddingModelVersion: SpeakerEmbeddingModelVersions.fluidAudioOfflineVbx256
+            embeddingModelVersion: embeddingModelVersion
         )
     }
 
-    private func loadEmbedding(meetingKey: String, speakerID: Int) async throws -> [Float] {
+    private func loadEmbedding(meetingKey: String, speakerID: Int) async throws -> (embedding: [Float], embeddingModelVersion: String) {
         guard let meeting = try await cache.get(meetingKey: meetingKey) else {
             throw SpeakerProfileEnrollmentError.embeddingsUnavailable
         }
         guard let embedding = meeting.embeddingsBySpeakerID[speakerID] else {
             throw SpeakerProfileEnrollmentError.speakerEmbeddingUnavailable
         }
-        return embedding
+        return (embedding: embedding, embeddingModelVersion: meeting.embeddingModelVersion)
     }
 }

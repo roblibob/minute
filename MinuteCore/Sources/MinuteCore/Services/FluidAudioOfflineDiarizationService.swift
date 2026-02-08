@@ -61,7 +61,7 @@ public struct FluidAudioOfflineDiarizationService: DiarizationServicing {
             try config.validate()
 
             Logger(subsystem: "roblibob.Minute", category: "diarization")
-                .info("Running offline diarization (clusteringThreshold=\(config.clusteringThreshold, privacy: .public))")
+                .info("Running offline diarization (clusteringThreshold=\(config.clustering.threshold, privacy: .public))")
 
             let manager = OfflineDiarizerManager(config: config)
             let result: DiarizationResult = try await manager.process(wavURL)
@@ -89,7 +89,7 @@ func makeOfflineDiarizerConfig(
     var config = OfflineDiarizerConfig()
 
     if let clusteringThreshold = configuration.clusteringThreshold {
-        config.clusteringThreshold = clusteringThreshold
+        config.clustering.threshold = clusteringThreshold
     }
 
     let exportPath = embeddingExportURL ?? configuration.embeddingExportPath

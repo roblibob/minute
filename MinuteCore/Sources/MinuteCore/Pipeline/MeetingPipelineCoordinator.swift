@@ -388,7 +388,11 @@ public actor MeetingPipelineCoordinator {
             var embeddingsBySpeakerID: [Int: [Float]] = [:]
             embeddingsBySpeakerID.reserveCapacity(aggregated.count)
             for item in aggregated {
-                let speakerId = clusterToSpeakerId[item.speakerCluster] ?? item.speakerCluster
+                guard let speakerId = clusterToSpeakerId[item.speakerCluster] else {
+                    // If we can’t map a cluster into the diarization speaker-id space, skip it.
+                    // This avoids introducing 0-based cluster IDs into speaker-facing IDs.
+                    continue
+                }
                 if let preferredCluster = bestClusterBySpeakerID[speakerId], preferredCluster != item.speakerCluster {
                     continue
                 }
@@ -407,7 +411,12 @@ public actor MeetingPipelineCoordinator {
 
             var speakerMap: [Int: String] = [:]
             for item in aggregated {
-                let speakerId = clusterToSpeakerId[item.speakerCluster] ?? item.speakerCluster
+                guard let speakerId = clusterToSpeakerId[item.speakerCluster] else {
+                    continue
+                }
+                if let preferredCluster = bestClusterBySpeakerID[speakerId], preferredCluster != item.speakerCluster {
+                    continue
+                }
                 if let match = try matcher.bestMatch(
                     embedding: item.embedding,
                     candidates: profiles,

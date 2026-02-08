@@ -73,9 +73,9 @@ struct KnownSpeakersSettingsSection: View {
                 await refresh()
             }
         }
-        .onChange(of: knownSpeakerSuggestionsEnabled) {
+        .onChange(of: knownSpeakerSuggestionsEnabled) { newValue in
             guard mode == .manage else { return }
-            if knownSpeakerSuggestionsEnabled {
+            if newValue {
                 Task { await refresh() }
             } else {
                 loadError = nil
