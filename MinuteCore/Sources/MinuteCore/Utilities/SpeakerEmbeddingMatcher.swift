@@ -27,7 +27,7 @@ public struct SpeakerEmbeddingMatcher: Sendable {
             self.minCosineSimilarity = minCosineSimilarity
         }
 
-        public static let `default` = Thresholds(minCosineSimilarity: 0.85)
+        public static let `default` = Thresholds(minCosineSimilarity: 0.7)
     }
 
     public init() {}
