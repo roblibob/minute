@@ -86,9 +86,9 @@ private struct PipelineContentView: View {
                     floatingControlBar
                         .frame(width: geometry.size.width * 0.7, alignment: .center)
                         .frame(maxWidth: .infinity)
-                        .padding(.bottom, isCompactLayout ? 12 : 22)
                 }
                 .frame(height: floatingBarHeight, alignment: .bottom)
+                .padding(.bottom, isCompactLayout ? 12 : 22)
 
                 if let status = statusDrawerModel {
                     StatusDrawerView(model: status, isCompact: isCompactLayout)
@@ -988,6 +988,7 @@ private struct FloatingControlBar: View {
     let onScreenShareToggle: () -> Void
     let onUploadTap: () -> Void
     @Binding var meetingType: MeetingType
+    @State private var showMeetingTypePicker = false
 
     var body: some View {
         ZStack {
@@ -1000,15 +1001,43 @@ private struct FloatingControlBar: View {
                 
                 Spacer(minLength: 24)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Meeting type")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 4)
-
-                    MeetingTypePicker(selection: $meetingType)
-                        .disabled(!controlsEnabled && recordState != .recording)
-                        // Allow while recording, but maybe not while processing
+                ControlBarIconButton(
+                    systemName: "doc.text.fill",
+                    label: "Meeting type",
+                    isActive: false,
+                    isEnabled: controlsEnabled || recordState == .recording,
+                    action: { showMeetingTypePicker.toggle() }
+                )
+                .popover(isPresented: $showMeetingTypePicker, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(MeetingType.allCases, id: \.self) { type in
+                            Button {
+                                meetingType = type
+                                showMeetingTypePicker = false
+                            } label: {
+                                HStack {
+                                    Text(type.displayName)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if meetingType == type {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.primary.opacity(0.05))
+                                    .opacity(0)
+                            )
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    .frame(minWidth: 200)
                 }
 
                 HStack(spacing: 12) {
