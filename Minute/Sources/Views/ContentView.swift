@@ -18,7 +18,7 @@ struct ContentView: View {
         Group {
             contentBody
         }
-        .frame(minWidth: 860, minHeight: 620)
+        .frame(minWidth: 600, minHeight: 400)
         .background(MinuteTheme.windowBackground)
         .onAppear {
             onboardingModel.refreshAll()
@@ -82,8 +82,13 @@ private struct PipelineContentView: View {
                 .toolbar(removing: .sidebarToggle)
                 .navigationSplitViewStyle(.balanced)
 
-                floatingControlBar
-                    .padding(.bottom, isCompactLayout ? 12 : 22)
+                GeometryReader { geometry in
+                    floatingControlBar
+                        .frame(width: geometry.size.width * 0.7, alignment: .center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, isCompactLayout ? 12 : 22)
+                }
+                .frame(height: floatingBarHeight, alignment: .bottom)
 
                 if let status = statusDrawerModel {
                     StatusDrawerView(model: status, isCompact: isCompactLayout)
@@ -247,7 +252,6 @@ private struct PipelineContentView: View {
             onUploadTap: { isImportingFile = true },
             meetingType: $model.meetingType
         )
-        .frame(maxWidth: 560)
         .animation(.easeInOut(duration: 0.2), value: statusDrawerModel != nil)
     }
 
@@ -987,14 +991,14 @@ private struct FloatingControlBar: View {
 
     var body: some View {
         ZStack {
-            HStack(spacing: 12) {
+            HStack(spacing: 16) {
                 AudioModeControl(
                     selection: audioMode,
                     isEnabled: controlsEnabled,
                     onSelect: onAudioModeChange
                 )
                 
-                Spacer(minLength: 16)
+                Spacer(minLength: 24)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Meeting type")
@@ -1037,7 +1041,6 @@ private struct FloatingControlBar: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
-        .frame(maxWidth: 560)
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)

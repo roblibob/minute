@@ -28,6 +28,7 @@ struct MeetingNotesSidebarView: View {
 
     var body: some View {
         content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(MinuteTheme.sidebarBackground)
     }
 
