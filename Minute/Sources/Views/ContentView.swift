@@ -606,11 +606,20 @@ private struct MainStageContainer<Content: View>: View {
         self.content = content()
     }
 
+    private var topInset: CGFloat {
+        if #available(macOS 26.0, *) {
+            12
+        } else {
+            20
+        }
+    }
+
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal, 32)
             .padding(.vertical, 28)
+            .safeAreaPadding(.top, topInset)
     }
 }
 
