@@ -27,10 +27,18 @@ struct MeetingNotesSidebarView: View {
     }()
 
     var body: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(MinuteTheme.sidebarBackground)
-            .safeAreaPadding(.top, 40)
+        if #available(macOS 26, *) {
+            // macOS 26 (Tahoe) and later - safe area handled properly
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(MinuteTheme.sidebarBackground)
+        } else {
+            // macOS 15 (Sequoia) and earlier need extra padding
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(MinuteTheme.sidebarBackground)
+                .safeAreaPadding(.top, 40)
+        }
     }
 
     @ViewBuilder
