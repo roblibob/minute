@@ -10,6 +10,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-04
 - N/A (classification is derived from transcript text; no new persisted entities required) (005-meeting-type-autodetect)
 - Swift 5.9 (Xcode 15.x) + SwiftUI (app), MinuteCore (SPM), FluidAudio (ASR/diarization), AVFoundation; bundled ffmpeg available in `Vendor/ffmpeg` for deterministic audio preprocessing (006-speaker-diarization)
 - Swift 5.9+ (Xcode 15.x), macOS 14+. (006-speaker-diarization)
+- Swift 5.9+ (Xcode 15.x), SwiftUI + SwiftUI, AppKit (for macOS window management), MinuteCore (domain logic) (007-fix-ui-layout)
+- N/A (UI layout fixes only) (007-fix-ui-layout)
 
 - Swift 5.9 + SwiftUI, Combine, AVFoundation, MinuteCore (Internal), Llama (Internal C++ wrapper) (001-meeting-type-prompts)
 
@@ -29,9 +31,9 @@ tests/
 Swift 5.9: Follow standard conventions
 
 ## Recent Changes
+- 007-fix-ui-layout: Added Swift 5.9+ (Xcode 15.x), SwiftUI + SwiftUI, AppKit (for macOS window management), MinuteCore (domain logic)
 - 006-speaker-diarization: Added Swift 5.9+ (Xcode 15.x), macOS 14+.
 - 006-speaker-diarization: Added Swift 5.9 (Xcode 15.x) + SwiftUI (app), MinuteCore (SPM), FluidAudio (ASR/diarization), AVFoundation; bundled ffmpeg available in `Vendor/ffmpeg` for deterministic audio preprocessing
-- 005-meeting-type-autodetect: Added Swift 5.9 (Xcode 15.x) + MinuteCore (Swift Package), local llama.cpp XCFramework integration (`MinuteLlama`), SwiftUI app target
 
 
 <!-- MANUAL ADDITIONS START -->
