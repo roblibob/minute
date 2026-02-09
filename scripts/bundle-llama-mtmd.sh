@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-DEFAULT_SOURCE="$SRCROOT/../llama-b7489/llama-mtmd-cli"
+DEFAULT_SOURCE="$SRCROOT/Vendor/llama-mtmd/llama-mtmd-cli"
 SOURCE="${LLAMA_MTMD_SOURCE:-$DEFAULT_SOURCE}"
 SOURCE_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 DEST_DIR="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Resources"

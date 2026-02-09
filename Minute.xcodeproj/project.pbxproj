@@ -324,16 +324,16 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/scripts/bundle-llama-mtmd.sh",
-				"$(SRCROOT)/../llama-b7489/llama-mtmd-cli",
-				"$(SRCROOT)/../llama-b7489/libggml-base.0.dylib",
-				"$(SRCROOT)/../llama-b7489/libggml-blas.0.dylib",
-				"$(SRCROOT)/../llama-b7489/libggml-cpu.0.dylib",
-				"$(SRCROOT)/../llama-b7489/libggml-metal.0.dylib",
-				"$(SRCROOT)/../llama-b7489/libggml-rpc.0.dylib",
-				"$(SRCROOT)/../llama-b7489/libggml.0.dylib",
-				"$(SRCROOT)/../llama-b7489/libllama.0.dylib",
-				"$(SRCROOT)/../llama-b7489/libmtmd.0.dylib",
-				"$(SRCROOT)/../llama-b7489/ggml-metal.metal",
+				"$(SRCROOT)/Vendor/llama-mtmd/llama-mtmd-cli",
+				"$(SRCROOT)/Vendor/llama-mtmd/libggml-base.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/libggml-blas.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/libggml-cpu.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/libggml-metal.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/libggml-rpc.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/libggml.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/libllama.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/libmtmd.0.dylib",
+				"$(SRCROOT)/Vendor/llama-mtmd/ggml-metal.metal",
 			);
 			name = "Bundle llama-mtmd-cli";
 			outputFileListPaths = (

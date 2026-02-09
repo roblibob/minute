@@ -137,6 +137,15 @@ graph TD
 - macOS 14+
 - Apple Silicon (M1 or newer)
 
+## Developer Notes (Bundled Runtimes)
+
+The app bundles a few runtime executables/libraries at build time via Xcode “Run Script” phases.
+
+- `Vendor/ffmpeg/ffmpeg` is copied into `Minute.app/Contents/Resources/ffmpeg`.
+- `Vendor/llama-mtmd/llama-mtmd-cli` (and adjacent `lib*.0.dylib`) are copied into `Minute.app/Contents/Resources/`.
+
+If you need to point at a custom `llama-mtmd-cli` build, set `LLAMA_MTMD_SOURCE` in your Xcode scheme environment variables.
+
 ## Privacy
 - Audio and inference stay local.
 - No outbound network calls except model downloads.
