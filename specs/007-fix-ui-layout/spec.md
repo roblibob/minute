@@ -9,7 +9,7 @@
 
 ### Session 2026-02-09
 
-- Q: What is the primary cause of the viewport overflow issue? → A: The meeting list container has incorrect AutoLayout constraints causing it to extend beyond its parent view bounds - fix by adjusting constraint priorities and ensuring proper clipping.
+- Q: What is the primary cause of the viewport overflow issue? → A: The meeting list container has incorrect SwiftUI layout constraints causing it to extend beyond its parent view bounds - fix by adjusting constraint priorities and ensuring proper clipping.
 - Q: Which UI component is the "floating control bar"? → A: Main recording control bar (the bar with microphone/speaker/broadcast buttons and meeting type selector)
 - Q: What does "70% of the available window width" measure from? → A: Content area width (excluding window chrome and margins)
 - Q: What is the minimum supported window size for the application? → A: 600x400 minimum (standard compact desktop size)
@@ -59,7 +59,7 @@ The main recording control bar should make efficient use of available screen spa
 
 **Acceptance Scenarios**:
 
-1. **Given** a user views the recording interface, **When** they observe the main recording control bar, **Then** it spans most of the available window width while maintaining appropriate margins
+1. **Given** a user views the recording interface, **When** they observe the main recording control bar, **Then** it spans at least 70% of the content area width while maintaining appropriate margins
 2. **Given** a user resizes the application window, **When** the window width changes, **Then** the main recording control bar adjusts proportionally to maintain efficient use of space
 3. **Given** a user with controls in the control bar, **When** viewing them at the expanded width, **Then** all controls have adequate spacing and remain easily clickable
 
@@ -76,7 +76,7 @@ The main recording control bar should make efficient use of available screen spa
 
 ### Functional Requirements
 
-- **FR-001**: Meeting history list MUST be fully visible within the application window viewport on all supported macOS versions and hardware configurations (root cause: incorrect AutoLayout constraints causing container to extend beyond parent view bounds)
+- **FR-001**: Meeting history list MUST be fully visible within the application window viewport on all supported macOS versions and hardware configurations (root cause: incorrect SwiftUI layout constraints causing container to extend beyond parent view bounds)
 - **FR-002**: Meeting history list container MUST have proper constraint priorities and clipping enabled to prevent content overflow
 - **FR-003**: Meeting history list MUST support scrolling when content exceeds available vertical space (preserve existing scroll behavior with standard vertical scroll and always-visible scrollbar indicator)
 - **FR-004**: All meeting list items (including those in "YESTERDAY", "LAST WEEK", "LAST MONTH" categories) MUST be accessible and clickable

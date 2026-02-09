@@ -36,8 +36,9 @@
 
 - [ ] T005 Update minimum window size from 860x620 to 600x400 in Minute/Sources/Views/ContentView.swift line ~24
 - [ ] T006 Test app launches with new minimum window size without errors
+- [ ] T007 Verify window size enforcement - attempt to resize window below 600x400 and confirm system prevents it
 
-**Checkpoint**: Foundation ready - window constraints updated, user story implementation can now begin in parallel
+**Checkpoint**: Foundation ready - window constraints updated and enforced, user story implementation can now begin in parallel
 
 ---
 
@@ -49,14 +50,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Add explicit frame constraints to MeetingNotesSidebarView content in Minute/Sources/Views/MeetingNotes/MeetingNotesSidebarView.swift
-- [ ] T008 [US1] Verify List has proper frame modifiers `.frame(maxWidth: .infinity, maxHeight: .infinity)` in MeetingNotesSidebarView body
-- [ ] T009 [US1] Test meeting list with 0 meetings (empty state) - verify layout correct
-- [ ] T010 [US1] Test meeting list with 5 meetings - verify all visible without scroll
-- [ ] T011 [US1] Test meeting list with 20+ meetings - verify scroll appears and works correctly
-- [ ] T012 [US1] Test at window size 600x400 - verify meeting list visible within bounds
-- [ ] T013 [US1] Test at window size 1200x800 - verify meeting list scales properly
-- [ ] T014 [US1] Test on MacBook Pro 14-inch (macOS 15.7.3) - verify original bug is fixed
+- [ ] T008 [US1] Add explicit frame constraints to MeetingNotesSidebarView content in Minute/Sources/Views/MeetingNotes/MeetingNotesSidebarView.swift
+- [ ] T009 [US1] Verify List has proper frame modifiers `.frame(maxWidth: .infinity, maxHeight: .infinity)` in MeetingNotesSidebarView body
+- [ ] T010 [US1] Test meeting list with 0 meetings (empty state) - verify layout correct
+- [ ] T011 [US1] Test meeting list with 5 meetings - verify all visible without scroll
+- [ ] T012 [US1] Test meeting list with 20+ meetings - verify scroll appears and works correctly
+- [ ] T013 [US1] Test at window size 600x400 - verify meeting list visible within bounds
+- [ ] T014 [US1] Test at window size 1200x800 - verify meeting list scales properly
+- [ ] T015 [US1] Test on MacBook Pro 14-inch (macOS 15.7.3) - verify original bug is fixed
 
 **Checkpoint**: Meeting list viewport overflow is resolved. List stays within sidebar bounds at all window sizes and hardware configurations.
 
@@ -70,16 +71,16 @@
 
 ### Implementation for User Story 2
 
-- [ ] T015 [P] [US2] Wrap FloatingControlBar in GeometryReader in Minute/Sources/Views/ContentView.swift around line 86
-- [ ] T016 [P] [US2] Calculate 70% of geometry width for control bar sizing in Minute/Sources/Views/ContentView.swift
-- [ ] T017 [US2] Remove fixed maxWidth: 560 constraint from FloatingControlBar styling in Minute/Sources/Views/ContentView.swift line ~1040
-- [ ] T018 [US2] Increase HStack spacing from 12 to 16 in FloatingControlBar in Minute/Sources/Views/ContentView.swift line ~984
-- [ ] T019 [US2] Increase Spacer minLength from 16 to 24 in FloatingControlBar in Minute/Sources/Views/ContentView.swift line ~996
-- [ ] T020 [US2] Optional: Add minWidth: 180 to MeetingTypePicker frame if still cramped in Minute/Sources/Views/ContentView.swift
-- [ ] T021 [US2] Test meeting type picker visibility at 600x400 window - verify fully visible
-- [ ] T022 [US2] Test meeting type picker interaction - click and verify dropdown opens normally
-- [ ] T023 [US2] Test all meeting types can be selected without control overlap
-- [ ] T024 [US2] Test meeting type picker visibility at various window sizes (800x600, 1200x800, fullscreen)
+- [ ] T016 [P] [US2] Wrap FloatingControlBar in GeometryReader in Minute/Sources/Views/ContentView.swift around line 86
+- [ ] T017 [P] [US2] Calculate 70% of geometry width for control bar sizing in Minute/Sources/Views/ContentView.swift (add validation: log/verify calculated width value)
+- [ ] T018 [US2] Remove fixed maxWidth: 560 constraint from FloatingControlBar styling in Minute/Sources/Views/ContentView.swift line ~1040
+- [ ] T019 [US2] Increase HStack spacing from 12 to 16 in FloatingControlBar in Minute/Sources/Views/ContentView.swift line ~984
+- [ ] T020 [US2] Increase Spacer minLength from 16 to 24 in FloatingControlBar in Minute/Sources/Views/ContentView.swift line ~996
+- [ ] T021 [US2] Optional: Add minWidth: 180 to MeetingTypePicker frame if still cramped in Minute/Sources/Views/ContentView.swift
+- [ ] T022 [US2] Test meeting type picker visibility at 600x400 window - verify fully visible
+- [ ] T023 [US2] Test meeting type picker interaction - click and verify dropdown opens normally
+- [ ] T024 [US2] Test all meeting types can be selected without control overlap
+- [ ] T025 [US2] Test meeting type picker visibility at various window sizes (800x600, 1200x800, fullscreen)
 
 **Checkpoint**: Meeting type selector is fully accessible and not obscured by any controls. All interactions work smoothly at all window sizes.
 
@@ -93,14 +94,15 @@
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Verify GeometryReader calculation results in 70% content width (completed in T016)
 - [ ] T026 [US3] Verify control bar centers properly with `.frame(maxWidth: .infinity)` in Minute/Sources/Views/ContentView.swift
 - [ ] T027 [US3] Test control bar width at 600x400 window - verify ~70% of content area
-- [ ] T028 [US3] Test control bar width at 800x600 window - measure percentage
+- [ ] T028 [US3] Test control bar width at 800x600 window - measure actual percentage
 - [ ] T029 [US3] Test control bar width at 1200x800 window - verify proportional scaling
 - [ ] T030 [US3] Test control bar width at fullscreen - verify efficient space utilization
 - [ ] T031 [US3] Verify all controls have clear visual separation (no overlap or touching)
 - [ ] T032 [US3] Verify control spacing is comfortable and clickable targets are adequate
+
+**Note**: GeometryReader calculation implemented in T017 (US2); this phase verifies the 70% width requirement is met across window sizes.
 
 **Checkpoint**: Control bar efficiently utilizes window width (70%+) with proper spacing. Layout is responsive across all window sizes.
 
@@ -227,12 +229,12 @@ With two developers:
 
 - **Total Tasks**: 43
 - **Setup (Phase 1)**: 4 tasks
-- **Foundational (Phase 2)**: 2 tasks  
+- **Foundational (Phase 2)**: 3 tasks  
 - **User Story 1 (P1)**: 8 tasks
 - **User Story 2 (P1)**: 10 tasks
-- **User Story 3 (P2)**: 8 tasks
+- **User Story 3 (P2)**: 7 tasks
 - **Polish (Phase 6)**: 11 tasks
 
 **Parallel Opportunities**: 12 tasks marked [P] can run concurrently
 **Independent Stories**: US1 and US2 can be developed in parallel (different files)
-**MVP Scope**: Phases 1-4 (US1 + US2) = 24 tasks, estimated 2-3 hours
+**MVP Scope**: Phases 1-4 (US1 + US2) = 25 tasks, estimated 2-3 hours

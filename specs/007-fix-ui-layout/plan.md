@@ -8,7 +8,7 @@
 ## Summary
 
 Fix two critical UI layout bugs in the Minute macOS app:
-1. **Meeting list viewport overflow**: Meeting history list extends beyond visible viewport due to incorrect AutoLayout constraints
+1. **Meeting list viewport overflow**: Meeting history list extends beyond visible viewport due to incorrect SwiftUI layout constraints
 2. **Meeting type selector positioning**: Meeting type dropdown obscured by record button in the main recording control bar
 3. **Control bar width optimization**: Expand control bar to utilize 70%+ of content area width
 
