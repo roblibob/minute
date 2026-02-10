@@ -41,4 +41,28 @@ struct PromptFactoryLanguageProcessingTests {
             #expect(!prompt.contains("Always output the summary in English"))
         }
     }
+
+    @Test
+    func languageInstruction_autoPreserve_requiresTranscriptionLanguageOutput() {
+        let prompt = PromptFactory.systemPrompt(
+            strategy: GeneralPromptStrategy(),
+            languageProcessing: .autoPreserve
+        )
+
+        #expect(prompt.contains("Language output mode: Auto -> Preserve."))
+        #expect(prompt.contains("Determine the dominant language from the transcription text"))
+        #expect(prompt.contains("Do not translate to English unless the transcription is predominantly English."))
+    }
+
+    @Test
+    func languageInstruction_autoEnglish_forcesEnglishOutput() {
+        let prompt = PromptFactory.systemPrompt(
+            strategy: GeneralPromptStrategy(),
+            languageProcessing: .autoToEnglish
+        )
+
+        #expect(prompt.contains("Language output mode: Auto -> English."))
+        #expect(prompt.contains("ALWAYS write all user-visible fields"))
+        #expect(prompt.contains("in English"))
+    }
 }

@@ -123,8 +123,10 @@ struct RecordingSessionCardView: View {
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(Color.minuteTextSecondary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .menuStyle(.borderlessButton)
+                        .frame(maxWidth: .infinity)
                         .minuteDropdownStyle()
                         .accessibilityLabel(Text("Meeting Type"))
                         .accessibilityValue(Text(model.meetingType.displayName))
@@ -154,8 +156,10 @@ struct RecordingSessionCardView: View {
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(Color.minuteTextSecondary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .menuStyle(.borderlessButton)
+                        .frame(maxWidth: .infinity)
                         .minuteDropdownStyle()
                         .help(model.languageProcessing.detailText)
                         .accessibilityLabel(Text("Language Processing"))
@@ -209,6 +213,9 @@ struct RecordingSessionCardView: View {
                         .popover(isPresented: $isScreenContextPopoverPresented, arrowEdge: .bottom) {
                             ScreenContextWindowPickerPopover(
                                 currentSelection: model.currentScreenCaptureSelection,
+                                onDismiss: {
+                                    isScreenContextPopoverPresented = false
+                                },
                                 onSelect: { selection in
                                     if let selection {
                                         model.setScreenCaptureSelection(selection)

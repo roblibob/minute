@@ -18,9 +18,9 @@ public enum LanguageProcessingProfile: String, CaseIterable, Codable, Sendable, 
     public var detailText: String {
         switch self {
         case .autoToEnglish:
-            return "Detect input language; write outputs in English."
+            return "Detect input language from transcription; always write outputs in English."
         case .autoPreserve:
-            return "Detect input language; write outputs in the same language as the transcript."
+            return "Detect input language from transcription; write outputs in that same language."
         }
     }
 
@@ -28,9 +28,17 @@ public enum LanguageProcessingProfile: String, CaseIterable, Codable, Sendable, 
     public var summarizationSystemInstruction: String {
         switch self {
         case .autoToEnglish:
-            return "Write all user-visible fields (including title, summary, action items, and sections) in English."
+            return """
+            Language output mode: Auto -> English.
+            Use the transcription text to determine dominant language for interpretation, but ALWAYS write all user-visible fields (including title, summary, action items, and sections) in English. This requirement overrides conflicting language instructions elsewhere in the prompt.
+            Preserve technical terms, code tokens, APIs, and proper nouns in their original form.
+            """
         case .autoPreserve:
-            return "Write all user-visible fields (including title, summary, action items, and sections) in the same language as the transcript."
+            return """
+            Language output mode: Auto -> Preserve.
+            Determine the dominant language from the transcription text and write all user-visible fields (including title, summary, action items, and sections) in that same language. Do not translate to English unless the transcription is predominantly English.
+            Preserve technical terms, code tokens, APIs, and proper nouns in their original form.
+            """
         }
     }
 
