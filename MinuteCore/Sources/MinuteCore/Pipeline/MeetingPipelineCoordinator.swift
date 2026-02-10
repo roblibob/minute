@@ -5,7 +5,7 @@ public actor MeetingPipelineCoordinator {
     private let transcriptionService: any TranscriptionServicing
     private let diarizationService: any DiarizationServicing
     private let audioLoudnessNormalizer: any AudioLoudnessNormalizing
-    private let summarizationServiceProvider: () -> any SummarizationServicing
+    private let summarizationServiceProvider: @Sendable () -> any SummarizationServicing
     private let modelManager: any ModelManaging
     private let vaultAccess: VaultAccess
     private let vaultWriter: any VaultWriting
@@ -18,7 +18,7 @@ public actor MeetingPipelineCoordinator {
     public init(
         transcriptionService: some TranscriptionServicing,
         diarizationService: some DiarizationServicing,
-        summarizationServiceProvider: @escaping () -> any SummarizationServicing,
+        summarizationServiceProvider: @escaping @Sendable () -> any SummarizationServicing,
         audioLoudnessNormalizer: any AudioLoudnessNormalizing = NoOpAudioLoudnessNormalizer(),
         modelManager: some ModelManaging,
         vaultAccess: VaultAccess,
@@ -66,7 +66,7 @@ public actor MeetingPipelineCoordinator {
                 } catch {
                     // Normalization is a quality improvement. If ffmpeg is missing or input audio is unreadable,
                     // proceed with the original analysis audio rather than failing the whole pipeline.
-                    logger.error("Analysis audio normalization failed; proceeding without normalization: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+                    logger.error("Analysis audio normalization failed; proceeding without normalization: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
                 }
             }
 
@@ -131,7 +131,8 @@ public actor MeetingPipelineCoordinator {
             let rawJSON = try await summarizationService.summarize(
                 transcript: timelineText,
                 meetingDate: meetingDate,
-                meetingType: effectiveType
+                meetingType: effectiveType,
+                languageProcessing: context.languageProcessing
             )
             var extraction = try await decodeOrRepairExtraction(
                 rawJSON: rawJSON,
@@ -175,7 +176,7 @@ public actor MeetingPipelineCoordinator {
             logger.info("Pipeline cancelled")
             throw CancellationError()
         } catch {
-            logger.error("Pipeline failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+            logger.error("Pipeline failed: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
             cleanupTemporaryArtifacts(for: context)
             throw error
         }

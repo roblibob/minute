@@ -9,6 +9,7 @@ import MinuteCore
 import SwiftUI
 import UniformTypeIdentifiers
 import Combine
+import AppKit
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel
@@ -55,6 +56,7 @@ private struct PipelineContentView: View {
     @FocusState private var recordButtonFocused: Bool
     @State private var isImportingFile = false
     @State private var isDropTargeted = false
+    @State private var stageDropErrorMessage: String?
     @State private var isRecordingWindowPickerPresented = false
     @State private var screenPickerPurpose: ScreenPickerPurpose?
     @State private var screenTogglePending = false
@@ -126,7 +128,7 @@ private struct PipelineContentView: View {
             .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTargeted) { providers in
                 handleDrop(providers)
             }
-            .fileImporter(isPresented: $isImportingFile, allowedContentTypes: importableContentTypes) { result in
+            .fileImporter(isPresented: $isImportingFile, allowedContentTypes: StageMediaValidation.importableContentTypes) { result in
                 switch result {
                 case .success(let url):
                     importFile(url)
@@ -230,7 +232,14 @@ private struct PipelineContentView: View {
                 MainStageView(
                     model: model,
                     notesModel: notesModel,
-                    bottomInset: bottomInset
+                    bottomInset: bottomInset,
+                    screenContextEnabled: screenContextEnabled,
+                    isDropTargeted: isDropTargeted,
+                    dropErrorMessage: stageDropErrorMessage,
+                    isScreenToggleOn: isScreenToggleOn,
+                    onToggleScreenCapture: handleScreenToggleChange,
+                    onChooseWindow: { presentScreenPicker(for: .selectWindow) },
+                    onUploadTap: { isImportingFile = true }
                 )
             }
         }
@@ -240,17 +249,14 @@ private struct PipelineContentView: View {
         FloatingControlBar(
             recordState: recordButtonState,
             recordEnabled: recordButtonEnabled,
-            audioMode: audioCaptureMode,
-            isScreenShareOn: isScreenToggleOn,
-            showsScreenShareControl: screenContextEnabled,
-            controlsEnabled: captureTogglesEnabled,
+            recordingStartedAt: recordingStartedAt,
+            statusLabel: floatingStatusLabel,
+            showsCancel: recordButtonState == .recording,
             uploadEnabled: model.state.canImportMedia,
             recordFocus: $recordButtonFocused,
             onRecordTap: handleRecordButtonTap,
-            onAudioModeChange: setAudioCaptureMode,
-            onScreenShareToggle: { handleScreenToggleChange(!isScreenToggleOn) },
             onUploadTap: { isImportingFile = true },
-            meetingType: $model.meetingType
+            onCancelTap: handleCancelSessionTap
         )
         .animation(.easeInOut(duration: 0.2), value: statusDrawerModel != nil)
     }
@@ -269,10 +275,16 @@ private struct PipelineContentView: View {
                     url = item as? URL
                 }
 
-                guard let url, isSupportedMediaURL(url) else { return }
-                Task { @MainActor in
-                    importFile(url)
+                guard let url else { return }
+
+                guard StageMediaValidation.isSupportedMediaURL(url) else {
+                    Task { @MainActor in
+                        showStageDropError("Unsupported file type. Drop an audio or video file.")
+                    }
+                    return
                 }
+
+                Task { @MainActor in importFile(url) }
             }
             return true
         }
@@ -280,21 +292,15 @@ private struct PipelineContentView: View {
         return false
     }
 
-    private func isSupportedMediaURL(_ url: URL) -> Bool {
-        let ext = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if ext == "wav" || ext == "wave" {
-            return true
-        }
-        guard let type = UTType(filenameExtension: ext) else { return false }
-        return type.conforms(to: .audio) || type.conforms(to: .movie)
-    }
+    private func showStageDropError(_ message: String) {
+        stageDropErrorMessage = message
 
-    private var importableContentTypes: [UTType] {
-        var types: [UTType] = [.audio, .movie]
-        if let wav = UTType(filenameExtension: "wav") {
-            types.append(wav)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if stageDropErrorMessage == message {
+                stageDropErrorMessage = nil
+            }
         }
-        return types
     }
 
     private func importFile(_ url: URL) {
@@ -314,24 +320,24 @@ private struct PipelineContentView: View {
         }
     }
 
-    private var audioCaptureMode: AudioCaptureMode {
-        switch (model.microphoneCaptureEnabled, model.systemAudioCaptureEnabled) {
-        case (true, true):
-            return .both
-        case (true, false):
-            return .room
-        case (false, true):
-            return .online
-        case (false, false):
-            return .room
-        }
+    private var recordingStartedAt: Date? {
+        guard case .recording(let session) = model.state else { return nil }
+        return session.startedAt
     }
 
-    private func setAudioCaptureMode(_ mode: AudioCaptureMode) {
-        model.setAudioCaptureConfiguration(
-            microphoneEnabled: mode.microphoneEnabled,
-            systemAudioEnabled: mode.systemAudioEnabled
-        )
+    private var floatingStatusLabel: String {
+        switch model.state {
+        case .recording:
+            return "Recording"
+        case .processing, .writing, .importing:
+            return model.state.statusLabel
+        case .recorded:
+            return "Ready to Process"
+        case .failed:
+            return "Failed"
+        default:
+            return "Ready"
+        }
     }
 
     private var recordButtonState: RecordButtonState {
@@ -509,10 +515,21 @@ private struct PipelineContentView: View {
     private func handleRecordButtonTap() {
         switch model.captureState {
         case .ready:
+            performHaptic(.alignment)
             requestStartRecording()
         case .recording:
+            performHaptic(.levelChange)
             model.send(.stopRecording)
         }
+    }
+
+    private func handleCancelSessionTap() {
+        performHaptic(.alignment)
+        model.send(.cancelRecording)
+    }
+
+    private func performHaptic(_ pattern: NSHapticFeedbackManager.FeedbackPattern) {
+        NSHapticFeedbackManager.defaultPerformer.perform(pattern, performanceTime: .now)
     }
 
     private func handleNotificationStartRecording() {
@@ -574,6 +591,9 @@ private struct PipelineContentView: View {
             model.setScreenCaptureSelection(selection)
             model.setScreenCaptureEnabled(true)
             screenTogglePending = false
+        case .selectWindow:
+            model.setScreenCaptureSelection(selection)
+            model.setScreenCaptureEnabled(true)
         }
         screenPickerPurpose = nil
     }
@@ -597,6 +617,7 @@ private enum RecordButtonState {
 private enum ScreenPickerPurpose {
     case startRecording
     case enableDuringRecording
+    case selectWindow
 }
 
 private struct MainStageContainer<Content: View>: View {
@@ -627,54 +648,247 @@ private struct MainStageView: View {
     @ObservedObject var model: MeetingPipelineViewModel
     @ObservedObject var notesModel: MeetingNotesBrowserViewModel
     var bottomInset: CGFloat
-
-    private static let totalDurationFormatter: DateComponentsFormatter = {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute]
-        formatter.unitsStyle = .abbreviated
-        formatter.maximumUnitCount = 2
-        return formatter
-    }()
+    let screenContextEnabled: Bool
+    let isDropTargeted: Bool
+    let dropErrorMessage: String?
+    let isScreenToggleOn: Bool
+    let onToggleScreenCapture: (Bool) -> Void
+    let onChooseWindow: () -> Void
+    let onUploadTap: () -> Void
 
     var body: some View {
-        Group {
-            if case .recording(let session) = model.state {
-                RecordingStageView(
-                    session: session,
-                    levels: model.audioLevelSamples
-                )
-            } else {
-                DailyBriefingView(
-                    greeting: greeting,
-                    meetingCount: notesModel.notes.count,
-                    totalMinutesText: totalMinutesText
-                )
+        RecordingStageCardView(
+            model: model,
+            bottomInset: bottomInset,
+            screenContextEnabled: screenContextEnabled,
+            isDropTargeted: isDropTargeted,
+            dropErrorMessage: dropErrorMessage,
+            isScreenToggleOn: isScreenToggleOn,
+            onToggleScreenCapture: onToggleScreenCapture,
+            onChooseWindow: onChooseWindow,
+            onUploadTap: onUploadTap
+        )
+    }
+
+}
+
+private struct RecordingStageCardView: View {
+    @ObservedObject var model: MeetingPipelineViewModel
+    let bottomInset: CGFloat
+    let screenContextEnabled: Bool
+    let isDropTargeted: Bool
+    let dropErrorMessage: String?
+    let isScreenToggleOn: Bool
+    let onToggleScreenCapture: (Bool) -> Void
+    let onChooseWindow: () -> Void
+    let onUploadTap: () -> Void
+
+    private var microphoneBinding: Binding<Bool> {
+        Binding(
+            get: { model.microphoneCaptureEnabled },
+            set: { model.setMicrophoneCaptureEnabled($0) }
+        )
+    }
+
+    private var systemAudioBinding: Binding<Bool> {
+        Binding(
+            get: { model.systemAudioCaptureEnabled },
+            set: { model.setSystemAudioCaptureEnabled($0) }
+        )
+    }
+
+    private var screenCaptureBinding: Binding<Bool> {
+        Binding(
+            get: { isScreenToggleOn },
+            set: { onToggleScreenCapture($0) }
+        )
+    }
+
+    private var isRecording: Bool {
+        if case .recording = model.state { return true }
+        return false
+    }
+
+    private var isListening: Bool {
+        isRecording && (model.microphoneCaptureEnabled || model.systemAudioCaptureEnabled)
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Stage")
+                            .font(.system(size: 20, weight: .semibold))
+                            .tracking(-0.4)
+                            .foregroundStyle(Color.minuteTextPrimary)
+
+                        if isRecording {
+                            Text("Session in progress")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.minuteTextSecondary)
+                        } else {
+                            Text("Configure your session and start recording.")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.minuteTextSecondary)
+                        }
+
+                        if let dropErrorMessage {
+                            Text(dropErrorMessage)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.red.opacity(0.9))
+                                .accessibilityLabel(Text("Import error"))
+                                .accessibilityValue(Text(dropErrorMessage))
+                                .transition(.opacity)
+                        }
+                    }
+
+                    Spacer()
+
+                    if case .recording(let session) = model.state {
+                        HStack(spacing: 8) {
+                            PulsingDot()
+                            RecordingTimerView(startedAt: session.startedAt)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.minuteSurface)
+                        )
+                    }
+                }
+
+                Divider()
+                    .overlay(Color.minuteOutline)
+
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Meeting Type")
+                            .minuteFootnote()
+                            .textCase(.uppercase)
+
+                        Picker("Meeting Type", selection: $model.meetingType) {
+                            ForEach(MeetingType.allCases, id: \.self) { type in
+                                Text(type.displayName).tag(type)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .accessibilityLabel(Text("Meeting Type"))
+                        .accessibilityValue(Text(model.meetingType.displayName))
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Language")
+                            .minuteFootnote()
+                            .textCase(.uppercase)
+
+                        Picker("Language Processing", selection: $model.languageProcessing) {
+                            ForEach(LanguageProcessingProfile.allCases, id: \.self) { profile in
+                                Text(profile.displayName).tag(profile)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .help(model.languageProcessing.detailText)
+                        .accessibilityLabel(Text("Language Processing"))
+                        .accessibilityValue(Text(model.languageProcessing.displayName))
+                        .accessibilityHint(Text(model.languageProcessing.detailText))
+                    }
+                }
+
+                HStack(spacing: 14) {
+                    Toggle(isOn: microphoneBinding) {
+                        Label("Microphone", systemImage: "mic.fill")
+                    }
+                    .toggleStyle(.switch)
+                    .accessibilityHint(Text("Include microphone audio in the session"))
+
+                    Toggle(isOn: systemAudioBinding) {
+                        Label("System Audio", systemImage: "speaker.wave.2.fill")
+                    }
+                    .toggleStyle(.switch)
+                    .accessibilityHint(Text("Include system audio in the session"))
+                }
+
+                if screenContextEnabled {
+                    HStack(alignment: .center, spacing: 14) {
+                        Toggle(isOn: screenCaptureBinding) {
+                            Label("Screen Context", systemImage: isScreenToggleOn ? "display" : "rectangle.slash")
+                        }
+                        .toggleStyle(.switch)
+                        .accessibilityHint(Text("Capture screen context for the session"))
+
+                        Button("Choose Window") {
+                            onChooseWindow()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!isScreenToggleOn && !isRecording)
+
+                        Spacer()
+                    }
+
+                    Text(model.screenCaptureSelectionDisplayText ?? "No window selected")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.minuteTextSecondary)
+                        .lineLimit(1)
+                        .accessibilityLabel(Text("Selected window"))
+                        .accessibilityValue(Text(model.screenCaptureSelectionDisplayText ?? "No window selected"))
+                }
             }
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.minuteSurfaceStrong)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.minuteOutline, lineWidth: 1)
+                    )
+
+                if case .recording(let session) = model.state {
+                    RecordingStageView(
+                        session: session,
+                        levels: model.audioLevelSamples,
+                        isListening: isListening
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                } else {
+                    if model.state.canImportMedia {
+                        StageDropZoneView(
+                            isHighlighted: isDropTargeted,
+                            onUploadTap: onUploadTap
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    } else {
+                        VStack(spacing: 10) {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(Color.minuteTextSecondary)
+
+                            Text(model.state.statusLabel)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.minuteTextPrimary)
+                        }
+                    }
+                }
+            }
+            .frame(height: 220)
         }
+        .padding(22)
+        .frame(maxWidth: 720)
+        .minuteGlassPanel(
+            cornerRadius: 28,
+            fill: Color.minuteSurface,
+            border: Color.minuteOutline,
+            shadowOpacity: 0.25
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 24)
         .padding(.bottom, bottomInset)
     }
-
-    private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12:
-            return "Good morning."
-        case 12..<17:
-            return "Good afternoon."
-        case 17..<22:
-            return "Good evening."
-        default:
-            return "Welcome back."
-        }
-    }
-
-    private var totalMinutesText: String {
-        let durations = notesModel.notePreviews.values.compactMap(\.durationSeconds)
-        guard !durations.isEmpty else { return "--" }
-        let total = durations.reduce(0, +)
-        return Self.totalDurationFormatter.string(from: total) ?? "--"
-    }
-
 }
 
 private struct DailyBriefingView: View {
@@ -834,10 +1048,15 @@ private struct StatusDrawerView: View {
 private struct RecordingStageView: View {
     let session: RecordingSession
     let levels: [CGFloat]
+    let isListening: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             RecordingHeaderView(startedAt: session.startedAt)
+
+            Text(isListening ? "Listening" : "Not listening (mic and system audio are off)")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isListening ? Color.minuteTextSecondary : Color.orange)
 
             Spacer(minLength: 0)
 
@@ -858,6 +1077,46 @@ private struct RecordingStageView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct StageDropZoneView: View {
+    let isHighlighted: Bool
+    let onUploadTap: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "tray.and.arrow.down.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(isHighlighted ? Color.minuteGlow : Color.minuteTextSecondary)
+
+            VStack(spacing: 4) {
+                Text("Drop audio or video")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.minuteTextPrimary)
+
+                Text("Or upload a file to start processing")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.minuteTextSecondary)
+            }
+
+            Button("Upload") {
+                onUploadTap()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.minuteSurfaceStrong)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(isHighlighted ? Color.minuteGlow.opacity(0.7) : Color.minuteOutline, lineWidth: isHighlighted ? 2 : 1)
+        )
+        .animation(.easeInOut(duration: 0.15), value: isHighlighted)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("Drop audio or video to import"))
     }
 }
 
@@ -986,77 +1245,44 @@ private struct WaveformRibbonView: View {
 private struct FloatingControlBar: View {
     let recordState: RecordButtonState
     let recordEnabled: Bool
-    let audioMode: AudioCaptureMode
-    let isScreenShareOn: Bool
-    let showsScreenShareControl: Bool
-    let controlsEnabled: Bool
+    let recordingStartedAt: Date?
+    let statusLabel: String
+    let showsCancel: Bool
     let uploadEnabled: Bool
     let recordFocus: FocusState<Bool>.Binding
     let onRecordTap: () -> Void
-    let onAudioModeChange: (AudioCaptureMode) -> Void
-    let onScreenShareToggle: () -> Void
     let onUploadTap: () -> Void
-    @Binding var meetingType: MeetingType
-    @State private var showMeetingTypePicker = false
+    let onCancelTap: () -> Void
 
     var body: some View {
         ZStack {
             HStack(spacing: 16) {
-                AudioModeControl(
-                    selection: audioMode,
-                    isEnabled: controlsEnabled,
-                    onSelect: onAudioModeChange
-                )
-                
-                Spacer(minLength: 24)
+                HStack(spacing: 10) {
+                    if recordState == .recording {
+                        PulsingDot()
+                    }
 
-                ControlBarIconButton(
-                    systemName: "doc.text.fill",
-                    label: "Meeting type",
-                    isActive: false,
-                    isEnabled: controlsEnabled || recordState == .recording,
-                    action: { showMeetingTypePicker.toggle() }
-                )
-                .popover(isPresented: $showMeetingTypePicker, arrowEdge: .bottom) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(MeetingType.allCases, id: \.self) { type in
-                            Button {
-                                meetingType = type
-                                showMeetingTypePicker = false
-                            } label: {
-                                HStack {
-                                    Text(type.displayName)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    if meetingType == type {
-                                        Image(systemName: "checkmark")
-                                            .foregroundStyle(.blue)
-                                    }
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.primary.opacity(0.05))
-                                    .opacity(0)
-                            )
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(statusLabel)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.minuteTextPrimary)
+
+                        if let recordingStartedAt {
+                            RecordingTimerView(startedAt: recordingStartedAt)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(Color.minuteTextSecondary)
                         }
                     }
-                    .padding(.vertical, 8)
-                    .frame(minWidth: 200)
                 }
 
                 HStack(spacing: 12) {
-                    if showsScreenShareControl {
+                    if showsCancel {
                         ControlBarIconButton(
-                            systemName: isScreenShareOn ? "display" : "rectangle.slash",
-                            label: "Screen share toggle",
-                            isActive: isScreenShareOn,
-                            isEnabled: controlsEnabled,
-                            action: onScreenShareToggle
+                            systemName: "xmark.circle.fill",
+                            label: "Cancel session",
+                            isActive: false,
+                            isEnabled: true,
+                            action: onCancelTap
                         )
                     }
 
@@ -1088,133 +1314,6 @@ private struct FloatingControlBar: View {
                 )
         )
         .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 12)
-    }
-}
-
-private enum AudioCaptureMode: String, CaseIterable, Identifiable {
-    case room
-    case online
-    case both
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .room:
-            return "Room"
-        case .online:
-            return "Online"
-        case .both:
-            return "Both"
-        }
-    }
-
-    var iconName: String {
-        switch self {
-        case .room:
-            return "mic.fill"
-        case .online:
-            return "speaker.wave.2.fill"
-        case .both:
-            return "dot.radiowaves.left.and.right"
-        }
-    }
-
-    var helpText: String {
-        switch self {
-        case .room:
-            return "Room meeting (mic only)"
-        case .online:
-            return "Online meeting (system audio only)"
-        case .both:
-            return "Record mic + system audio (use headphones to avoid echo)"
-        }
-    }
-
-    var microphoneEnabled: Bool {
-        switch self {
-        case .room, .both:
-            return true
-        case .online:
-            return false
-        }
-    }
-
-    var systemAudioEnabled: Bool {
-        switch self {
-        case .online, .both:
-            return true
-        case .room:
-            return false
-        }
-    }
-}
-
-private struct AudioModeControl: View {
-    let selection: AudioCaptureMode
-    let isEnabled: Bool
-    let onSelect: (AudioCaptureMode) -> Void
-
-    var body: some View {
-        let modes = Array(AudioCaptureMode.allCases.enumerated())
-        HStack(spacing: 0) {
-            ForEach(modes, id: \.element.id) { index, mode in
-                let isSelected = (mode == selection)
-                Button(action: { onSelect(mode) }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: mode.iconName)
-                    }
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isSelected ? Color.white : Color.minuteTextSecondary)
-                    .frame(width: 34, height: 34)
-                    .contentShape(Rectangle())
-                    .background(
-                        selectionBackground(isSelected: isSelected, isLeading: index == 0, isTrailing: index == modes.count - 1)
-                    )
-                }
-                .buttonStyle(.plain)
-                .help(mode.helpText)
-                .accessibilityLabel(Text(mode.helpText))
-
-                if index < modes.count - 1 {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.18))
-                        .frame(width: 1, height: 18)
-                }
-            }
-        }
-        .frame(height: 34)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                )
-        )
-        .clipShape(Capsule())
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.5)
-    }
-
-    private func selectionBackground(isSelected: Bool, isLeading: Bool, isTrailing: Bool) -> some View {
-        let radius: CGFloat = 16
-        return Group {
-            if isSelected {
-                Rectangle()
-                    .fill(Color.minuteGlow.opacity(0.35))
-                    .mask(
-                        RoundedCornerMask(
-                            topLeft: isLeading ? radius : 0,
-                            bottomLeft: isLeading ? radius : 0,
-                            topRight: isTrailing ? radius : 0,
-                            bottomRight: isTrailing ? radius : 0
-                        )
-                    )
-            } else {
-                Color.clear
-            }
-        }
     }
 }
 

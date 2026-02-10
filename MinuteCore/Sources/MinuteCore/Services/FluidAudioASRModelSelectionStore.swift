@@ -1,6 +1,6 @@
 import Foundation
 
-public final class FluidAudioASRModelSelectionStore {
+public final class FluidAudioASRModelSelectionStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
 

@@ -24,7 +24,7 @@ public struct PresentationPromptStrategy: PromptStrategy {
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript.
         2. **Focus on Content & Takeaways:** This is a presentation. Focus on capturing the core message, details presented on slides (if described), and key takeaways. Minimize focus on operational details unless explicitly discussed.
         3. **Filter Noise:** Ignore small talk and filler.
-        4. **Language Handling:** Detect the dominant language. But always output the summary in English.
+            4. **Language Handling:** Detect the dominant language. Retain specific technical terms or proper nouns in their original language.
 
         ### OUTPUT FORMAT
         You must output a single, valid JSON object. Do not include markdown formatting or raw text outside the braces.

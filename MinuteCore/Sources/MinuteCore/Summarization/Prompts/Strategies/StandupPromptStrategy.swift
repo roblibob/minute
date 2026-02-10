@@ -24,7 +24,7 @@ public struct StandupPromptStrategy: PromptStrategy {
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript. Do not infer feelings, motives, or details not explicitly spoken.
         2. **Focus on Progress & Blockers:** This is a standup. Prioritize extracting what was achieved, what is planned next, and any blockers.
         3. **Filter Noise:** Ignore small talk, pleasantries, incomplete sentences, and non-substantive filler.
-        4. **Language Handling:** Detect the dominant language. Always output the summary in English.
+            4. **Language Handling:** Detect the dominant language. Retain specific technical terms or proper nouns in their original language.
 
         ### OUTPUT FORMAT
         You must output a single, valid JSON object. Do not include markdown formatting or raw text outside the braces.

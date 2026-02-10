@@ -24,7 +24,7 @@ public struct GeneralPromptStrategy: PromptStrategy {
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript. Do not infer feelings, motives, or details not explicitly spoken. If a point is ambiguous, omit it rather than guessing.
         2. **ASR Error Correction:** The transcript is machine-generated and may contain phonetic errors (e.g., "sink" instead of "sync"). Use context to interpret the correct meaning, but do not alter the factual substance.
         3. **Filter Noise:** Ignore small talk, pleasantries, incomplete sentences, and non-substantive filler (um, ah). Focus on the "business" of the meeting.
-        4. **Language Handling:** Detect the dominant language of the business discussion. But output summary in English. Retain specific technical terms or proper nouns in their original language.
+        4. **Language Handling:** Detect the dominant language of the business discussion. Retain specific technical terms or proper nouns in their original language.
 
         ### OUTPUT FORMAT
         You must output a single, valid JSON object. Do not include markdown formatting (```json), explanations, or raw text outside the braces.

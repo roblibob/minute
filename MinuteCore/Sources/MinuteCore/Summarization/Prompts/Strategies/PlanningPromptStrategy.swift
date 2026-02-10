@@ -24,7 +24,7 @@ public struct PlanningPromptStrategy: PromptStrategy {
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript.
         2. **Focus on Scope & Deadlines:** This is a planning session. Focus on defining scope (what is in/out), assigning ownership, and establishing timelines/deadlines.
         3. **Filter Noise:** Ignore small talk and filler.
-        4. **Language Handling:** Detect the dominant language. But output summary in English.
+            4. **Language Handling:** Detect the dominant language. Retain specific technical terms or proper nouns in their original language.
 
         ### OUTPUT FORMAT
         You must output a single, valid JSON object. Do not include markdown formatting or raw text outside the braces.

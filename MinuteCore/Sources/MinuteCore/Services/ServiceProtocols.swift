@@ -31,6 +31,10 @@ public struct AudioCaptureResult: Sendable {
 public protocol AudioServicing: Sendable {
     func startRecording() async throws
 
+    /// Cancels an in-progress recording session and discards any temporary capture artifacts.
+    /// Implementations should be best-effort and must not create vault outputs.
+    func cancelRecording() async
+
     /// Stops recording and returns a contract-compliant WAV file URL and its duration.
     func stopRecording() async throws -> AudioCaptureResult
 
@@ -131,7 +135,8 @@ public protocol SummarizationServicing: Sendable {
     func summarize(
         transcript: String,
         meetingDate: Date,
-        meetingType: MeetingType
+        meetingType: MeetingType,
+        languageProcessing: LanguageProcessingProfile
     ) async throws -> String
 
     /// Classifies the meeting type based on the transcript.

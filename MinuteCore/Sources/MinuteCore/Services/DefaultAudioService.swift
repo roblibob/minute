@@ -127,6 +127,48 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
         logger.info("Recording started: \(captureURL.path, privacy: .public) format=\(captureFormat.sampleRate)Hz")
     }
 
+    public func cancelRecording() async {
+        let logger = logger
+
+        if engine != nil {
+            guard let engine else {
+                return
+            }
+
+            await MainActor.run {
+                engine.inputNode.removeTap(onBus: 0)
+                engine.stop()
+            }
+        }
+        self.engine = nil
+
+        let systemCapture = systemCapture
+        self.systemCapture = nil
+        if let systemCapture {
+            try? await systemCapture.stop()
+        }
+
+        self.tapWriter = nil
+
+        let sessionDirectoryToRemove = sessionDirectoryURL
+        self.sessionDirectoryURL = nil
+        self.captureURL = nil
+        self.systemCaptureURL = nil
+
+        levelMixer.updateMic(0)
+        levelMixer.updateSystem(0)
+
+        if let sessionDirectoryToRemove {
+            do {
+                try FileManager.default.removeItem(at: sessionDirectoryToRemove)
+            } catch {
+                logger.error("Failed to remove canceled recording session directory: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+            }
+        }
+
+        logger.info("Recording canceled")
+    }
+
     public func stopRecording() async throws -> AudioCaptureResult {
         try Task.checkCancellation()
 

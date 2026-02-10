@@ -2,38 +2,74 @@ import Foundation
 import Testing
 @testable import MinuteCore
 
-struct VaultWriteCoverageTests {
+struct MeetingPipelineCoordinatorLanguageProcessingTests {
     @Test
-    func execute_doesNotWriteTranscriptWhenDisabled() async throws {
+    func execute_threadsLanguageProcessingIntoSummarization() async throws {
         let vaultRootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: vaultRootURL) }
 
-        let context = try makePipelineContext(saveAudio: false, saveTranscript: false)
-        let coordinator = makeCoordinator(
-            vaultRootURL: vaultRootURL,
+        let summarizationService = CapturingSummarizationService(
             summarizationJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12"),
             repairJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12")
         )
 
-        let result = try await coordinator.execute(context: context)
+        let coordinator = try makeCoordinator(
+            vaultRootURL: vaultRootURL,
+            summarizationService: summarizationService
+        )
 
-        #expect(FileManager.default.fileExists(atPath: result.noteURL.path))
-        #expect(result.audioURL == nil)
+        let context = try makePipelineContext(
+            saveAudio: false,
+            saveTranscript: false,
+            languageProcessing: .autoPreserve
+        )
 
-        let contract = MeetingFileContract(folders: context.vaultFolders)
-        let transcriptRelativePath = contract.transcriptRelativePath(date: context.startedAt, title: "Weekly Sync")
-        let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
-        #expect(!FileManager.default.fileExists(atPath: transcriptURL.path))
+        _ = try await coordinator.execute(context: context)
+
+        let captured = await summarizationService.lastLanguageProcessing
+        #expect(captured == .autoPreserve)
+    }
+}
+
+private actor CapturingSummarizationService: SummarizationServicing {
+    private let summarizationJSON: String
+    private let repairJSON: String
+
+    var lastLanguageProcessing: LanguageProcessingProfile?
+
+    init(summarizationJSON: String, repairJSON: String) {
+        self.summarizationJSON = summarizationJSON
+        self.repairJSON = repairJSON
+    }
+
+    func summarize(
+        transcript: String,
+        meetingDate: Date,
+        meetingType: MeetingType,
+        languageProcessing: LanguageProcessingProfile
+    ) async throws -> String {
+        _ = transcript
+        _ = meetingDate
+        _ = meetingType
+        lastLanguageProcessing = languageProcessing
+        return summarizationJSON
+    }
+
+    func classify(transcript: String) async throws -> MeetingType {
+        _ = transcript
+        return .general
+    }
+
+    func repairJSON(_ invalidJSON: String) async throws -> String {
+        _ = invalidJSON
+        return repairJSON
     }
 }
 
 private struct TestModelManager: ModelManaging {
-    var progressSteps: [Double]
-
     func ensureModelsPresent(progress: (@Sendable (ModelDownloadProgress) -> Void)?) async throws {
-        for step in progressSteps {
-            progress?(ModelDownloadProgress(fractionCompleted: step, label: "test"))
-        }
+        progress?(ModelDownloadProgress(fractionCompleted: 0, label: "test"))
+        progress?(ModelDownloadProgress(fractionCompleted: 1, label: "test"))
     }
 
     func validateModels() async throws -> ModelValidationResult {
@@ -46,49 +82,37 @@ private struct TestModelManager: ModelManaging {
 }
 
 private struct TestTranscriptionService: TranscriptionServicing {
-    var result: TranscriptionResult
-
     func transcribe(wavURL: URL) async throws -> TranscriptionResult {
         _ = wavURL
-        return result
+        return TranscriptionResult(
+            text: "Hello world",
+            segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "Hello world")]
+        )
     }
 }
 
-private struct TestSummarizationService: SummarizationServicing {
-    var summarizationJSON: String
-    var repairJSON: String
-
-    func summarize(
-        transcript: String,
-        meetingDate: Date,
-        meetingType: MeetingType,
-        languageProcessing: LanguageProcessingProfile
-    ) async throws -> String {
-        _ = transcript
-        _ = meetingDate
-        _ = meetingType
-        _ = languageProcessing
-        return summarizationJSON
-    }
-
-    func classify(transcript: String) async throws -> MeetingType {
-        return .general
-    }
-
-    func repairJSON(_ invalidJSON: String) async throws -> String {
-        _ = invalidJSON
-        return repairJSON
+private struct TestDiarizationService: DiarizationServicing {
+    func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment] {
+        _ = wavURL
+        _ = embeddingExportURL
+        return []
     }
 }
 
 private struct TestVaultWriter: VaultWriting {
     func writeAtomically(data: Data, to destinationURL: URL) throws {
-        try ensureDirectoryExists(destinationURL.deletingLastPathComponent())
+        try FileManager.default.createDirectory(
+            at: destinationURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         try data.write(to: destinationURL, options: [.atomic])
     }
 
     func ensureDirectoryExists(_ url: URL) throws {
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: url,
+            withIntermediateDirectories: true
+        )
     }
 }
 
@@ -114,26 +138,21 @@ private final class TestBookmarkStore: VaultBookmarkStoring {
 
 private func makeCoordinator(
     vaultRootURL: URL,
-    summarizationJSON: String,
-    repairJSON: String
-) -> MeetingPipelineCoordinator {
-    let bookmark = try? VaultAccess.makeBookmarkData(forVaultRootURL: vaultRootURL)
+    summarizationService: some SummarizationServicing
+) throws -> MeetingPipelineCoordinator {
+    let bookmark = try VaultAccess.makeBookmarkData(forVaultRootURL: vaultRootURL)
     let store = TestBookmarkStore(bookmark: bookmark)
     let access = VaultAccess(bookmarkStore: store)
 
     return MeetingPipelineCoordinator(
-        transcriptionService: TestTranscriptionService(result: TranscriptionResult(
-            text: "Hello world",
-            segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "Hello world")]
-        )),
-        diarizationService: TestDiarizationService(segments: []),
+        transcriptionService: TestTranscriptionService(),
+        diarizationService: TestDiarizationService(),
         summarizationServiceProvider: {
-            TestSummarizationService(summarizationJSON: summarizationJSON, repairJSON: repairJSON)
+            summarizationService
         },
-        modelManager: TestModelManager(progressSteps: [0, 1]),
+        modelManager: TestModelManager(),
         vaultAccess: access,
-        vaultWriter: TestVaultWriter(),
-        dateProvider: Date.init
+        vaultWriter: TestVaultWriter()
     )
 }
 
@@ -146,7 +165,8 @@ private func makeTemporaryVault() throws -> URL {
 
 private func makePipelineContext(
     saveAudio: Bool,
-    saveTranscript: Bool
+    saveTranscript: Bool,
+    languageProcessing: LanguageProcessingProfile
 ) throws -> PipelineContext {
     let audioTempURL = try makeTemporaryAudioFile()
     let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
@@ -163,8 +183,7 @@ private func makePipelineContext(
         workingDirectoryURL: workingDirectoryURL,
         saveAudio: saveAudio,
         saveTranscript: saveTranscript,
-        screenContextEvents: [],
-        transcriptionOverride: nil
+        languageProcessing: languageProcessing
     )
 }
 
@@ -180,23 +199,13 @@ private func makeTemporaryAudioFile() throws -> URL {
 private func validExtractionJSON(title: String, date: String) -> String {
     return #"""
     {
-      "title": "\#(title)",
-      "date": "\#(date)",
-      "summary": "Summary",
-      "decisions": [],
-      "action_items": [],
-      "open_questions": [],
-      "key_points": []
+            "title": "\#(title)",
+            "date": "\#(date)",
+            "summary": "Summary",
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+            "key_points": []
     }
     """#
-}
-
-private struct TestDiarizationService: DiarizationServicing {
-    var segments: [SpeakerSegment]
-
-    func diarize(wavURL: URL, embeddingExportURL: URL?) async throws -> [SpeakerSegment] {
-        _ = wavURL
-        _ = embeddingExportURL
-        return segments
-    }
 }

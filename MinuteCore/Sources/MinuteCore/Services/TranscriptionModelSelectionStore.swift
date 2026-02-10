@@ -1,6 +1,6 @@
 import Foundation
 
-public final class TranscriptionModelSelectionStore {
+public final class TranscriptionModelSelectionStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
 

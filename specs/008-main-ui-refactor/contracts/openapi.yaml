@@ -1,0 +1,166 @@
+openapi: 3.0.3
+info:
+  title: Minute Recording Stage Contract (Abstract)
+  version: 0.1.0
+  description: |
+    This OpenAPI document is an *abstract* contract used to specify the UI ↔ core boundary
+    for the Recording Stage refactor. Minute is not an HTTP service; endpoints represent
+    commands/events the UI issues and the core responds to.
+
+servers:
+  - url: http://localhost
+
+paths:
+  /stage/preferences:
+    get:
+      summary: Read Stage preferences
+      responses:
+        '200':
+          description: Current persisted Stage preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StagePreferences'
+    put:
+      summary: Persist Stage preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StagePreferences'
+      responses:
+        '204':
+          description: Updated
+
+  /recording/start:
+    post:
+      summary: Start recording
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartRecordingRequest'
+      responses:
+        '200':
+          description: Recording started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingStatus'
+        '409':
+          description: Not allowed (e.g., no sources enabled)
+
+  /recording/stop:
+    post:
+      summary: Stop recording (proceed with normal processing)
+      responses:
+        '200':
+          description: Recording stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingStatus'
+
+  /recording/cancel:
+    post:
+      summary: Cancel recording (discard session; no meeting output)
+      responses:
+        '200':
+          description: Recording canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordingStatus'
+
+  /import/audio:
+    post:
+      summary: Import an audio/media file for processing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRequest'
+      responses:
+        '202':
+          description: Import accepted
+
+components:
+  schemas:
+    MeetingType:
+      type: string
+      description: User-facing meeting type selection.
+      enum:
+        - autodetect
+        - general
+        - standup
+        - designReview
+        - oneOnOne
+        - presentation
+        - planning
+
+    LanguageProcessingProfile:
+      type: object
+      required: [input, output]
+      properties:
+        input:
+          type: string
+          description: Input language selection (e.g., auto).
+        output:
+          type: string
+          description: Output language selection (e.g., English).
+
+    CaptureSources:
+      type: object
+      required: [microphoneEnabled, systemAudioEnabled, screenContextEnabled]
+      properties:
+        microphoneEnabled:
+          type: boolean
+        systemAudioEnabled:
+          type: boolean
+        screenContextEnabled:
+          type: boolean
+        screenContextSelection:
+          type: string
+          nullable: true
+          description: Optional selection descriptor; null represents None.
+
+    StagePreferences:
+      type: object
+      required: [meetingType, languageProcessing, captureSources]
+      properties:
+        meetingType:
+          $ref: '#/components/schemas/MeetingType'
+        languageProcessing:
+          $ref: '#/components/schemas/LanguageProcessingProfile'
+        captureSources:
+          $ref: '#/components/schemas/CaptureSources'
+
+    StartRecordingRequest:
+      type: object
+      required: [preferences]
+      properties:
+        preferences:
+          $ref: '#/components/schemas/StagePreferences'
+
+    RecordingStatus:
+      type: object
+      required: [state]
+      properties:
+        state:
+          type: string
+          enum: [idle, recording, stopping, canceling]
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ImportRequest:
+      type: object
+      required: [fileUrl]
+      properties:
+        fileUrl:
+          type: string
+          description: Security-scoped file URL provided by OS.

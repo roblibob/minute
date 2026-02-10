@@ -34,4 +34,14 @@ public enum PromptFactory {
             return DesignReviewPromptStrategy()
         }
     }
+
+    public static func systemPrompt(
+        strategy: PromptStrategy,
+        languageProcessing: LanguageProcessingProfile
+    ) -> String {
+        let base = strategy.systemPrompt().trimmingCharacters(in: .whitespacesAndNewlines)
+        let instruction = languageProcessing.summarizationSystemInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !instruction.isEmpty else { return base }
+        return base + "\n\n" + instruction + "\n"
+    }
 }

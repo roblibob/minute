@@ -110,12 +110,81 @@ public enum MeetingPipelineState {
     }
 }
 
-public enum MeetingPipelineAction: Sendable {
+public enum MeetingPipelineAction: Sendable, Codable, Equatable {
     case startRecording
     case startRecordingWithWindow(ScreenContextWindowSelection)
     case stopRecording
+    case cancelRecording
     case process
     case importFile(URL)
     case cancelProcessing
     case reset
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case windowSelection
+        case url
+    }
+
+    private enum Kind: String, Codable {
+        case startRecording
+        case startRecordingWithWindow
+        case stopRecording
+        case cancelRecording
+        case process
+        case importFile
+        case cancelProcessing
+        case reset
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .type)
+
+        switch kind {
+        case .startRecording:
+            self = .startRecording
+        case .startRecordingWithWindow:
+            let selection = try container.decode(ScreenContextWindowSelection.self, forKey: .windowSelection)
+            self = .startRecordingWithWindow(selection)
+        case .stopRecording:
+            self = .stopRecording
+        case .cancelRecording:
+            self = .cancelRecording
+        case .process:
+            self = .process
+        case .importFile:
+            let url = try container.decode(URL.self, forKey: .url)
+            self = .importFile(url)
+        case .cancelProcessing:
+            self = .cancelProcessing
+        case .reset:
+            self = .reset
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case .startRecording:
+            try container.encode(Kind.startRecording, forKey: .type)
+        case .startRecordingWithWindow(let selection):
+            try container.encode(Kind.startRecordingWithWindow, forKey: .type)
+            try container.encode(selection, forKey: .windowSelection)
+        case .stopRecording:
+            try container.encode(Kind.stopRecording, forKey: .type)
+        case .cancelRecording:
+            try container.encode(Kind.cancelRecording, forKey: .type)
+        case .process:
+            try container.encode(Kind.process, forKey: .type)
+        case .importFile(let url):
+            try container.encode(Kind.importFile, forKey: .type)
+            try container.encode(url, forKey: .url)
+        case .cancelProcessing:
+            try container.encode(Kind.cancelProcessing, forKey: .type)
+        case .reset:
+            try container.encode(Kind.reset, forKey: .type)
+        }
+    }
 }

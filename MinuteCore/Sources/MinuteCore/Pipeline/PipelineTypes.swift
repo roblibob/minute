@@ -62,6 +62,7 @@ public struct PipelineContext: Sendable {
     public var screenContextEvents: [ScreenContextEvent]
     public var transcriptionOverride: TranscriptionResult?
     public var meetingType: MeetingType
+    public var languageProcessing: LanguageProcessingProfile
     public var knownSpeakerSuggestionsEnabled: Bool
 
     public init(
@@ -78,6 +79,7 @@ public struct PipelineContext: Sendable {
         screenContextEvents: [ScreenContextEvent] = [],
         transcriptionOverride: TranscriptionResult? = nil,
         meetingType: MeetingType = .autodetect,
+        languageProcessing: LanguageProcessingProfile = .autoToEnglish,
         knownSpeakerSuggestionsEnabled: Bool = false
     ) {
         self.vaultFolders = vaultFolders
@@ -93,6 +95,7 @@ public struct PipelineContext: Sendable {
         self.screenContextEvents = screenContextEvents
         self.transcriptionOverride = transcriptionOverride
         self.meetingType = meetingType
+        self.languageProcessing = languageProcessing
         self.knownSpeakerSuggestionsEnabled = knownSpeakerSuggestionsEnabled
     }
 }

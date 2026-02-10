@@ -24,7 +24,7 @@ public struct DesignReviewPromptStrategy: PromptStrategy {
         1. **Truthfulness is Paramount:** Base all outputs *exclusively* on the provided transcript.
         2. **Focus on Feedback & UX:** This is a design review. Focus on specific feedback given (visual, flow, interaction), design changes approved, and user experience questions raised.
         3. **Filter Noise:** Ignore small talk and filler.
-        4. **Language Handling:** Detect the dominant language. But output summary in English.
+            4. **Language Handling:** Detect the dominant language. Retain specific technical terms or proper nouns in their original language.
 
         ### OUTPUT FORMAT
         You must output a single, valid JSON object. Do not include markdown formatting or raw text outside the braces.

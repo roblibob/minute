@@ -57,13 +57,20 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         )
     }
 
-    public func summarize(transcript: String, meetingDate: Date, meetingType: MeetingType) async throws -> String {
+    public func summarize(
+        transcript: String,
+        meetingDate: Date,
+        meetingType: MeetingType,
+        languageProcessing: LanguageProcessingProfile
+    ) async throws -> String {
         let strategy = PromptFactory.strategy(for: meetingType)
         // Prepend date context to transcript for the model
         let datedTranscript = "Meeting Date: \(MinuteISODate.format(meetingDate))\n\n\(transcript)"
+
+        let systemPrompt = PromptFactory.systemPrompt(strategy: strategy, languageProcessing: languageProcessing)
         
         return try await runLlama(
-            systemPrompt: strategy.systemPrompt(),
+            systemPrompt: systemPrompt,
             userPrompt: strategy.userPrompt(for: datedTranscript)
         )
     }

@@ -11,6 +11,49 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class MeetingPipelineViewModel: ObservableObject {
+    struct RecordingPermissions: Sendable {
+        var requestMicrophonePermission: @Sendable () async throws -> Bool
+        var requestScreenRecordingPermission: @Sendable () async throws -> Bool
+
+        nonisolated static func live() -> RecordingPermissions {
+            RecordingPermissions(
+                requestMicrophonePermission: {
+                    // Gate on microphone permission.
+                    let status = AVCaptureDevice.authorizationStatus(for: .audio)
+                    switch status {
+                    case .authorized:
+                        return true
+
+                    case .notDetermined:
+                        let granted = await AVCaptureDevice.requestAccess(for: .audio)
+                        if !granted { throw MinuteError.permissionDenied }
+                        return granted
+
+                    case .denied, .restricted:
+                        throw MinuteError.permissionDenied
+
+                    @unknown default:
+                        throw MinuteError.permissionDenied
+                    }
+                },
+                requestScreenRecordingPermission: {
+                    let granted = await ScreenRecordingPermission.refresh()
+                    if !granted {
+                        throw MinuteError.screenRecordingPermissionDenied
+                    }
+                    return granted
+                }
+            )
+        }
+
+        nonisolated static func alwaysGranted() -> RecordingPermissions {
+            RecordingPermissions(
+                requestMicrophonePermission: { true },
+                requestScreenRecordingPermission: { true }
+            )
+        }
+    }
+
     struct VaultStatus: Equatable {
         var displayText: String
         var isConfigured: Bool
@@ -44,6 +87,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     @Published private(set) var latestScreenCaptureImage: NSImage? = nil
     @Published private(set) var recoverableRecordings: [RecoverableRecording] = []
     @Published var meetingType: MeetingType = .autodetect
+    @Published var languageProcessing: LanguageProcessingProfile = .autoToEnglish
 
     private let audioService: any AudioServicing
     private let mediaImportService: any MediaImporting
@@ -54,12 +98,15 @@ final class MeetingPipelineViewModel: ObservableObject {
     private let screenContextCaptureService: ScreenContextCaptureService
     private let screenContextVideoExtractor: ScreenContextVideoFrameExtractor
     private let screenContextSettingsStore: ScreenContextSettingsStore
+    private let recordingPermissions: RecordingPermissions
+    private let stagePreferencesStore: StagePreferencesStore
 
     private let vaultAccess: VaultAccess
 
     private let logger = Logger(subsystem: "roblibob.Minute", category: "pipeline")
 
     private var defaultsObserver: AnyCancellable?
+    private var cancellables: Set<AnyCancellable> = []
     private var processingTask: Task<Void, Never>?
     private var backgroundProcessingObserverTask: Task<Void, Never>?
     private var lastAudioLevelUpdate: CFTimeInterval = 0
@@ -82,7 +129,9 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenContextCaptureService: ScreenContextCaptureService,
         screenContextVideoExtractor: ScreenContextVideoFrameExtractor,
         screenContextSettingsStore: ScreenContextSettingsStore,
-        vaultAccess: VaultAccess
+        vaultAccess: VaultAccess,
+        recordingPermissions: RecordingPermissions = .live(),
+        stagePreferencesStore: StagePreferencesStore = StagePreferencesStore()
     ) {
         self.audioService = audioService
         self.mediaImportService = mediaImportService
@@ -94,8 +143,12 @@ final class MeetingPipelineViewModel: ObservableObject {
         self.screenContextCaptureService = screenContextCaptureService
         self.screenContextVideoExtractor = screenContextVideoExtractor
         self.screenContextSettingsStore = screenContextSettingsStore
+        self.recordingPermissions = recordingPermissions
+        self.stagePreferencesStore = stagePreferencesStore
         self.vaultAccess = vaultAccess
         self.screenCaptureEnabled = screenContextSettingsStore.isEnabled
+
+        loadStagePreferences()
 
         refreshVaultStatus()
         refreshMicrophonePermission()
@@ -107,9 +160,70 @@ final class MeetingPipelineViewModel: ObservableObject {
                 self?.refreshVaultStatus()
             }
 
+        startStagePreferencesObservation()
+
         refreshRecoverableRecordings()
 
         startBackgroundProcessingObservation()
+    }
+
+    private func loadStagePreferences() {
+        let preferences = stagePreferencesStore.load()
+        meetingType = preferences.meetingType
+        languageProcessing = preferences.languageProcessing
+        microphoneCaptureEnabled = preferences.microphoneEnabled
+        systemAudioCaptureEnabled = preferences.systemAudioEnabled
+
+        Task { [weak self] in
+            await self?.applyAudioCaptureToggles()
+        }
+    }
+
+    private func saveStagePreferences() {
+        stagePreferencesStore.save(
+            StagePreferences(
+                meetingType: meetingType,
+                languageProcessing: languageProcessing,
+                microphoneEnabled: microphoneCaptureEnabled,
+                systemAudioEnabled: systemAudioCaptureEnabled
+            )
+        )
+    }
+
+    private func startStagePreferencesObservation() {
+        $meetingType
+            .map(\.rawValue)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.saveStagePreferences()
+            }
+            .store(in: &cancellables)
+
+        $languageProcessing
+            .map(\.rawValue)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.saveStagePreferences()
+            }
+            .store(in: &cancellables)
+
+        $microphoneCaptureEnabled
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.saveStagePreferences()
+            }
+            .store(in: &cancellables)
+
+        $systemAudioCaptureEnabled
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.saveStagePreferences()
+            }
+            .store(in: &cancellables)
     }
 
     deinit {
@@ -150,7 +264,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         let transcriptionSelectionStore = TranscriptionModelSelectionStore()
         let transcriptionBackendStore = TranscriptionBackendSelectionStore()
         let fluidAudioModelStore = FluidAudioASRModelSelectionStore()
-        let summarizationServiceProvider: () -> any SummarizationServicing = {
+        let summarizationServiceProvider: @Sendable () -> any SummarizationServicing = {
             LlamaLibrarySummarizationService.liveDefault(selectionStore: selectionStore)
         }
         let transcriptionService: any TranscriptionServicing
@@ -218,6 +332,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             startRecordingIfAllowed(selection: selection)
         case .stopRecording:
             stopRecordingIfAllowed()
+        case .cancelRecording:
+            cancelSessionIfAllowed()
         case .process:
             processIfAllowed()
         case .importFile(let url):
@@ -306,6 +422,15 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenCaptureSelection != nil
     }
 
+    var screenCaptureSelectionDisplayText: String? {
+        guard let selection = screenCaptureSelection else { return nil }
+        let title = selection.windowTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if title.isEmpty {
+            return selection.applicationName
+        }
+        return "\(selection.applicationName) — \(title)"
+    }
+
     func setMicrophoneCaptureEnabled(_ enabled: Bool) {
         guard microphoneCaptureEnabled != enabled else { return }
         microphoneCaptureEnabled = enabled
@@ -368,31 +493,8 @@ final class MeetingPipelineViewModel: ObservableObject {
 
         Task {
             do {
-                // Gate on microphone permission.
-                let status = AVCaptureDevice.authorizationStatus(for: .audio)
-                switch status {
-                case .authorized:
-                    microphonePermissionGranted = true
-
-                case .notDetermined:
-                    let granted = await AVCaptureDevice.requestAccess(for: .audio)
-                    microphonePermissionGranted = granted
-                    if !granted { throw MinuteError.permissionDenied }
-
-                case .denied, .restricted:
-                    microphonePermissionGranted = false
-                    throw MinuteError.permissionDenied
-
-                @unknown default:
-                    microphonePermissionGranted = false
-                    throw MinuteError.permissionDenied
-                }
-
-                let screenGranted = await ScreenRecordingPermission.refresh()
-                screenRecordingPermissionGranted = screenGranted
-                if !screenGranted {
-                    throw MinuteError.screenRecordingPermissionDenied
-                }
+                microphonePermissionGranted = try await recordingPermissions.requestMicrophonePermission()
+                screenRecordingPermissionGranted = try await recordingPermissions.requestScreenRecordingPermission()
 
                 if let selection {
                     screenCaptureSelection = selection
@@ -434,6 +536,29 @@ final class MeetingPipelineViewModel: ObservableObject {
                 state = .failed(error: .audioExportFailed, debugOutput: ErrorHandler.debugMessage(for: error))
                 captureState = .ready
             }
+        }
+    }
+
+    private func cancelSessionIfAllowed() {
+        guard case .recording = state else { return }
+        guard captureState == .recording else { return }
+
+        Task {
+            await stopAudioLevelMonitoring()
+            resetAudioLevelSamples()
+            await screenContextCaptureService.cancelCapture()
+            screenInferenceStatus = nil
+            screenContextEvents = []
+            screenCaptureSelection = nil
+            latestScreenCaptureImage = nil
+            screenCaptureBaseProcessedCount = 0
+            screenCaptureBaseSkippedCount = 0
+
+            await audioService.cancelRecording()
+
+            progress = nil
+            state = .idle
+            captureState = .ready
         }
     }
 
@@ -531,7 +656,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                             isFirstInferenceDeferred: false
                         )
                     } else {
-                        logger.info("Screen context extraction returned nil for \(url.absoluteString, privacy: .public)")
+                        logger.info("Screen context extraction returned nil for imported video \(url.lastPathComponent, privacy: .private(mask: .hash))")
                         screenInferenceStatus = nil
                     }
                 }
@@ -678,7 +803,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 }
             )
         } catch {
-            logger.error("Screen context capture failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+            logger.error("Screen context capture failed: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
         }
     }
 
@@ -745,7 +870,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         do {
             return try await screenContextVideoExtractor.inferEvents(from: sourceURL)
         } catch {
-            logger.error("Video screen context failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+            logger.error("Video screen context failed: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
             return nil
         }
     }
@@ -842,6 +967,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             screenContextEvents: screenContextEvents,
             transcriptionOverride: nil,
             meetingType: meetingType,
+            languageProcessing: languageProcessing,
             knownSpeakerSuggestionsEnabled: configuration.knownSpeakerSuggestionsEnabled
         )
     }

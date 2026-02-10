@@ -1,0 +1,44 @@
+import Foundation
+import Testing
+@testable import MinuteCore
+
+struct PromptFactoryLanguageProcessingTests {
+    @Test
+    func systemPrompt_appendsLanguageProcessingInstruction_withTrailingNewline() {
+        let strategy = GeneralPromptStrategy()
+        let instruction = LanguageProcessingProfile.autoToEnglish
+            .summarizationSystemInstruction
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let result = PromptFactory.systemPrompt(strategy: strategy, languageProcessing: .autoToEnglish)
+
+        #expect(result.contains("### CORE INSTRUCTIONS"))
+        #expect(result.contains(instruction))
+        #expect(result.hasSuffix("\n\n\(instruction)\n"))
+    }
+
+    @Test
+    func systemPrompt_usesDifferentInstruction_forDifferentProfiles() {
+        let strategy = GeneralPromptStrategy()
+
+        let english = PromptFactory.systemPrompt(strategy: strategy, languageProcessing: .autoToEnglish)
+        let preserve = PromptFactory.systemPrompt(strategy: strategy, languageProcessing: .autoPreserve)
+
+        #expect(english != preserve)
+        #expect(english.contains(LanguageProcessingProfile.autoToEnglish.summarizationSystemInstruction))
+        #expect(!english.contains(LanguageProcessingProfile.autoPreserve.summarizationSystemInstruction))
+
+        #expect(preserve.contains(LanguageProcessingProfile.autoPreserve.summarizationSystemInstruction))
+        #expect(!preserve.contains(LanguageProcessingProfile.autoToEnglish.summarizationSystemInstruction))
+    }
+
+    @Test
+    func promptStrategies_doNotHardcodeEnglishOutputLanguage() {
+        for meetingType in MeetingType.allCases {
+            let prompt = PromptFactory.strategy(for: meetingType).systemPrompt()
+            #expect(!prompt.contains("output summary in English"))
+            #expect(!prompt.contains("output the summary in English"))
+            #expect(!prompt.contains("Always output the summary in English"))
+        }
+    }
+}

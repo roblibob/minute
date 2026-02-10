@@ -1,6 +1,6 @@
 import Foundation
 
-public final class SummarizationModelSelectionStore {
+public final class SummarizationModelSelectionStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
 

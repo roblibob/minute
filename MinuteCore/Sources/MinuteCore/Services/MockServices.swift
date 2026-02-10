@@ -27,6 +27,10 @@ public final class MockAudioService: AudioServicing, AudioLevelMetering, AudioCa
         isRecording = true
     }
 
+    public func cancelRecording() async {
+        isRecording = false
+    }
+
     public func stopRecording() async throws -> AudioCaptureResult {
         guard isRecording else {
             // For now treat as generic failure.
@@ -120,10 +124,16 @@ public struct MissingTranscriptionService: TranscriptionServicing {
 /// Used by the live pipeline when the llama executable is not yet bundled / configured.
 public struct MissingSummarizationService: SummarizationServicing {
     public init() {}
-    public func summarize(transcript: String, meetingDate: Date, meetingType: MeetingType) async throws -> String {
+    public func summarize(
+        transcript: String,
+        meetingDate: Date,
+        meetingType: MeetingType,
+        languageProcessing: LanguageProcessingProfile
+    ) async throws -> String {
         _ = transcript
         _ = meetingDate
         _ = meetingType
+        _ = languageProcessing
         throw MinuteError.llamaMissing
     }
 
@@ -155,11 +165,17 @@ public struct MockScreenContextInferenceService: ScreenContextInferencing {
 
 public struct MockSummarizationService: SummarizationServicing {
     public init() {}
-    public func summarize(transcript: String, meetingDate: Date, meetingType: MeetingType) async throws -> String {
+    public func summarize(
+        transcript: String,
+        meetingDate: Date,
+        meetingType: MeetingType,
+        languageProcessing: LanguageProcessingProfile
+    ) async throws -> String {
         try await Task.sleep(nanoseconds: 800_000_000)
 
         // Do NOT include the transcript in outputs.
         _ = transcript
+        _ = languageProcessing
         let iso = MinuteISODate.format(meetingDate)
         let title = "Meeting \(iso) (\(meetingType.rawValue))"
 
