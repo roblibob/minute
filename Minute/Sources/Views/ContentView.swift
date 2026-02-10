@@ -5,9 +5,9 @@
 //  Created by Robert Holst on 12/19/25.
 //
 
-import MinuteCore	
+import MinuteCore
 import SwiftUI
- 
+
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel

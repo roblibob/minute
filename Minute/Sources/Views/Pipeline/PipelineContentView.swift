@@ -73,7 +73,7 @@ struct PipelineContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(MinuteTheme.windowBackground)
-            
+
             .onAppear {
                 model.refreshVaultStatus()
                 notesModel.refresh()

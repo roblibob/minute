@@ -68,7 +68,7 @@ struct RecordingSessionCardView: View {
             VStack(alignment: .leading, spacing: 30) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
-                        
+
                         if isRecording {
                             Text("Session in progress")
                                 .font(.system(size: 20, weight: .semibold))

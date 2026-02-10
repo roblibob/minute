@@ -132,7 +132,7 @@ struct ScreenContextWindowPickerPopover: View {
         var suggestions: [RecordingWindowItem] = []
 
         for window in windows {
-            let key = (window.bundleIdentifier?.lowercased() ?? window.applicationName.lowercased())
+            let key = window.bundleIdentifier.lowercased()
             guard seenApplications.insert(key).inserted else { continue }
             suggestions.append(window)
             if suggestions.count == 3 {
@@ -293,9 +293,11 @@ struct ScreenContextWindowPickerPopover: View {
 
             for window in content.windows {
                 guard let app = window.owningApplication else { continue }
+                let bundleIdentifier = app.bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !bundleIdentifier.isEmpty else { continue }
                 let title = (window.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard shouldIncludeWindow(
-                    bundleIdentifier: app.bundleIdentifier,
+                    bundleIdentifier: bundleIdentifier,
                     applicationName: app.applicationName,
                     title: title,
                     frame: window.frame
@@ -305,7 +307,7 @@ struct ScreenContextWindowPickerPopover: View {
 
                 let item = RecordingWindowItem(
                     id: window.windowID,
-                    bundleIdentifier: app.bundleIdentifier,
+                    bundleIdentifier: bundleIdentifier,
                     applicationName: app.applicationName,
                     windowTitle: title,
                     processID: app.processID,
@@ -377,14 +379,13 @@ struct ScreenContextWindowPickerPopover: View {
 
     private func selection(for window: RecordingWindowItem) -> ScreenContextWindowSelection {
         ScreenContextWindowSelection(
-            bundleIdentifier: window.bundleIdentifier ?? "",
+            bundleIdentifier: window.bundleIdentifier,
             applicationName: window.applicationName,
             windowTitle: window.windowTitle
         )
     }
 
-    private func applicationIcon(bundleIdentifier: String?) -> NSImage? {
-        guard let bundleIdentifier else { return nil }
+    private func applicationIcon(bundleIdentifier: String) -> NSImage? {
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
             return nil
         }
@@ -394,7 +395,7 @@ struct ScreenContextWindowPickerPopover: View {
     }
 
     private func shouldIncludeWindow(
-        bundleIdentifier: String?,
+        bundleIdentifier: String,
         applicationName: String,
         title: String,
         frame: CGRect
@@ -422,14 +423,12 @@ struct ScreenContextWindowPickerPopover: View {
         return true
     }
 
-    private func isExcludedBundleIdentifier(_ bundleIdentifier: String?) -> Bool {
-        guard let bundleIdentifier else { return false }
+    private func isExcludedBundleIdentifier(_ bundleIdentifier: String) -> Bool {
         let normalized = normalizeToken(bundleIdentifier)
         return normalizedExcludedBundleIdentifiers.contains(normalized)
     }
 
-    private func isCuratedBlacklistedBundleIdentifier(_ bundleIdentifier: String?) -> Bool {
-        guard let bundleIdentifier else { return false }
+    private func isCuratedBlacklistedBundleIdentifier(_ bundleIdentifier: String) -> Bool {
         let normalized = normalizeToken(bundleIdentifier)
         if normalizedEffectiveBlacklistedBundleIdentifiers.contains(normalized) {
             return true
@@ -469,7 +468,7 @@ struct ScreenContextWindowPickerPopover: View {
     }
 
     private func windowScore(_ window: RecordingWindowItem) -> Int {
-        let normalizedBundle = normalizeToken(window.bundleIdentifier ?? "")
+        let normalizedBundle = normalizeToken(window.bundleIdentifier)
         let normalizedAppName = normalizeApplicationName(window.applicationName)
         let normalizedTitle = normalizeApplicationName(window.windowTitle)
 
@@ -731,7 +730,7 @@ private struct RecordingWindowRow: View {
 
 private struct RecordingWindowItem: Identifiable {
     let id: CGWindowID
-    let bundleIdentifier: String?
+    let bundleIdentifier: String
     let applicationName: String
     let windowTitle: String
     let processID: pid_t
