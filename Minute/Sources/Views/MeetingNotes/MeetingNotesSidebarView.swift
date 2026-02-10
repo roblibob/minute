@@ -38,7 +38,10 @@ struct MeetingNotesSidebarView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(MinuteTheme.sidebarBackground)
-            .safeAreaPadding(.top, topInset)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear
+                    .frame(height: topInset)
+            }
     }
 
     @ViewBuilder

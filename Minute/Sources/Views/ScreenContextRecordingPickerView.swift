@@ -2,12 +2,11 @@ import MinuteCore
 import ScreenCaptureKit
 import SwiftUI
 
-struct ScreenContextRecordingPickerView: View {
-    @Environment(\.dismiss) private var dismiss
-    let onSelect: (ScreenContextWindowSelection) -> Void
+struct ScreenContextWindowPickerPopover: View {
+    let currentSelection: ScreenContextWindowSelection?
+    let onSelect: (ScreenContextWindowSelection?) -> Void
 
     @State private var windows: [RecordingWindowItem] = []
-    @State private var selectedID: CGWindowID? = nil
     @State private var isLoading = false
     @State private var errorMessage: String?
 
@@ -23,6 +22,12 @@ struct ScreenContextRecordingPickerView: View {
         "com.apple.ScreenCapture",
     ]
 
+    private let curatedBlacklistedBundleIdentifiers: Set<String> = [
+        // Always exclude Minute itself (and any other app you want hidden).
+        // Note: we also dynamically exclude Bundle.main.bundleIdentifier at runtime.
+        "com.roblibob.Minute",
+    ]
+
     private let excludedApplicationNames: Set<String> = [
         "Window Server",
         "SystemUIServer",
@@ -33,32 +38,52 @@ struct ScreenContextRecordingPickerView: View {
         "loginwindow",
     ]
 
-    private let minimumWindowSize = CGSize(width: 120, height: 80)
+    private let curatedBlacklistedApplicationNames: Set<String> = [
+        // Always exclude Minute itself (and any other app you want hidden).
+        "Minute",
+    ]
 
-    var body: some View {
-        VStack(spacing: 16) {
-            header
-            pickerContent
-            footer
+    private var effectiveBlacklistedBundleIdentifiers: Set<String> {
+        var result = curatedBlacklistedBundleIdentifiers
+        if let mainBundleIdentifier = Bundle.main.bundleIdentifier {
+            result.insert(mainBundleIdentifier)
         }
-        .padding(20)
-        .frame(minWidth: 560, minHeight: 460)
-        .task {
-            await loadWindows()
-        }
+        return result
     }
 
-    private var header: some View {
-        HStack {
-            Text("Select Window")
-                .minuteSectionTitle()
-            Spacer()
-            Button("Refresh") {
-                Task { await loadWindows() }
+    private let minimumWindowSize = CGSize(width: 120, height: 80)
+
+    private let curatedAppOrder: [String] = [
+        "Microsoft Teams",
+        "Slack",
+        "Zoom",
+        "Google Chrome",
+        "Safari",
+        "Arc",
+        "Discord",
+        "FaceTime"
+    ]
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("Screen Context")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.minuteTextPrimary)
+                Spacer()
+                Button("Refresh") {
+                    Task { await loadWindows() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isLoading)
             }
-            .minuteStandardButtonStyle()
-            .disabled(isLoading)
+
+            pickerContent
         }
+        .padding(12)
+        .frame(width: 360, height: 340)
+        .task { await loadWindows() }
     }
 
     @ViewBuilder
@@ -72,39 +97,31 @@ struct ScreenContextRecordingPickerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         } else {
             List {
-                SwiftUI.ForEach($windows, id: \.id) { window in
-                    let windowValue = window.wrappedValue
+                ScreenContextNoneRow(isSelected: currentSelection == nil)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelect(nil)
+                    }
+
+                SwiftUI.ForEach(windows, id: \.id) { window in
+                    let selection = ScreenContextWindowSelection(
+                        bundleIdentifier: window.bundleIdentifier ?? "",
+                        applicationName: window.applicationName,
+                        windowTitle: window.windowTitle
+                    )
+
                     RecordingWindowRow(
-                        title: windowValue.windowTitle.isEmpty ? "Untitled Window" : windowValue.windowTitle,
-                        appName: windowValue.applicationName,
-                        isSelected: selectedID == windowValue.id
+                        title: window.windowTitle.isEmpty ? "Untitled Window" : window.windowTitle,
+                        appName: window.applicationName,
+                        isSelected: currentSelection == selection
                     )
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        selectedID = windowValue.id
+                        onSelect(selection)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private var footer: some View {
-        HStack {
-            Spacer()
-            Button("Cancel") {
-                dismiss()
-            }
-            .minuteStandardButtonStyle()
-
-            Button("Start Recording") {
-                guard let selection = selectedWindowSelection() else { return }
-                onSelect(selection)
-                dismiss()
-            }
-            .minuteStandardButtonStyle()
-            .keyboardShortcut(.defaultAction)
-            .disabled(selectedID == nil || isLoading)
         }
     }
 
@@ -116,7 +133,6 @@ struct ScreenContextRecordingPickerView: View {
         let permissionGranted = await ScreenRecordingPermission.refresh()
         guard permissionGranted else {
             windows = []
-            selectedID = nil
             errorMessage = "Screen recording permission is required to list windows. Grant access in Settings."
             isLoading = false
             return
@@ -141,16 +157,18 @@ struct ScreenContextRecordingPickerView: View {
                 )
             }
             .sorted { lhs, rhs in
-                if lhs.applicationName == rhs.applicationName {
-                    return lhs.windowTitle < rhs.windowTitle
+                let lhsKey = sortKey(appName: lhs.applicationName, title: lhs.windowTitle)
+                let rhsKey = sortKey(appName: rhs.applicationName, title: rhs.windowTitle)
+                if lhsKey != rhsKey {
+                    return lhsKey < rhsKey
                 }
-                return lhs.applicationName < rhs.applicationName
+                if lhs.applicationName != rhs.applicationName {
+                    return lhs.applicationName < rhs.applicationName
+                }
+                return lhs.windowTitle < rhs.windowTitle
             }
 
             windows = items
-            if let current = selectedID, !items.contains(where: { $0.id == current }) {
-                selectedID = nil
-            }
         } catch {
             errorMessage = "Unable to load shareable windows."
         }
@@ -174,21 +192,34 @@ struct ScreenContextRecordingPickerView: View {
         if let bundleIdentifier, excludedBundleIdentifiers.contains(bundleIdentifier) {
             return false
         }
+        if let bundleIdentifier, effectiveBlacklistedBundleIdentifiers.contains(bundleIdentifier) {
+            return false
+        }
         if excludedApplicationNames.contains(applicationName) {
+            return false
+        }
+        if curatedBlacklistedApplicationNames.contains(applicationName) {
+            return false
+        }
+        if applicationName.localizedCaseInsensitiveCompare("Minute") == .orderedSame {
             return false
         }
 
         return true
     }
 
-    private func selectedWindowSelection() -> ScreenContextWindowSelection? {
-        guard let selectedID else { return nil }
-        guard let window = windows.first(where: { $0.id == selectedID }) else { return nil }
-        return ScreenContextWindowSelection(
-            bundleIdentifier: window.bundleIdentifier,
-            applicationName: window.applicationName,
-            windowTitle: window.windowTitle
-        )
+    private func sortKey(appName: String, title: String) -> Int {
+        let normalizedApp = appName.lowercased()
+        let normalizedTitle = title.lowercased()
+
+        let basePriority = curatedAppOrder.firstIndex { normalizedApp.contains($0.lowercased()) }
+            ?? curatedAppOrder.count
+
+        if normalizedTitle.contains("meet") || normalizedTitle.contains("teams") || normalizedTitle.contains("zoom") {
+            return min(basePriority, 1)
+        }
+
+        return basePriority
     }
 
     private func fetchShareableContent() async throws -> SCShareableContent {
@@ -226,9 +257,27 @@ private struct RecordingWindowRow: View {
     }
 }
 
+private struct ScreenContextNoneRow: View {
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("None")
+                    .font(.body)
+                Text("Mute screen context")
+                    .minuteCaption()
+            }
+            Spacer()
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+        }
+    }
+}
+
 private struct RecordingWindowItem: Identifiable {
     let id: CGWindowID
-    let bundleIdentifier: String
+    let bundleIdentifier: String?
     let applicationName: String
     let windowTitle: String
 }

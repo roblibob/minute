@@ -1,7 +1,7 @@
 import Foundation
 import UniformTypeIdentifiers
 
-enum StageMediaValidation {
+enum SessionMediaValidation {
     static func isSupportedMediaURL(_ url: URL) -> Bool {
         let ext = normalizedFilenameExtension(from: url)
         if ext == "wav" || ext == "wave" {

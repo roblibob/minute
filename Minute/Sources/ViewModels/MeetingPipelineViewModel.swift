@@ -368,7 +368,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenCaptureBaseSkippedCount = 0
         state = .importing(sourceURL: recording.sessionURL)
 
-        processingTask = Task(priority: .userInitiated) { [weak self] in
+        processingTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
                 let result = try await recoveryService.recover(recording: recording)
@@ -420,6 +420,10 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     var hasScreenCaptureSelection: Bool {
         screenCaptureSelection != nil
+    }
+
+    var currentScreenCaptureSelection: ScreenContextWindowSelection? {
+        screenCaptureSelection
     }
 
     var screenCaptureSelectionDisplayText: String? {
@@ -486,18 +490,47 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
     }
 
+    func setScreenCaptureSelection(_ selection: ScreenContextWindowSelection?) {
+        guard let selection else {
+            clearScreenCaptureSelection()
+            return
+        }
+        setScreenCaptureSelection(selection)
+    }
+
+    func clearScreenCaptureSelection() {
+        screenCaptureSelection = nil
+        latestScreenCaptureImage = nil
+
+        guard screenCaptureEnabled else { return }
+        screenCaptureEnabled = false
+        Task { [weak self] in
+            await self?.stopScreenContextCaptureAndAppend()
+        }
+    }
+
     // MARK: - Actions
 
     private func startRecordingIfAllowed(selection: ScreenContextWindowSelection?) {
         guard captureState == .ready else { return }
+
+        let resolvedSelection: ScreenContextWindowSelection? = {
+            if let selection { return selection }
+            guard screenCaptureEnabled else { return nil }
+            return screenCaptureSelection
+        }()
+
+        if screenCaptureEnabled, resolvedSelection == nil {
+            screenCaptureEnabled = false
+        }
 
         Task {
             do {
                 microphonePermissionGranted = try await recordingPermissions.requestMicrophonePermission()
                 screenRecordingPermissionGranted = try await recordingPermissions.requestScreenRecordingPermission()
 
-                if let selection {
-                    screenCaptureSelection = selection
+                if let resolvedSelection {
+                    screenCaptureSelection = resolvedSelection
                     screenCaptureEnabled = true
                 }
 
@@ -510,7 +543,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 let session = RecordingSession()
                 await applyAudioCaptureToggles()
                 try await audioService.startRecording()
-                await startScreenContextCaptureIfNeeded(selection: selection, offsetSeconds: 0)
+                await startScreenContextCaptureIfNeeded(selection: resolvedSelection, offsetSeconds: 0)
                 await startAudioLevelMonitoring()
                 resetAudioLevelSamples()
                 state = .recording(session: session)
@@ -636,7 +669,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenCaptureBaseSkippedCount = 0
         state = .importing(sourceURL: url)
 
-        processingTask = Task(priority: .userInitiated) { [weak self] in
+        processingTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             do {
                 let result = try await mediaImportService.importMedia(from: url)
@@ -714,7 +747,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         progress = 0
         state = .processing(stage: .downloadingModels, context: context)
 
-        processingTask = Task(priority: .userInitiated) { [weak self] in
+        processingTask = Task(priority: .utility) { [weak self] in
             guard let self else { return }
             await self.runPipeline(context: context)
         }

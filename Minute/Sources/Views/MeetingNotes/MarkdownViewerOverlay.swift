@@ -72,7 +72,8 @@ struct MarkdownViewerOverlay: View {
             Spacer()
             toolbarContent
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
  
     private var toolbarContent: some View {
@@ -143,6 +144,7 @@ struct MarkdownViewerOverlay: View {
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.minuteTextPrimary)
             }
             .buttonStyle(.borderless)
             .controlSize(.large)

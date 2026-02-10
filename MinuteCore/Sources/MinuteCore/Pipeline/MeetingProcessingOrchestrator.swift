@@ -130,7 +130,7 @@ public actor MeetingProcessingOrchestrator {
         let token = await busyGate.beginBusyScope()
         let executePipeline = executePipeline
 
-        activeTask = Task.detached {
+        activeTask = Task.detached(priority: .utility) {
             let outcome: BackgroundProcessingOutcome
 
             do {

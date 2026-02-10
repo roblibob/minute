@@ -22,3 +22,6 @@ Thumbs.db
 # Xcode test outputs
 *.xcresult/
 TestResults/
+
+# SourceKit-LSP / build server (machine-specific)
+buildServer.json
