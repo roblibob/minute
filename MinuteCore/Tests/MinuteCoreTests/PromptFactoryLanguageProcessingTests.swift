@@ -62,7 +62,16 @@ struct PromptFactoryLanguageProcessingTests {
         )
 
         #expect(prompt.contains("Language output mode: Auto -> English."))
-        #expect(prompt.contains("ALWAYS write all user-visible fields"))
+        #expect(prompt.contains("MANDATORY RULE"))
+        #expect(prompt.contains("ALWAYS write all user-visible JSON values"))
         #expect(prompt.contains("in English"))
+    }
+
+    @Test
+    func languageUserInstruction_autoPreserve_forbidsForcedEnglishTranslation() {
+        let instruction = LanguageProcessingProfile.autoPreserve.summarizationUserInstruction
+
+        #expect(instruction.contains("Detect the dominant transcript language"))
+        #expect(instruction.contains("do not translate the output to English"))
     }
 }

@@ -68,10 +68,23 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         let datedTranscript = "Meeting Date: \(MinuteISODate.format(meetingDate))\n\n\(transcript)"
 
         let systemPrompt = PromptFactory.systemPrompt(strategy: strategy, languageProcessing: languageProcessing)
+        logger.info(
+            "Summarization system prompt [meetingType=\(meetingType.rawValue, privacy: .public), languageProcessing=\(languageProcessing.rawValue, privacy: .public)]: \(systemPrompt, privacy: .public)"
+        )
+        let baseUserPrompt = strategy.userPrompt(for: datedTranscript)
+        let languageUserInstruction = languageProcessing
+            .summarizationUserInstruction
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let userPrompt: String
+        if languageUserInstruction.isEmpty {
+            userPrompt = baseUserPrompt
+        } else {
+            userPrompt = languageUserInstruction + "\n\n" + baseUserPrompt
+        }
         
         return try await runLlama(
             systemPrompt: systemPrompt,
-            userPrompt: strategy.userPrompt(for: datedTranscript)
+            userPrompt: userPrompt
         )
     }
 

@@ -82,6 +82,97 @@ struct MeetingPipelineViewModelCancelSessionTests {
             model = nil
         }
     }
+
+    @Test
+    func startRecording_audioOnly_doesNotRequestScreenRecordingPermission() async throws {
+        let audioService = TestAudioService()
+        let permissionsProbe = RecordingPermissionProbe()
+
+        let suiteName = "MeetingPipelineViewModelAudioOnlyPermissionTests"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let stagePreferencesStore = StagePreferencesStore(defaults: defaults)
+        stagePreferencesStore.clear()
+
+        let coordinatorVaultAccess = VaultAccess(bookmarkStore: InMemoryVaultBookmarkStore(bookmark: nil))
+        let viewModelVaultAccess = VaultAccess(bookmarkStore: InMemoryVaultBookmarkStore(bookmark: nil))
+        let summarizationServiceProvider: @Sendable () -> any SummarizationServicing = { MockSummarizationService() }
+
+        let coordinator = MeetingPipelineCoordinator(
+            transcriptionService: MockTranscriptionService(),
+            diarizationService: MockDiarizationService(),
+            summarizationServiceProvider: summarizationServiceProvider,
+            modelManager: MockModelManager(),
+            vaultAccess: coordinatorVaultAccess,
+            vaultWriter: DefaultVaultWriter()
+        )
+
+        let permissions = MeetingPipelineViewModel.RecordingPermissions(
+            requestMicrophonePermission: {
+                try await permissionsProbe.requestMicrophonePermission()
+            },
+            requestScreenRecordingPermission: {
+                try await permissionsProbe.requestScreenRecordingPermission()
+            }
+        )
+
+        var model: MeetingPipelineViewModel? = await MainActor.run {
+            MeetingPipelineViewModel(
+                audioService: audioService,
+                mediaImportService: MockMediaImportService(),
+                recoveryService: MockRecordingRecoveryService(),
+                pipelineCoordinator: coordinator,
+                screenContextCaptureService: ScreenContextCaptureService(inferencer: MockScreenContextInferenceService()),
+                screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: MockScreenContextInferenceService()),
+                screenContextSettingsStore: ScreenContextSettingsStore(),
+                vaultAccess: viewModelVaultAccess,
+                recordingPermissions: permissions,
+                stagePreferencesStore: stagePreferencesStore
+            )
+        }
+        #expect(model != nil)
+
+        await MainActor.run {
+            model?.setScreenCaptureEnabled(false)
+        }
+
+        await MainActor.run {
+            model?.send(.startRecording)
+        }
+
+        try await eventually(timeoutNanoseconds: 1_000_000_000) {
+            await MainActor.run {
+                guard let model else { return false }
+                if case .recording = model.state {
+                    return true
+                }
+                return false
+            }
+        }
+
+        let permissionSnapshot = await permissionsProbe.snapshot()
+        #expect(permissionSnapshot.microphoneRequests == 1)
+        #expect(permissionSnapshot.screenRecordingRequests == 0)
+
+        await MainActor.run {
+            model?.send(.cancelRecording)
+        }
+
+        try await eventually(timeoutNanoseconds: 1_000_000_000) {
+            await MainActor.run {
+                guard let model else { return false }
+                if case .idle = model.state {
+                    return model.captureState == .ready
+                }
+                return false
+            }
+        }
+
+        await MainActor.run {
+            model = nil
+        }
+    }
 }
 
 private actor TestAudioService: AudioServicing, AudioLevelMetering, AudioCaptureControlling {
@@ -123,6 +214,33 @@ private actor TestAudioService: AudioServicing, AudioLevelMetering, AudioCapture
 
     func setSystemAudioEnabled(_ enabled: Bool) async {
         _ = enabled
+    }
+}
+
+private actor RecordingPermissionProbe {
+    struct Snapshot: Sendable {
+        var microphoneRequests: Int
+        var screenRecordingRequests: Int
+    }
+
+    private var microphoneRequests = 0
+    private var screenRecordingRequests = 0
+
+    func requestMicrophonePermission() throws -> Bool {
+        microphoneRequests += 1
+        return true
+    }
+
+    func requestScreenRecordingPermission() throws -> Bool {
+        screenRecordingRequests += 1
+        return true
+    }
+
+    func snapshot() -> Snapshot {
+        Snapshot(
+            microphoneRequests: microphoneRequests,
+            screenRecordingRequests: screenRecordingRequests
+        )
     }
 }
 

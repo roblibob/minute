@@ -519,6 +519,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             guard screenCaptureEnabled else { return nil }
             return screenCaptureSelection
         }()
+        let shouldCaptureScreen = (resolvedSelection != nil)
 
         if screenCaptureEnabled, resolvedSelection == nil {
             screenCaptureEnabled = false
@@ -527,7 +528,9 @@ final class MeetingPipelineViewModel: ObservableObject {
         Task {
             do {
                 microphonePermissionGranted = try await recordingPermissions.requestMicrophonePermission()
-                screenRecordingPermissionGranted = try await recordingPermissions.requestScreenRecordingPermission()
+                if shouldCaptureScreen {
+                    screenRecordingPermissionGranted = try await recordingPermissions.requestScreenRecordingPermission()
+                }
 
                 if let resolvedSelection {
                     screenCaptureSelection = resolvedSelection

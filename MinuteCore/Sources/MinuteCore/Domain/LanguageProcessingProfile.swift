@@ -30,14 +30,32 @@ public enum LanguageProcessingProfile: String, CaseIterable, Codable, Sendable, 
         case .autoToEnglish:
             return """
             Language output mode: Auto -> English.
-            Use the transcription text to determine dominant language for interpretation, but ALWAYS write all user-visible fields (including title, summary, action items, and sections) in English. This requirement overrides conflicting language instructions elsewhere in the prompt.
+            MANDATORY RULE: Use the transcription text to determine dominant language for interpretation, but ALWAYS write all user-visible JSON values (including title, summary, decisions, action items, open questions, and key points) in English.
+            This requirement overrides conflicting language instructions elsewhere in the prompt.
             Preserve technical terms, code tokens, APIs, and proper nouns in their original form.
             """
         case .autoPreserve:
             return """
             Language output mode: Auto -> Preserve.
-            Determine the dominant language from the transcription text and write all user-visible fields (including title, summary, action items, and sections) in that same language. Do not translate to English unless the transcription is predominantly English.
+            MANDATORY RULE: Determine the dominant language from the transcription text and write all user-visible JSON values (including title, summary, decisions, action items, open questions, and key points) in that same language.
+            Do not translate to English unless the transcription is predominantly English.
             Preserve technical terms, code tokens, APIs, and proper nouns in their original form.
+            """
+        }
+    }
+
+    /// Additional user instruction prepended before transcript content.
+    /// This mirrors the system instruction for models that weight user instructions more heavily.
+    public var summarizationUserInstruction: String {
+        switch self {
+        case .autoToEnglish:
+            return """
+            Language constraint for this request: Output all JSON string values in English.
+            """
+        case .autoPreserve:
+            return """
+            Language constraint for this request: Detect the dominant transcript language and keep all JSON string values in that same language.
+            If the dominant language is not English, do not translate the output to English.
             """
         }
     }
