@@ -162,7 +162,7 @@ public actor DefaultAudioService: AudioServicing, AudioLevelMetering, AudioCaptu
             do {
                 try FileManager.default.removeItem(at: sessionDirectoryToRemove)
             } catch {
-                logger.error("Failed to remove canceled recording session directory: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
+                logger.error("Failed to remove canceled recording session directory: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
             }
         }
 
