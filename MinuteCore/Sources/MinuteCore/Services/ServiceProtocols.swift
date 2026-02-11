@@ -136,7 +136,8 @@ public protocol SummarizationServicing: Sendable {
         transcript: String,
         meetingDate: Date,
         meetingType: MeetingType,
-        languageProcessing: LanguageProcessingProfile
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
     ) async throws -> String
 
     /// Classifies the meeting type based on the transcript.

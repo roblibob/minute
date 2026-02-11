@@ -4,17 +4,25 @@ import Testing
 
 struct PromptFactoryLanguageProcessingTests {
     @Test
-    func systemPrompt_appendsLanguageProcessingInstruction_withTrailingNewline() {
+    func systemPrompt_appendsLanguageProcessingAndOutputLanguageInstructions_withTrailingNewline() {
         let strategy = GeneralPromptStrategy()
-        let instruction = LanguageProcessingProfile.autoToEnglish
+        let processingInstruction = LanguageProcessingProfile.autoToEnglish
+            .summarizationSystemInstruction
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let outputInstruction = OutputLanguage.japaneseJapan
             .summarizationSystemInstruction
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let result = PromptFactory.systemPrompt(strategy: strategy, languageProcessing: .autoToEnglish)
+        let result = PromptFactory.systemPrompt(
+            strategy: strategy,
+            languageProcessing: .autoToEnglish,
+            outputLanguage: .japaneseJapan
+        )
 
         #expect(result.contains("### CORE INSTRUCTIONS"))
-        #expect(result.contains(instruction))
-        #expect(result.hasSuffix("\n\n\(instruction)\n"))
+        #expect(result.contains(processingInstruction))
+        #expect(result.contains(outputInstruction))
+        #expect(result.hasSuffix("\n\n\(processingInstruction)\n\n\(outputInstruction)\n"))
     }
 
     @Test
@@ -43,35 +51,26 @@ struct PromptFactoryLanguageProcessingTests {
     }
 
     @Test
-    func languageInstruction_autoPreserve_requiresTranscriptionLanguageOutput() {
+    func outputLanguageInstruction_isExplicitInSystemPrompt() {
         let prompt = PromptFactory.systemPrompt(
             strategy: GeneralPromptStrategy(),
-            languageProcessing: .autoPreserve
+            languageProcessing: .autoPreserve,
+            outputLanguage: .germanGermany
         )
 
-        #expect(prompt.contains("Language output mode: Auto -> Preserve."))
-        #expect(prompt.contains("Determine the dominant language from the transcription text"))
-        #expect(prompt.contains("Do not translate to English unless the transcription is predominantly English."))
-    }
-
-    @Test
-    func languageInstruction_autoEnglish_forcesEnglishOutput() {
-        let prompt = PromptFactory.systemPrompt(
-            strategy: GeneralPromptStrategy(),
-            languageProcessing: .autoToEnglish
-        )
-
-        #expect(prompt.contains("Language output mode: Auto -> English."))
+        #expect(prompt.contains("Output language requirement:"))
         #expect(prompt.contains("MANDATORY RULE"))
-        #expect(prompt.contains("ALWAYS write all user-visible JSON values"))
-        #expect(prompt.contains("in English"))
+        #expect(prompt.contains(OutputLanguage.germanGermany.displayName))
+        #expect(prompt.contains(OutputLanguage.germanGermany.rawValue))
+        #expect(prompt.contains("overrides conflicting language output instructions"))
     }
 
     @Test
-    func languageUserInstruction_autoPreserve_forbidsForcedEnglishTranslation() {
-        let instruction = LanguageProcessingProfile.autoPreserve.summarizationUserInstruction
+    func outputLanguageUserInstruction_isExplicit() {
+        let instruction = OutputLanguage.portugueseBrazil.summarizationUserInstruction
 
-        #expect(instruction.contains("Detect the dominant transcript language"))
-        #expect(instruction.contains("do not translate the output to English"))
+        #expect(instruction.contains(OutputLanguage.portugueseBrazil.displayName))
+        #expect(instruction.contains(OutputLanguage.portugueseBrazil.rawValue))
+        #expect(instruction.contains("Apply this to all JSON string values"))
     }
 }

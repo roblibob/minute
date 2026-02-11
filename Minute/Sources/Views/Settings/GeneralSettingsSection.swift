@@ -8,6 +8,15 @@ struct GeneralSettingsSection: View {
     private var normalizeAnalysisAudio: Bool = AppConfiguration.Defaults.defaultNormalizeAnalysisAudio
     @AppStorage(AppDefaultsKey.micActivityNotificationsEnabled)
     private var micActivityNotificationsEnabled: Bool = AppConfiguration.Defaults.defaultMicActivityNotificationsEnabled
+    @AppStorage(AppDefaultsKey.outputLanguage)
+    private var outputLanguageRaw: String = AppConfiguration.Defaults.defaultOutputLanguage.rawValue
+
+    private var outputLanguageBinding: Binding<OutputLanguage> {
+        Binding(
+            get: { OutputLanguage.resolved(from: outputLanguageRaw) },
+            set: { outputLanguageRaw = $0.rawValue }
+        )
+    }
 
     var body: some View {
         Group {
@@ -35,6 +44,18 @@ struct GeneralSettingsSection: View {
                     detail: "Show a notification when the microphone becomes active.",
                     isOn: $micActivityNotificationsEnabled
                 )
+            }
+
+            Section("Language") {
+                Picker("Output language", selection: outputLanguageBinding) {
+                    ForEach(OutputLanguage.allCases, id: \.self) { language in
+                        Text(language.displayName).tag(language)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Text("Used when session language processing is set to Auto -> Picked language.")
+                    .minuteCaption()
             }
 
             KnownSpeakersSettingsSection(mode: .toggleOnly)

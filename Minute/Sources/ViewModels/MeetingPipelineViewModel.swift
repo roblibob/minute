@@ -88,6 +88,33 @@ final class MeetingPipelineViewModel: ObservableObject {
     @Published private(set) var recoverableRecordings: [RecoverableRecording] = []
     @Published var meetingType: MeetingType = .autodetect
     @Published var languageProcessing: LanguageProcessingProfile = .autoToEnglish
+    @Published var outputLanguage: OutputLanguage = .defaultSelection
+
+    var autoToEnglishOptionTitle: String {
+        "Auto -> English"
+    }
+
+    var autoToPickedLanguageOptionTitle: String {
+        "Auto -> \(outputLanguage.displayName)"
+    }
+
+    var selectedLanguageProcessingTitle: String {
+        switch languageProcessing {
+        case .autoToEnglish:
+            return autoToEnglishOptionTitle
+        case .autoPreserve:
+            return autoToPickedLanguageOptionTitle
+        }
+    }
+
+    var selectedLanguageProcessingDetailText: String {
+        switch languageProcessing {
+        case .autoToEnglish:
+            return "Detect transcript language and write outputs in English."
+        case .autoPreserve:
+            return "Detect transcript language and write outputs in \(outputLanguage.displayName)."
+        }
+    }
 
     private let audioService: any AudioServicing
     private let mediaImportService: any MediaImporting
@@ -151,6 +178,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         loadStagePreferences()
 
         refreshVaultStatus()
+        refreshOutputLanguageSetting()
         refreshMicrophonePermission()
         refreshScreenRecordingPermission()
 
@@ -158,6 +186,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 self?.refreshVaultStatus()
+                self?.refreshOutputLanguageSetting()
             }
 
         startStagePreferencesObservation()
@@ -314,6 +343,12 @@ final class MeetingPipelineViewModel: ObservableObject {
         } catch {
             vaultStatus = VaultStatus(displayText: "Not selected", isConfigured: false)
         }
+    }
+
+    func refreshOutputLanguageSetting() {
+        let defaults = UserDefaults.standard
+        let rawValue = defaults.string(forKey: AppConfiguration.Defaults.outputLanguageKey)
+        outputLanguage = OutputLanguage.resolved(from: rawValue)
     }
 
     func refreshRecoverableRecordings() {
@@ -986,6 +1021,14 @@ final class MeetingPipelineViewModel: ObservableObject {
         let workingDirectoryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("minute-work-\(UUID().uuidString)", isDirectory: true)
 
+        let effectiveOutputLanguage: OutputLanguage
+        switch languageProcessing {
+        case .autoToEnglish:
+            effectiveOutputLanguage = .englishUS
+        case .autoPreserve:
+            effectiveOutputLanguage = outputLanguage
+        }
+
         return PipelineContext(
             vaultFolders: MeetingFileContract.VaultFolders(
                 meetingsRoot: configuration.meetingsRelativePath,
@@ -1004,6 +1047,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             transcriptionOverride: nil,
             meetingType: meetingType,
             languageProcessing: languageProcessing,
+            outputLanguage: effectiveOutputLanguage,
             knownSpeakerSuggestionsEnabled: configuration.knownSpeakerSuggestionsEnabled
         )
     }

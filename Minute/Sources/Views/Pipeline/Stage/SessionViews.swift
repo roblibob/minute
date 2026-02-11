@@ -139,16 +139,17 @@ struct RecordingSessionCardView: View {
                             .textCase(.uppercase)
 
                         Menu {
-                            ForEach(LanguageProcessingProfile.allCases, id: \.self) { profile in
-                                Button(profile.displayName) {
-                                    model.languageProcessing = profile
-                                }
+                            Button(model.autoToEnglishOptionTitle) {
+                                model.languageProcessing = .autoToEnglish
+                            }
+                            Button(model.autoToPickedLanguageOptionTitle) {
+                                model.languageProcessing = .autoPreserve
                             }
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: "globe")
                                     .foregroundStyle(Color.green)
-                                Text(model.languageProcessing.displayName)
+                                Text(model.selectedLanguageProcessingTitle)
                                     .font(.system(size: 17, weight: .semibold))
                                     .foregroundStyle(Color.minuteTextPrimary)
                                 Spacer(minLength: 8)
@@ -161,10 +162,10 @@ struct RecordingSessionCardView: View {
                         .menuStyle(.borderlessButton)
                         .frame(maxWidth: .infinity)
                         .minuteDropdownStyle()
-                        .help(model.languageProcessing.detailText)
+                        .help(model.selectedLanguageProcessingDetailText)
                         .accessibilityLabel(Text("Language Processing"))
-                        .accessibilityValue(Text(model.languageProcessing.displayName))
-                        .accessibilityHint(Text(model.languageProcessing.detailText))
+                        .accessibilityValue(Text(model.selectedLanguageProcessingTitle))
+                        .accessibilityHint(Text(model.selectedLanguageProcessingDetailText))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }

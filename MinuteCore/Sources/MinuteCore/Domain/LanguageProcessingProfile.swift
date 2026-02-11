@@ -18,9 +18,9 @@ public enum LanguageProcessingProfile: String, CaseIterable, Codable, Sendable, 
     public var detailText: String {
         switch self {
         case .autoToEnglish:
-            return "Detect input language from transcription; always write outputs in English."
+            return "Detect transcript language and normalize interpretation toward English before extraction."
         case .autoPreserve:
-            return "Detect input language from transcription; write outputs in that same language."
+            return "Detect transcript language and preserve original-language interpretation during extraction."
         }
     }
 
@@ -29,17 +29,17 @@ public enum LanguageProcessingProfile: String, CaseIterable, Codable, Sendable, 
         switch self {
         case .autoToEnglish:
             return """
-            Language output mode: Auto -> English.
-            MANDATORY RULE: Use the transcription text to determine dominant language for interpretation, but ALWAYS write all user-visible JSON values (including title, summary, decisions, action items, open questions, and key points) in English.
-            This requirement overrides conflicting language instructions elsewhere in the prompt.
-            Preserve technical terms, code tokens, APIs, and proper nouns in their original form.
+            Language interpretation mode: Auto -> English.
+            Determine dominant transcript language from the provided text.
+            If dominant language is not English, normalize meaning to English internally before producing structured output.
+            Preserve technical terms, code tokens, APIs, and proper nouns in their original form for correctness.
             """
         case .autoPreserve:
             return """
-            Language output mode: Auto -> Preserve.
-            MANDATORY RULE: Determine the dominant language from the transcription text and write all user-visible JSON values (including title, summary, decisions, action items, open questions, and key points) in that same language.
-            Do not translate to English unless the transcription is predominantly English.
-            Preserve technical terms, code tokens, APIs, and proper nouns in their original form.
+            Language interpretation mode: Auto -> Preserve.
+            Determine dominant transcript language from the provided text and reason primarily in that language.
+            Do not force internal translation to English unless needed to resolve ambiguous ASR fragments.
+            Preserve technical terms, code tokens, APIs, and proper nouns in their original form for correctness.
             """
         }
     }
@@ -50,12 +50,11 @@ public enum LanguageProcessingProfile: String, CaseIterable, Codable, Sendable, 
         switch self {
         case .autoToEnglish:
             return """
-            Language constraint for this request: Output all JSON string values in English.
+            Interpretation mode for this request: normalize meaning to English when transcript is non-English.
             """
         case .autoPreserve:
             return """
-            Language constraint for this request: Detect the dominant transcript language and keep all JSON string values in that same language.
-            If the dominant language is not English, do not translate the output to English.
+            Interpretation mode for this request: keep dominant transcript language semantics.
             """
         }
     }

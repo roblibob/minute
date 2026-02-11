@@ -132,7 +132,8 @@ public actor MeetingPipelineCoordinator {
                 transcript: timelineText,
                 meetingDate: meetingDate,
                 meetingType: effectiveType,
-                languageProcessing: context.languageProcessing
+                languageProcessing: context.languageProcessing,
+                outputLanguage: context.outputLanguage
             )
             var extraction = try await decodeOrRepairExtraction(
                 rawJSON: rawJSON,

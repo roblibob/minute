@@ -128,12 +128,14 @@ public struct MissingSummarizationService: SummarizationServicing {
         transcript: String,
         meetingDate: Date,
         meetingType: MeetingType,
-        languageProcessing: LanguageProcessingProfile
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
     ) async throws -> String {
         _ = transcript
         _ = meetingDate
         _ = meetingType
         _ = languageProcessing
+        _ = outputLanguage
         throw MinuteError.llamaMissing
     }
 
@@ -169,13 +171,15 @@ public struct MockSummarizationService: SummarizationServicing {
         transcript: String,
         meetingDate: Date,
         meetingType: MeetingType,
-        languageProcessing: LanguageProcessingProfile
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
     ) async throws -> String {
         try await Task.sleep(nanoseconds: 800_000_000)
 
         // Do NOT include the transcript in outputs.
         _ = transcript
         _ = languageProcessing
+        _ = outputLanguage
         let iso = MinuteISODate.format(meetingDate)
         let title = "Meeting \(iso) (\(meetingType.rawValue))"
 

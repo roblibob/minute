@@ -61,20 +61,31 @@ public struct LlamaLibrarySummarizationService: SummarizationServicing {
         transcript: String,
         meetingDate: Date,
         meetingType: MeetingType,
-        languageProcessing: LanguageProcessingProfile
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
     ) async throws -> String {
         let strategy = PromptFactory.strategy(for: meetingType)
         // Prepend date context to transcript for the model
         let datedTranscript = "Meeting Date: \(MinuteISODate.format(meetingDate))\n\n\(transcript)"
 
-        let systemPrompt = PromptFactory.systemPrompt(strategy: strategy, languageProcessing: languageProcessing)
+        let systemPrompt = PromptFactory.systemPrompt(
+            strategy: strategy,
+            languageProcessing: languageProcessing,
+            outputLanguage: outputLanguage
+        )
         logger.info(
-            "Summarization system prompt [meetingType=\(meetingType.rawValue, privacy: .public), languageProcessing=\(languageProcessing.rawValue, privacy: .public)]: \(systemPrompt, privacy: .public)"
+            "Summarization system prompt [meetingType=\(meetingType.rawValue, privacy: .public), languageProcessing=\(languageProcessing.rawValue, privacy: .public), outputLanguage=\(outputLanguage.rawValue, privacy: .public)]: \(systemPrompt, privacy: .public)"
         )
         let baseUserPrompt = strategy.userPrompt(for: datedTranscript)
-        let languageUserInstruction = languageProcessing
+        let languageProcessingUserInstruction = languageProcessing
             .summarizationUserInstruction
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let outputLanguageUserInstruction = outputLanguage
+            .summarizationUserInstruction
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let languageUserInstruction = [languageProcessingUserInstruction, outputLanguageUserInstruction]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
         let userPrompt: String
         if languageUserInstruction.isEmpty {
             userPrompt = baseUserPrompt

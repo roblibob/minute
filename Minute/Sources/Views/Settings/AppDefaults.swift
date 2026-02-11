@@ -13,4 +13,5 @@ enum AppDefaultsKey {
     static let fluidAudioAsrModelID = AppConfiguration.Defaults.fluidAudioAsrModelIDKey
     static let micActivityNotificationsEnabled = AppConfiguration.Defaults.micActivityNotificationsEnabledKey
     static let knownSpeakerSuggestionsEnabled = AppConfiguration.Defaults.knownSpeakerSuggestionsEnabledKey
+    static let outputLanguage = AppConfiguration.Defaults.outputLanguageKey
 }

@@ -29,6 +29,34 @@ struct MeetingPipelineCoordinatorLanguageProcessingTests {
         let captured = await summarizationService.lastLanguageProcessing
         #expect(captured == .autoPreserve)
     }
+
+    @Test
+    func execute_threadsOutputLanguageIntoSummarization() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let summarizationService = CapturingSummarizationService(
+            summarizationJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12"),
+            repairJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12")
+        )
+
+        let coordinator = try makeCoordinator(
+            vaultRootURL: vaultRootURL,
+            summarizationService: summarizationService
+        )
+
+        let context = try makePipelineContext(
+            saveAudio: false,
+            saveTranscript: false,
+            languageProcessing: .autoToEnglish,
+            outputLanguage: .japaneseJapan
+        )
+
+        _ = try await coordinator.execute(context: context)
+
+        let captured = await summarizationService.lastOutputLanguage
+        #expect(captured == .japaneseJapan)
+    }
 }
 
 private actor CapturingSummarizationService: SummarizationServicing {
@@ -36,6 +64,7 @@ private actor CapturingSummarizationService: SummarizationServicing {
     private let repairJSON: String
 
     var lastLanguageProcessing: LanguageProcessingProfile?
+    var lastOutputLanguage: OutputLanguage?
 
     init(summarizationJSON: String, repairJSON: String) {
         self.summarizationJSON = summarizationJSON
@@ -46,12 +75,14 @@ private actor CapturingSummarizationService: SummarizationServicing {
         transcript: String,
         meetingDate: Date,
         meetingType: MeetingType,
-        languageProcessing: LanguageProcessingProfile
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
     ) async throws -> String {
         _ = transcript
         _ = meetingDate
         _ = meetingType
         lastLanguageProcessing = languageProcessing
+        lastOutputLanguage = outputLanguage
         return summarizationJSON
     }
 
@@ -166,7 +197,8 @@ private func makeTemporaryVault() throws -> URL {
 private func makePipelineContext(
     saveAudio: Bool,
     saveTranscript: Bool,
-    languageProcessing: LanguageProcessingProfile
+    languageProcessing: LanguageProcessingProfile,
+    outputLanguage: OutputLanguage = .defaultSelection
 ) throws -> PipelineContext {
     let audioTempURL = try makeTemporaryAudioFile()
     let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
@@ -183,7 +215,8 @@ private func makePipelineContext(
         workingDirectoryURL: workingDirectoryURL,
         saveAudio: saveAudio,
         saveTranscript: saveTranscript,
-        languageProcessing: languageProcessing
+        languageProcessing: languageProcessing,
+        outputLanguage: outputLanguage
     )
 }
 

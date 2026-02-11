@@ -37,11 +37,22 @@ public enum PromptFactory {
 
     public static func systemPrompt(
         strategy: PromptStrategy,
-        languageProcessing: LanguageProcessingProfile
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage = .defaultSelection
     ) -> String {
         let base = strategy.systemPrompt().trimmingCharacters(in: .whitespacesAndNewlines)
-        let instruction = languageProcessing.summarizationSystemInstruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !instruction.isEmpty else { return base }
-        return base + "\n\n" + instruction + "\n"
+        let languageProcessingInstruction = languageProcessing
+            .summarizationSystemInstruction
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let outputLanguageInstruction = outputLanguage
+            .summarizationSystemInstruction
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let instructions = [languageProcessingInstruction, outputLanguageInstruction]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+        guard !instructions.isEmpty else { return base }
+
+        return base + "\n\n" + instructions + "\n"
     }
 }

@@ -150,12 +150,14 @@ private struct TestSummarizationService: SummarizationServicing {
         transcript: String,
         meetingDate: Date,
         meetingType: MeetingType,
-        languageProcessing: LanguageProcessingProfile
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
     ) async throws -> String {
         _ = transcript
         _ = meetingDate
         _ = meetingType
         _ = languageProcessing
+        _ = outputLanguage
         return summarizationJSON
     }
 

@@ -63,7 +63,6 @@ struct PipelineContentView: View {
                                         .animation(.easeInOut(duration: 0.2), value: statusDrawerModel != nil)
                                 }
                             }
-                            .overlay(dropOverlay)
                         }
                     }
                 }
@@ -114,23 +113,6 @@ struct PipelineContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .minuteMicActivityStartRecording)) { _ in
                 handleNotificationStartRecording()
             }
-        }
-    }
-
-    @ViewBuilder
-    private var dropOverlay: some View {
-        if isDropTargeted, model.state.canImportMedia {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.minuteGlow.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [10]))
-                .padding(32)
-                .overlay(
-                    Text("Drop audio or video to import")
-                        .font(.system(size: 14, weight: .semibold))
-                        .tracking(-0.2)
-                        .foregroundStyle(Color.minuteTextPrimary)
-                        .padding(10)
-                )
-                .transition(.opacity)
         }
     }
 
