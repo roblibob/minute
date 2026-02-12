@@ -1,0 +1,15 @@
+// Distribution profile defaults. These can be overridden at build time.
+// Example App Store override:
+//   MINUTE_DISTRIBUTION_PROFILE=app-store
+//   MINUTE_ENABLE_UPDATER=NO
+//   MINUTE_SWIFT_DISTRIBUTION_FLAG=-DMINUTE_DISTRIBUTION_APP_STORE
+//   MINUTE_SU_FEED_URL=
+
+MINUTE_DISTRIBUTION_PROFILE = direct
+MINUTE_ENABLE_UPDATER = YES
+MINUTE_SWIFT_DISTRIBUTION_FLAG = -DMINUTE_DISTRIBUTION_DIRECT
+MINUTE_SU_FEED_URL = https://roblibob.github.io/appcast.xml
+MINUTE_SU_ENABLE_INSTALLER_LAUNCHER = YES
+MINUTE_APP_ENTITLEMENTS_FILE = Minute/Sources/App/Minute.entitlements
+MINUTE_HELPER_ENTITLEMENTS_FILE = Minute/Sources/App/MinuteHelper.entitlements
+MINUTE_WHISPER_SERVICE_ENTITLEMENTS = MinuteWhisperService/MinuteWhisperService.entitlements

@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT_DIR/scripts/release-profile.sh"
+
+DIST_PROFILE="${DIST_PROFILE:-$DIST_PROFILE_DIRECT}"
 UPDATES_DIR="${1:-$ROOT_DIR/updates}"
 DOWNLOAD_URL_PREFIX="${2:-}"
 EXTRA_ARGS=()
@@ -16,8 +19,15 @@ Examples:
 
 Set SPARKLE_BIN to Sparkle's bin directory or the generate_appcast path.
 Set SPARKLE_APPCAST_ARGS to pass extra flags to generate_appcast.
+Set DIST_PROFILE=direct (required profile for appcast generation).
 EOF
   exit 0
+fi
+
+require_dist_profile "$DIST_PROFILE"
+if ! profile_is_direct "$DIST_PROFILE"; then
+  echo "error: appcast generation is only allowed for DIST_PROFILE=direct." >&2
+  exit 1
 fi
 
 if [ ! -d "$UPDATES_DIR" ]; then

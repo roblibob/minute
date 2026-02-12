@@ -1,0 +1,47 @@
+{
+  "runId": "20260211T205937Z-18193",
+  "profile": "direct",
+  "status": "completed",
+  "checks": [
+    {
+      "checkType": "profile-config",
+      "target": "direct",
+      "status": "passed",
+      "message": "distribution profile is valid"
+    },
+    {
+      "checkType": "signature",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteDirect.app",
+      "status": "passed",
+      "message": "signature preflight passed"
+    },
+    {
+      "checkType": "sandbox-policy",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteDirect.app",
+      "status": "skipped",
+      "message": "sandbox preflight not required for direct profile"
+    },
+    {
+      "checkType": "updater-policy",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteDirect.app",
+      "status": "passed",
+      "message": "updater policy check passed for direct profile"
+    },
+    {
+      "checkType": "artifact-policy",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts",
+      "status": "passed",
+      "message": "artifact policy check passed for direct profile"
+    }
+  ],
+  "artifacts": [
+    {
+      "artifactType": "archive",
+      "path": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteDirect.app",
+      "profile": "direct",
+      "generatedAt": "2026-02-11T20:59:38.039219+00:00"
+    }
+  ],
+  "startedAt": "2026-02-11T20:59:38.016222+00:00",
+  "generatedAt": "2026-02-11T20:59:38.279301+00:00"
+}

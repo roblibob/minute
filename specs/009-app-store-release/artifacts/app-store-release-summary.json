@@ -1,0 +1,47 @@
+{
+  "runId": "20260211T205938Z-18232",
+  "profile": "app-store",
+  "status": "completed",
+  "checks": [
+    {
+      "checkType": "profile-config",
+      "target": "app-store",
+      "status": "passed",
+      "message": "distribution profile is valid"
+    },
+    {
+      "checkType": "signature",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteAppStore.app",
+      "status": "passed",
+      "message": "signature preflight passed"
+    },
+    {
+      "checkType": "sandbox-policy",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteAppStore.app",
+      "status": "passed",
+      "message": "sandbox entitlement preflight passed"
+    },
+    {
+      "checkType": "updater-policy",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteAppStore.app",
+      "status": "passed",
+      "message": "updater policy preflight passed"
+    },
+    {
+      "checkType": "artifact-policy",
+      "target": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts",
+      "status": "passed",
+      "message": "artifact policy preflight passed"
+    }
+  ],
+  "artifacts": [
+    {
+      "artifactType": "archive",
+      "path": "/Users/roblibob/Projects/FLX/Minute/Minute/specs/009-app-store-release/artifacts/fixtures/MinuteAppStore.app",
+      "profile": "app-store",
+      "generatedAt": "2026-02-11T20:59:38.337265+00:00"
+    }
+  ],
+  "startedAt": "2026-02-11T20:59:38.316596+00:00",
+  "generatedAt": "2026-02-11T20:59:38.592731+00:00"
+}

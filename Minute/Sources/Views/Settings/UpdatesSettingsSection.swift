@@ -4,25 +4,27 @@ struct UpdatesSettingsSection: View {
     @ObservedObject var model: UpdaterViewModel
 
     var body: some View {
-        Section("Updates") {
-            Toggle(
-                "Automatically check for updates",
-                isOn: Binding(
-                    get: { model.automaticallyChecksForUpdates },
-                    set: { model.setAutomaticallyChecksForUpdates($0) }
+        if model.isUpdaterEnabled {
+            Section("Updates") {
+                Toggle(
+                    "Automatically check for updates",
+                    isOn: Binding(
+                        get: { model.automaticallyChecksForUpdates },
+                        set: { model.setAutomaticallyChecksForUpdates($0) }
+                    )
                 )
-            )
-            Toggle(
-                "Automatically download updates",
-                isOn: Binding(
-                    get: { model.automaticallyDownloadsUpdates },
-                    set: { model.setAutomaticallyDownloadsUpdates($0) }
+                Toggle(
+                    "Automatically download updates",
+                    isOn: Binding(
+                        get: { model.automaticallyDownloadsUpdates },
+                        set: { model.setAutomaticallyDownloadsUpdates($0) }
+                    )
                 )
-            )
-            Button("Check for Updates...") {
-                model.checkForUpdates()
+                Button("Check for Updates...") {
+                    model.checkForUpdates()
+                }
+                .disabled(!model.canCheckForUpdates)
             }
-            .disabled(!model.canCheckForUpdates)
         }
     }
 }

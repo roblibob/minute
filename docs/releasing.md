@@ -1,67 +1,79 @@
 # Releasing Minute
 
-This document describes the local release flow and the lightweight CI step that
-publishes the Sparkle appcast to GitHub Pages.
+This document describes the profile-driven local release flow and CI follow-up
+steps.
 
 ## Prerequisites
 - Apple Developer Program membership
-- Developer ID Application certificate installed
-- Notarytool keychain profile (example name: `minute-notary`)
-- Sparkle public key already in `Config/MinuteInfo.plist`
-- Sparkle private key available locally for signing the appcast (recommended)
+- Signing identities configured locally
+- Notarytool keychain profile (for direct distribution notarization)
+- Sparkle keys configured for direct-distribution appcast signing
 
-## Local release flow (authoritative)
-1. Archive in Xcode (Release configuration).
-2. Run the release script (notarizes + staples + builds artifacts):
+## Distribution Profiles
+
+Release profile selection is required for `make archive` and `make release`.
+
+- `direct`:
+  - updater enabled
+  - DMG/ZIP output allowed
+  - appcast generation allowed
+  - notarization enabled by default
+- `app-store`:
+  - updater disabled at build time
+  - DMG and appcast generation blocked
+  - notarization disabled by default (App Store submission channel)
+
+Each run emits a validation summary JSON.
+Default summary path: `updates/release-validation-summary.json`
+
+## Build + Release Commands
+
+1. Create a direct-distribution release:
+   ```bash
+   make release DIST_PROFILE=direct ARCHIVE="/path/to/Minute.xcarchive" \
+     NOTARY_PROFILE=minute-notary \
+     APPCAST_DOWNLOAD_URL_PREFIX="https://github.com/roblibob/Minute/releases/download/vX.Y.Z/" \
+     SPARKLE_APPCAST_ARGS="--ed-key-file $HOME/.config/minute/sparkle_ed25519.key"
    ```
-   scripts/release-notarize.sh "/path/to/Minute.xcarchive"
+
+2. Create an App Store release:
+   ```bash
+   make release DIST_PROFILE=app-store ARCHIVE="/path/to/Minute.xcarchive"
    ```
 
-3. Generate the appcast (stored in `updates/appcast.xml` alongside the artifacts):
-   ```
-   APPCAST_DOWNLOAD_URL_PREFIX="https://github.com/roblibob/Minute/releases/download/vX.Y.Z/" \
-   SPARKLE_APPCAST_ARGS="--ed-key-file $HOME/.config/minute/sparkle_ed25519.key" \
-   scripts/generate-appcast.sh updates
+3. Optional direct-only appcast generation entry point:
+   ```bash
+   DIST_PROFILE=direct scripts/generate-appcast.sh updates "https://github.com/roblibob/Minute/releases/download/vX.Y.Z/"
    ```
 
-4. Upload the release assets to GitHub Releases:
-   - `updates/Minute-<version>.dmg`
-   - `updates/Minute-<version>.zip`
-   - `updates/appcast.xml`
+## Dry-Run Mode
 
-5. The GitHub Actions workflow publishes `appcast.xml` to
-   `https://roblibob.github.io/appcast.xml`.
-6. The Homebrew cask is updated automatically after the GitHub Release is published.
+For validation-only runs without notarization:
 
-## Makefile shortcut
+```bash
+make release DIST_PROFILE=direct ARCHIVE="/path/to/Minute.app" ENABLE_NOTARIZATION=0 CREATE_DMG=0 CREATE_ZIP=0 GENERATE_APPCAST=0
+make release DIST_PROFILE=app-store ARCHIVE="/path/to/Minute.app" CREATE_DMG=0 CREATE_ZIP=0 GENERATE_APPCAST=0
 ```
-make release ARCHIVE="/path/to/Minute.xcarchive" \
-  NOTARY_PROFILE=minute-notary \
-  APPCAST_DOWNLOAD_URL_PREFIX="https://github.com/roblibob/Minute/releases/download/vX.Y.Z/" \
-  SPARKLE_APPCAST_ARGS="--ed-key-file $HOME/.config/minute/sparkle_ed25519.key"
-```
 
-This runs notarization + stapling + DMG/ZIP generation, then regenerates
-`updates/appcast.xml` using the ZIP only (Sparkle does not accept duplicate DMG+ZIP).
-You upload the appcast as a release asset alongside the DMG/ZIP.
+Validation summaries from the latest dry-run evidence are stored at:
+- `specs/009-app-store-release/artifacts/direct-release-summary.json`
+- `specs/009-app-store-release/artifacts/app-store-release-summary.json`
 
-## CI: publish appcast only
+## CI: publish appcast only (direct profile)
+
 Workflow: `.github/workflows/publish-appcast.yml`
 - Trigger: release published (or manual dispatch)
-- Action: download `appcast.xml` from the GitHub Release assets and copy it to `roblibob/roblibob.github.io/appcast.xml`
-- Secret required: `APPCAST_PUBLISH_TOKEN` (PAT with write access to the pages repo)
+- Action: publish `appcast.xml` to `roblibob/roblibob.github.io/appcast.xml`
+- Secret required: `APPCAST_PUBLISH_TOKEN`
 
-## CI: update Homebrew cask
+## CI: update Homebrew cask (direct profile)
+
 Workflow: `.github/workflows/update-brew-cask.yml`
 - Trigger: release published
-- Action: download `Minute-<version>.dmg`, compute SHA256, update the tap cask
-- Secret required: `BREW_TAP_TOKEN` (PAT with write access to `roblibob/homebrew-minute`)
-
-## Homebrew tap (local)
-Tap repo lives at:
-`~/Projects/FLX/Minute/homebrew-minute`
+- Action: update tap with released DMG SHA
+- Secret required: `BREW_TAP_TOKEN`
 
 ## Troubleshooting
-- Notarytool stuck: resubmit with `xcrun notarytool submit ... --wait`
-- Gatekeeper “Unnotarized”: ensure you stapled the app and DMG
-- Sparkle signature missing: pass `SPARKLE_APPCAST_ARGS` with your private key
+- `error: DIST_PROFILE is required`: provide `DIST_PROFILE=direct` or `DIST_PROFILE=app-store`
+- App Store preflight failure: fix signing, sandbox entitlement, or updater policy mismatch
+- Direct appcast failure: ensure `DIST_PROFILE=direct` and valid `SPARKLE_APPCAST_ARGS`

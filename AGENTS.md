@@ -149,6 +149,8 @@ If CI is added, prefer using `xcodebuild` so it matches local behavior.
 ## Active Technologies
 - Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore, (001-swift-testing-refactor)
 - Files (Obsidian vault output, app support directories) (001-swift-testing-refactor)
+- Swift 5.9 (Xcode 15.x) + Bash (release scripts) + SwiftUI, MinuteCore, Sparkle (direct-distribution profile only), Xcode signing/notary tooling (`codesign`, `xcrun`, `xcodebuild`) (009-app-store-release)
+- Files (archives, packaged artifacts, appcast, validation summaries) (009-app-store-release)
 
 ## Recent Changes
 - 001-swift-testing-refactor: Added Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore,

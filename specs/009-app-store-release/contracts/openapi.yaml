@@ -1,0 +1,263 @@
+openapi: 3.0.3
+info:
+  title: Minute Release Profile Contract (Abstract)
+  version: 0.1.0
+  description: |
+    This OpenAPI document is an abstract contract for release orchestration behavior.
+    Minute is not an HTTP service; endpoints represent script/automation commands and
+    results that can be validated in tests.
+
+servers:
+  - url: http://localhost
+
+paths:
+  /release/profiles:
+    get:
+      summary: List supported distribution profiles
+      responses:
+        '200':
+          description: Available release profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profiles]
+                properties:
+                  profiles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DistributionProfile'
+
+  /release-runs:
+    post:
+      summary: Start a release run with an explicit profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseRunRequest'
+      responses:
+        '202':
+          description: Release run accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseRun'
+        '400':
+          description: Invalid request (missing/invalid profile or source path)
+
+  /release-runs/{runId}:
+    get:
+      summary: Read release run status
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current run status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseRun'
+        '404':
+          description: Run not found
+
+  /release-runs/{runId}/validation-summary:
+    get:
+      summary: Read validation summary for a run
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validation summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseValidationSummary'
+        '404':
+          description: Run or summary not found
+
+  /release-runs/{runId}/cancel:
+    post:
+      summary: Cancel an in-progress release run
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Run canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseRun'
+        '409':
+          description: Run cannot be canceled in current state
+
+components:
+  schemas:
+    DistributionProfileName:
+      type: string
+      enum:
+        - app-store
+        - direct
+
+    UpdaterPolicy:
+      type: string
+      enum:
+        - disabled
+        - enabled
+
+    DistributionProfile:
+      type: object
+      required: [name, updaterPolicy, requiredValidationChecks]
+      properties:
+        name:
+          $ref: '#/components/schemas/DistributionProfileName'
+        updaterPolicy:
+          $ref: '#/components/schemas/UpdaterPolicy'
+        requiredValidationChecks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationCheckType'
+
+    ReleaseRunStatus:
+      type: string
+      enum:
+        - created
+        - preflight_running
+        - preflight_failed
+        - preflight_passed
+        - packaging
+        - completed
+        - failed
+        - canceled
+
+    ValidationCheckType:
+      type: string
+      enum:
+        - signature
+        - sandbox-policy
+        - updater-policy
+        - artifact-policy
+        - profile-config
+
+    ValidationCheckStatus:
+      type: string
+      enum:
+        - passed
+        - failed
+        - skipped
+
+    ArtifactType:
+      type: string
+      enum:
+        - archive
+        - pkg
+        - zip
+        - dmg
+        - appcast
+        - submission-metadata
+
+    ReleaseRunRequest:
+      type: object
+      required: [profile, sourceArtifactPath]
+      properties:
+        profile:
+          $ref: '#/components/schemas/DistributionProfileName'
+        sourceArtifactPath:
+          type: string
+          description: Path to .xcarchive or .app input artifact.
+        outputDirectory:
+          type: string
+          nullable: true
+        requestedVersion:
+          type: string
+          nullable: true
+        dryRun:
+          type: boolean
+          default: false
+
+    ReleaseRun:
+      type: object
+      required: [runId, profile, sourceArtifactPath, status, requestedAt]
+      properties:
+        runId:
+          type: string
+        profile:
+          $ref: '#/components/schemas/DistributionProfileName'
+        sourceArtifactPath:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReleaseRunStatus'
+        requestedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ValidationCheckResult:
+      type: object
+      required: [checkType, target, status, message]
+      properties:
+        checkType:
+          $ref: '#/components/schemas/ValidationCheckType'
+        target:
+          type: string
+        status:
+          $ref: '#/components/schemas/ValidationCheckStatus'
+        message:
+          type: string
+        details:
+          type: string
+          nullable: true
+
+    ReleaseArtifact:
+      type: object
+      required: [artifactType, path, profile]
+      properties:
+        artifactType:
+          $ref: '#/components/schemas/ArtifactType'
+        path:
+          type: string
+        profile:
+          $ref: '#/components/schemas/DistributionProfileName'
+        generatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ReleaseValidationSummary:
+      type: object
+      required: [runId, profile, overallStatus, checks, artifacts, generatedAt]
+      properties:
+        runId:
+          type: string
+        profile:
+          $ref: '#/components/schemas/DistributionProfileName'
+        overallStatus:
+          type: string
+          enum: [passed, failed]
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationCheckResult'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseArtifact'
+        generatedAt:
+          type: string
+          format: date-time

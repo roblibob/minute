@@ -60,6 +60,7 @@ Permissions and privacy
 - No transcript content is logged by default.
 - Known-speaker profiles and diarization embeddings (when enabled) are stored in app support, not in the vault.
 - The vault output contract remains exactly three files per meeting.
+- Release builds are profile-driven: `app-store` disables updater behavior; `direct` keeps Sparkle updater/appcast behavior.
 
 Storage locations
 - Vault: user-selected Obsidian vault root (files written only within this tree).

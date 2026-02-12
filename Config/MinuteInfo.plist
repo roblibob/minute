@@ -30,10 +30,14 @@
     <string>Minute needs microphone access to record meetings locally.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Minute needs screen recording access to capture system audio locally.</string>
+    <key>MINUTEDistributionProfile</key>
+    <string>$(MINUTE_DISTRIBUTION_PROFILE)</string>
+    <key>MINUTEEnableUpdater</key>
+    <string>$(MINUTE_ENABLE_UPDATER)</string>
     <key>SUEnableInstallerLauncherService</key>
     <true/>
     <key>SUFeedURL</key>
-    <string>https://roblibob.github.io/appcast.xml</string>
+    <string>$(MINUTE_SU_FEED_URL)</string>
     <key>SUAutomaticallyChecksForUpdates</key>
     <true/>
     <key>SUAutomaticallyDownloadsUpdates</key>

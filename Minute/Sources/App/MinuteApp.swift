@@ -6,7 +6,9 @@
 //
 
 import AppKit
+#if canImport(Sparkle)
 import Sparkle
+#endif
 import SwiftUI
 import UserNotifications
 import MinuteCore
@@ -16,16 +18,37 @@ struct MinuteApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppNavigationModel()
     @StateObject private var updaterViewModel: UpdaterViewModel
-    private let updaterController: SPUStandardUpdaterController
+    private let distributionConfiguration: AppDistributionConfiguration
+#if canImport(Sparkle)
+    private let updaterController: SPUStandardUpdaterController?
+#endif
 
     init() {
-        let controller = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
-        updaterController = controller
-        _updaterViewModel = StateObject(wrappedValue: UpdaterViewModel(updater: controller.updater))
+        distributionConfiguration = AppDistributionConfiguration.current()
+
+        if distributionConfiguration.updaterEnabled {
+#if canImport(Sparkle)
+            let controller = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: nil,
+                userDriverDelegate: nil
+            )
+            updaterController = controller
+            _updaterViewModel = StateObject(
+                wrappedValue: UpdaterViewModel(
+                    driver: SparkleUpdateDriver(updater: controller.updater),
+                    isUpdaterEnabled: true
+                )
+            )
+#else
+            _updaterViewModel = StateObject(wrappedValue: UpdaterViewModel(driver: DisabledUpdateDriver(), isUpdaterEnabled: false))
+#endif
+        } else {
+#if canImport(Sparkle)
+            updaterController = nil
+#endif
+            _updaterViewModel = StateObject(wrappedValue: UpdaterViewModel(driver: DisabledUpdateDriver(), isUpdaterEnabled: false))
+        }
     }
 
     var body: some Scene {
@@ -45,8 +68,10 @@ struct MinuteApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
-            CommandGroup(after: .appInfo) {
-                CheckForUpdatesView(model: updaterViewModel)
+            if updaterViewModel.isUpdaterEnabled {
+                CommandGroup(after: .appInfo) {
+                    CheckForUpdatesView(model: updaterViewModel)
+                }
             }
         }
     }

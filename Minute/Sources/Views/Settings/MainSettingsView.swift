@@ -56,7 +56,7 @@ struct MainSettingsView: View {
     }
 
     private var sidebar: some View {
-        List(SettingsSection.allCases, selection: $selection) { section in
+        List(availableSections, selection: $selection) { section in
             Label(section.title, systemImage: section.iconName)
                 .imageScale(.medium)
                 .tag(section)
@@ -89,16 +89,28 @@ struct MainSettingsView: View {
     }
 
     private var currentSelection: SettingsSection {
-        selection ?? .general
+        let section = selection ?? .general
+        return availableSections.contains(section) ? section : .general
+    }
+
+    private var availableSections: [SettingsSection] {
+        SettingsSection.visibleCases(updatesEnabled: updaterViewModel.isUpdaterEnabled)
     }
 }
 
-private enum SettingsSection: CaseIterable, Identifiable {
+enum SettingsSection: Identifiable {
     case general
     case speakers
     case permissions
     case ai
     case updates
+
+    static func visibleCases(updatesEnabled: Bool) -> [SettingsSection] {
+        if updatesEnabled {
+            return [.general, .speakers, .permissions, .ai, .updates]
+        }
+        return [.general, .speakers, .permissions, .ai]
+    }
 
     var id: Self { self }
 

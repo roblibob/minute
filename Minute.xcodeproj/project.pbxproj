@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		0E0A182A0E8F4C1792A8B075 /* MinuteLlama in Frameworks */ = {isa = PBXBuildFile; productRef = B730481B2E3B4E5FB8E38D6E /* MinuteLlama */; };
 		1A2B3C4D5E6F7890ABCDEF12 /* StageDropValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E7D1B0A9B34B87B2E6A123 /* StageDropValidationTests.swift */; };
-		1DBD0C88C2F54CA78D084F61 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3B3599BC65E149678727D1B7 /* Sparkle */; };
+		1DBD0C88C2F54CA78D084F61 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 3B3599BC65E149678727D1B7 /* Sparkle */; settings = {ATTRIBUTES = (Weak, ); }; };
 		58B6950C2EF600000068FAA7 /* MinuteCore in Frameworks */ = {isa = PBXBuildFile; productRef = 58B6950B2EF600000068FAA7 /* MinuteCore */; };
 		5A7F52052F1F0D0A00D8E124 /* WhisperXPCService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7F52022F1F0D0A00D8E124 /* WhisperXPCService.swift */; };
 		5A7F52062F1F0D0A00D8E124 /* MinuteWhisperService.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5A7F52012F1F0D0A00D8E124 /* MinuteWhisperService.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -20,6 +20,8 @@
 		B6A1D9E2F3C44C7AA1B2C3D4 /* MeetingPipelineViewModelCancelSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F6C0A0B4D94B0B9F4E0C1A /* MeetingPipelineViewModelCancelSessionTests.swift */; };
 		BF27CF187A62466DB14F257B /* MinuteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F15E3BAE1404A58B205DD07 /* MinuteTests.swift */; };
 		C7F3A9E4D2B8410FA1C0B2D3 /* MeetingDetailNoRegressionSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D2C3B4E5F6478899AABBCC /* MeetingDetailNoRegressionSmokeTests.swift */; };
+		D2A7C3307EAF4A36A8D4F932 /* UpdaterViewModelProfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D6E9209D1B4E43B5E7C652 /* UpdaterViewModelProfileTests.swift */; };
+		E1A9B130B6454F8794F15621 /* UpdaterProfileBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B5D810D2F6495798C6A541 /* UpdaterProfileBehaviorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,7 +64,10 @@
 		8ADB76E0C8D7477E9C5E50D2 /* MinuteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MinuteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1D2C3B4E5F6478899AABBCC /* MeetingDetailNoRegressionSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetailNoRegressionSmokeTests.swift; sourceTree = "<group>"; };
 		A3F6C0A0B4D94B0B9F4E0C1A /* MeetingPipelineViewModelCancelSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingPipelineViewModelCancelSessionTests.swift; sourceTree = "<group>"; };
+		A4D6E9209D1B4E43B5E7C652 /* UpdaterViewModelProfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterViewModelProfileTests.swift; sourceTree = "<group>"; };
+		A7F9C2D73B1E4F6A8C0D1122 /* DistributionProfiles.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DistributionProfiles.xcconfig; sourceTree = "<group>"; };
 		D4E7D1B0A9B34B87B2E6A123 /* StageDropValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageDropValidationTests.swift; sourceTree = "<group>"; };
+		F3B5D810D2F6495798C6A541 /* UpdaterProfileBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterProfileBehaviorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -141,6 +146,8 @@
 				A3F6C0A0B4D94B0B9F4E0C1A /* MeetingPipelineViewModelCancelSessionTests.swift */,
 				D4E7D1B0A9B34B87B2E6A123 /* StageDropValidationTests.swift */,
 				A1D2C3B4E5F6478899AABBCC /* MeetingDetailNoRegressionSmokeTests.swift */,
+				F3B5D810D2F6495798C6A541 /* UpdaterProfileBehaviorTests.swift */,
+				A4D6E9209D1B4E43B5E7C652 /* UpdaterViewModelProfileTests.swift */,
 				5F15E3BAE1404A58B205DD07 /* MinuteTests.swift */,
 			);
 			path = MinuteTests;
@@ -149,6 +156,7 @@
 		AF2CA8B1E4624B7ABCC0E83C /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				A7F9C2D73B1E4F6A8C0D1122 /* DistributionProfiles.xcconfig */,
 				779C02330F8D485BB5682A48 /* MinuteInfo.plist */,
 			);
 			path = Config;
@@ -408,6 +416,8 @@
 				B6A1D9E2F3C44C7AA1B2C3D4 /* MeetingPipelineViewModelCancelSessionTests.swift in Sources */,
 				1A2B3C4D5E6F7890ABCDEF12 /* StageDropValidationTests.swift in Sources */,
 				C7F3A9E4D2B8410FA1C0B2D3 /* MeetingDetailNoRegressionSmokeTests.swift in Sources */,
+				E1A9B130B6454F8794F15621 /* UpdaterProfileBehaviorTests.swift in Sources */,
+				D2A7C3307EAF4A36A8D4F932 /* UpdaterViewModelProfileTests.swift in Sources */,
 				BF27CF187A62466DB14F257B /* MinuteTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -550,11 +560,12 @@
 		};
 		58B694FB2EF54B140068FAA7 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7F9C2D73B1E4F6A8C0D1122 /* DistributionProfiles.xcconfig */;
 			buildSettings = {
 				APPINTENTS_METADATA_ENABLED = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Minute/Sources/App/Minute.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "$(MINUTE_APP_ENTITLEMENTS_FILE)";
 				CODE_SIGN_IDENTITY = "-";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
@@ -588,6 +599,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 0.16.1;
+				OTHER_SWIFT_FLAGS = "$(inherited) $(MINUTE_SWIFT_DISTRIBUTION_FLAG)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.roblibob.Minute;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -606,12 +618,13 @@
 		};
 		58B694FC2EF54B140068FAA7 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7F9C2D73B1E4F6A8C0D1122 /* DistributionProfiles.xcconfig */;
 			buildSettings = {
 				APPINTENTS_METADATA_ENABLED = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = NO;
-				CODE_SIGN_ENTITLEMENTS = Minute/Sources/App/Minute.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "$(MINUTE_APP_ENTITLEMENTS_FILE)";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
@@ -652,6 +665,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 0.16.1;
+				OTHER_SWIFT_FLAGS = "$(inherited) $(MINUTE_SWIFT_DISTRIBUTION_FLAG)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.roblibob.Minute;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -679,12 +693,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPINTENTS_METADATA_ENABLED = NO;
+				CODE_SIGN_ENTITLEMENTS = "$(MINUTE_WHISPER_SERVICE_ENTITLEMENTS)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				INFOPLIST_FILE = MinuteWhisperService/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MINUTE_WHISPER_SERVICE_ENTITLEMENTS = MinuteWhisperService/MinuteWhisperService.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.roblibob.Minute.WhisperService;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -697,6 +713,7 @@
 			buildSettings = {
 				APPINTENTS_METADATA_ENABLED = NO;
 				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_ENTITLEMENTS = "$(MINUTE_WHISPER_SERVICE_ENTITLEMENTS)";
 				CODE_SIGN_IDENTITY = "Developer ID Application";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
@@ -714,6 +731,7 @@
 				INFOPLIST_FILE = MinuteWhisperService/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MINUTE_WHISPER_SERVICE_ENTITLEMENTS = MinuteWhisperService/MinuteWhisperService.entitlements;
 				PRODUCT_BUNDLE_IDENTIFIER = com.roblibob.Minute.WhisperService;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
