@@ -103,6 +103,8 @@ if [ -d "$SPARKLE_FRAMEWORK" ]; then
   find "$SPARKLE_FRAMEWORK/Versions" -type f -name "Autoupdate" -print0 2>/dev/null | while IFS= read -r -d '' autoupdate; do
     sign_path "$autoupdate" "$HELPER_FALLBACK"
   done
+
+  sign_path "$SPARKLE_FRAMEWORK"
 fi
 
 VENDOR_DIR="$SRCROOT/MinuteCore/Vendor"

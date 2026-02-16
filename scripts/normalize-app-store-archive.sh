@@ -113,6 +113,8 @@ if [ -d "$SPARKLE_FRAMEWORK" ]; then
   find "$SPARKLE_FRAMEWORK/Versions" -type f -name "Autoupdate" -print0 2>/dev/null | while IFS= read -r -d '' autoupdate; do
     sign_path "$autoupdate" "$HELPER_ENTITLEMENTS_PATH"
   done
+
+  sign_path "$SPARKLE_FRAMEWORK"
 fi
 
 app_entitlements="$TEMP_DIR/app-entitlements.plist"

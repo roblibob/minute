@@ -139,19 +139,31 @@ public struct ReleaseValidationSummary: Codable, Sendable, Equatable {
     }
 
     public mutating func refreshOverallStatus(requiredChecks: [ReleaseValidationCheckType]) {
-        let checkMap = Dictionary(uniqueKeysWithValues: checks.map { ($0.checkType, $0.status) })
-        let failed = requiredChecks.contains { checkMap[$0] == .failed }
-        if failed {
-            overallStatus = .failed
-            return
+        let checkMap = checks.reduce(into: [ReleaseValidationCheckType: ReleaseValidationCheckStatus]()) { map, check in
+            guard let existing = map[check.checkType] else {
+                map[check.checkType] = check.status
+                return
+            }
+            map[check.checkType] = worstStatus(existing, check.status)
         }
 
-        let missing = requiredChecks.contains { checkMap[$0] == nil }
-        if missing {
-            overallStatus = .failed
-            return
+        let hasBlockingStatus = requiredChecks.contains { requiredCheck in
+            guard let status = checkMap[requiredCheck] else { return true }
+            return status != .passed
         }
+        overallStatus = hasBlockingStatus ? .failed : .passed
+    }
 
-        overallStatus = .passed
+    private func worstStatus(
+        _ lhs: ReleaseValidationCheckStatus,
+        _ rhs: ReleaseValidationCheckStatus
+    ) -> ReleaseValidationCheckStatus {
+        if lhs == .failed || rhs == .failed {
+            return .failed
+        }
+        if lhs == .skipped || rhs == .skipped {
+            return .skipped
+        }
+        return .passed
     }
 }

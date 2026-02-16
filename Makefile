@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 NOTARY_PROFILE ?= minute-notary
 DIST_PROFILE ?=
 ARCHIVE ?=

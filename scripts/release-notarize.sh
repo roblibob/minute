@@ -350,6 +350,8 @@ sign_sparkle_helpers() {
   find "$sparkle_framework/Versions" -type f -name "Autoupdate" -print0 2>/dev/null | while IFS= read -r -d '' autoupdate; do
     sign_path "$autoupdate" "$helper_fallback"
   done
+
+  sign_path "$sparkle_framework"
 }
 
 INFO_PLIST="$APP_PATH/Contents/Info.plist"
@@ -482,7 +484,9 @@ if [ "$GENERATE_APPCAST" = "1" ]; then
     echo "Copied appcast to $APPCAST_DEST"
   fi
 
-  summary_add_artifact "$SUMMARY_PATH" "appcast" "$APPCAST_DEST" "$DIST_PROFILE"
+  if [ -n "$APPCAST_DEST" ]; then
+    summary_add_artifact "$SUMMARY_PATH" "appcast" "$APPCAST_DEST" "$DIST_PROFILE"
+  fi
 fi
 
 summary_set_status "$SUMMARY_PATH" "completed"

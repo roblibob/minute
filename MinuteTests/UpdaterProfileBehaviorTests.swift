@@ -25,6 +25,7 @@ struct UpdaterProfileBehaviorTests {
             "MINUTEDistributionProfile": "app-store",
             "MINUTEEnableUpdater": "NO",
         ])
+        defer { try? FileManager.default.removeItem(at: bundleURL.deletingLastPathComponent()) }
         let bundle = try #require(Bundle(url: bundleURL))
 
         let config = AppDistributionConfiguration.current(bundle: bundle)

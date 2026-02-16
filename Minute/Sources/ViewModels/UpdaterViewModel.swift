@@ -42,17 +42,23 @@ final class UpdaterViewModel: ObservableObject {
 
             driver.canCheckForUpdatesPublisher
                 .receive(on: RunLoop.main)
-                .assign(to: \.canCheckForUpdates, on: self)
+                .sink { [weak self] value in
+                    self?.canCheckForUpdates = value
+                }
                 .store(in: &cancellables)
 
             driver.automaticallyChecksForUpdatesPublisher
                 .receive(on: RunLoop.main)
-                .assign(to: \.automaticallyChecksForUpdates, on: self)
+                .sink { [weak self] value in
+                    self?.automaticallyChecksForUpdates = value
+                }
                 .store(in: &cancellables)
 
             driver.automaticallyDownloadsUpdatesPublisher
                 .receive(on: RunLoop.main)
-                .assign(to: \.automaticallyDownloadsUpdates, on: self)
+                .sink { [weak self] value in
+                    self?.automaticallyDownloadsUpdates = value
+                }
                 .store(in: &cancellables)
         } else {
             canCheckForUpdates = false
