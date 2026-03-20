@@ -1,141 +1,37 @@
-# Minute — Agent Guide
+# Minute — transcription and summarization companion app for obsidian
+This is a meeting note summarization app tailored to the user need for 
+private and local inference.
 
-This document describes how to work in this repository: coding conventions, architecture expectations, testing/linting, and release discipline.
+## Constitution
 
-## Product constraints (v1)
-Source of truth: `docs/overview.md`.
+### Deterministic Output Contract
+Preserve the vault contract: exactly three files per processed meeting.
+  - `Meetings/YYYY/MM/YYYY-MM-DD HH.MM - <Title>.md`
+  - `Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav`
+  - `Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md`
+WAV output must remain mono, 16 kHz, 16-bit PCM.
+Models output JSON, the app renders Markdown, and vault writes are atomic.
 
-Hard requirements:
-- Native macOS app (Swift + SwiftUI), macOS 14+
-- Audio is recorded locally
-- Transcription runs locally (whisper)
-- Summarization runs locally (llama)
-- Exactly three files are written to the selected Obsidian vault per processed meeting:
-  - Markdown note: `Meetings/YYYY/MM/YYYY-MM-DD HH.MM - <Title>.md`
-  - WAV audio: `Meetings/_audio/YYYY-MM-DD HH.MM - <Title>.wav`
-  - Transcript Markdown: `Meetings/_transcripts/YYYY-MM-DD HH.MM - <Title>.md`
-- WAV format must be mono, 16 kHz, 16-bit PCM
-- No outbound network calls except model downloads
+### Local-Only Processing and Privacy
+Minute is a local first app. Models run locally. 
+  - No outbound network calls except model downloads.
 
-## Repository structure
-- `Minute/` — App target (SwiftUI)
-  - `Sources/App/` — App entry point and entitlements
-  - `Sources/Views/` — SwiftUI Views
-  - `Sources/ViewModels/` — View Models
-- `Minute.xcodeproj/` — Xcode project
-- `MinuteCore/` — Swift Package (non-UI logic, services, rendering, contracts)
-  - `Sources/MinuteCore/`
-  - `Vendor/` — Inference libraries (whisper, llama)
-- `Vendor/` — External binaries (ffmpeg)
-- `docs/` — Product docs
-- `specs/` — Implementation specs and plans
+### Test-Gated Core Logic
+Every new feature or contract change MUST add or update tests in MinuteCore
+Practise TDD
 
-## Architecture guidance
-Follow the plan in `docs/tasks/`.
+### Consistent, Predictable UX
+- UI stays thin; business logic belongs in `MinuteCore`.
+- UX SHOULD follow apple guidelines for Human Interfaces
+- Use `MinuteError` for user-facing failures and `OSLog` for logs. Do not log raw transcripts by default.
 
-Key principles:
-- UI stays thin; business logic lives in `MinuteCore`.
-- Single source-of-truth state machine for the pipeline.
-- Determinism at boundaries:
-  - models output JSON only
-  - app renders Markdown deterministically
-  - atomic file writes
+### Personality and AI guidance
+You are my main contributor 
+- Be curious, you are allowed to propose better solutions if you notice flaws.
+- Feel free to continue working without interruption but do ask your human
+  if you get stuck in a loop.
 
-Suggested module boundaries (inside `MinuteCore`):
-- Domain/types (schemas, file contracts)
-- Services (audio, transcription, summarization, vault access, model management)
-- Rendering (Markdown renderer)
-
-## Development guidelines
-SOLID Principles
-- Single Responsibility: One responsibility to one actor
-- Open/Closed: Open for extension, closed for modification
-- Liskov Substitution: Subtypes must be substitutable
-- Interface Segregation: No forced implementation of unused methods
-- Dependency Inversion: Depend on abstractions, not concretions
-
-Clean Code Principles
-- Comments: Code should be self-documenting
-- Boundaries: Clear interfaces between modules
-- Testability: Code structure that facilitates testing
-
-Comment Only What the Code Cannot Say
-- Apply the principle: "Comment what the code cannot say, not simply what it does not say"
-- Remove redundant comments that simply repeat what the code already expresses
-- Keep only comments that provide valuable context that cannot be expressed through code structure
-- Ensure code is self-explanatory through clear naming and structure rather than excessive commenting
-
-## Concurrency
-- Prefer Swift Concurrency (`async`/`await`).
-- Use `@MainActor` only for UI state updates.
-- Use `actor` or immutable structs for shared state.
-- Every long-running operation must support cancellation.
-
-## Error handling
-- Use a small set of domain errors (`MinuteError`) surfaced to the UI.
-- Map OS/framework errors at the boundary.
-- Keep user-visible error messages concise; include debug details only in logs or an optional debug panel.
-
-## Logging and privacy
-- Use `OSLog`.
-- Do not log raw transcripts by default.
-- Transcript is written to the vault as its own Markdown file (not embedded into the meeting note body).
-
-## Whisper/Llama integration policy
-Preference order:
-1. Library integration (preferred): link whisper/llama as libraries via SPM/CMake/XCFramework and call from Swift via a small C shim.
-2. Executable integration (fallback): bundle CLI binaries and invoke via `Process`.
-
-## Testing
-### Unit tests (required)
-Add tests in `MinuteCore` for:
-- Markdown renderer (golden tests)
-- Filename sanitization
-- File contract path generation
-- JSON decoding + validation behavior
-- Always add tests for new features
-
-### Integration tests (recommended)
-- Mock the process runner (or library wrapper) to test whisper/llama output handling.
-
-## Linting and formatting
-This repo currently has no enforced linter/formatter configuration committed.
-
-Recommended setup:
-- Formatting: `swift-format`
-  - Install: `brew install swift-format`
-  - Use: run `swift-format format -i -r Minute MinuteCore` once `MinuteCore` exists
-- Linting: SwiftLint (optional but recommended)
-  - Install: `brew install swiftlint`
-  - Add a minimal `.swiftlint.yml` once the codebase grows
-
-If you add these tools, also add:
-- A CI step (GitHub Actions or similar)
-- A short `make lint`/`make format` or documented `xcodebuild` invocations
-
-## Building and testing (CLI)
-Common patterns (adjust scheme names as they evolve):
-- Build:
-  - `xcodebuild -project Minute.xcodeproj -scheme Minute -configuration Debug build`
-- Build (workspace):
-  - `xcodebuild -workspace Minute.xcworkspace -scheme Minute -configuration Debug build`
-- Test:
-  - `xcodebuild -project Minute.xcodeproj -scheme Minute -configuration Debug test`
-- Test (MinuteCore package):
-  - `xcodebuild -workspace Minute.xcworkspace -scheme MinuteCore -configuration Debug test -destination 'platform=macOS'`
-
-If CI is added, prefer using `xcodebuild` so it matches local behavior.
-
-## Release discipline
-- Keep the output contract stable.
-- Changes that affect note format or paths must update docs and tests.
-- Before release:
-  - Run unit tests
-  - Run the manual QA checklist
-  - Validate sandbox + security-scoped bookmark flows
-  - Validate that only model downloads touch the network
-  - Follow `docs/releasing.md` for notarization, appcast, and Homebrew updates
-
-## Active Technologies
-- Swift 5.9+ (Xcode 15.x), Swift tools 6.2 for `MinuteCore` package + SwiftUI, Combine, MinuteCore pipeline/services, MinuteLlama summarization service, OSLog (015-token-budget-multipass-summary)
-- Local files (vault outputs and temporary session artifacts) + local preferences in `UserDefaults` where already used (015-token-budget-multipass-summary)
+## More information
+General documentation overview: `docs/overview.md`.
+Constitution: `.specify/constitution.md`.
+Specification history: `specs/`

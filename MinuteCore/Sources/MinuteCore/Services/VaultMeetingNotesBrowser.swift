@@ -8,6 +8,8 @@ public struct MeetingNoteItem: Sendable, Identifiable, Equatable {
     public var fileURL: URL
     public var hasTranscript: Bool
     public var transcriptURL: URL?
+    public var currentMeetingTypeId: String?
+    public var reprocessBlockingReason: ReprocessBlockingReason?
 
     public init(
         title: String,
@@ -15,7 +17,9 @@ public struct MeetingNoteItem: Sendable, Identifiable, Equatable {
         relativePath: String,
         fileURL: URL,
         hasTranscript: Bool = false,
-        transcriptURL: URL? = nil
+        transcriptURL: URL? = nil,
+        currentMeetingTypeId: String? = nil,
+        reprocessBlockingReason: ReprocessBlockingReason? = nil
     ) {
         self.title = title
         self.date = date
@@ -23,6 +27,8 @@ public struct MeetingNoteItem: Sendable, Identifiable, Equatable {
         self.fileURL = fileURL
         self.hasTranscript = hasTranscript
         self.transcriptURL = transcriptURL
+        self.currentMeetingTypeId = currentMeetingTypeId
+        self.reprocessBlockingReason = reprocessBlockingReason
     }
 }
 
@@ -34,6 +40,12 @@ public protocol MeetingNotesBrowsing: Sendable {
 }
 
 public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendable {
+    private enum TranscriptArtifactState {
+        case missing
+        case available
+        case unreadable
+    }
+
     private struct NoteCandidate {
         var item: MeetingNoteItem
         var sortDate: Date
@@ -104,7 +116,18 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
                 let relativePath = Self.relativePath(from: vaultRootURL, to: url)
                 let sortDate = parseResult.date ?? values.contentModificationDate ?? Date.distantPast
                 let transcriptURL = transcriptRootURL.appendingPathComponent("\(filename).md")
-                let hasTranscript = FileManager.default.fileExists(atPath: transcriptURL.path)
+                let transcriptState = Self.transcriptArtifactState(at: transcriptURL)
+                let hasTranscript = transcriptState == .available
+                let currentMeetingTypeId = Self.loadCurrentMeetingTypeID(from: url)
+                let reprocessBlockingReason: ReprocessBlockingReason?
+                switch transcriptState {
+                case .missing:
+                    reprocessBlockingReason = .missingTranscript
+                case .available:
+                    reprocessBlockingReason = nil
+                case .unreadable:
+                    reprocessBlockingReason = .unreadableTranscript
+                }
 
                 let item = MeetingNoteItem(
                     title: parseResult.title,
@@ -112,7 +135,9 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
                     relativePath: relativePath,
                     fileURL: url,
                     hasTranscript: hasTranscript,
-                    transcriptURL: transcriptURL
+                    transcriptURL: transcriptURL,
+                    currentMeetingTypeId: currentMeetingTypeId,
+                    reprocessBlockingReason: reprocessBlockingReason
                 )
                 candidates.append(NoteCandidate(item: item, sortDate: sortDate))
             }
@@ -262,5 +287,28 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
         components.minute = minute
 
         return cal.date(from: components)
+    }
+
+    private static func loadCurrentMeetingTypeID(from noteURL: URL) -> String? {
+        guard let data = try? Data(contentsOf: noteURL) else {
+            return nil
+        }
+
+        let markdown = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+        return MeetingNoteParsing.parseMeetingTypeID(fromNoteMarkdown: markdown)
+    }
+
+    private static func transcriptArtifactState(at transcriptURL: URL) -> TranscriptArtifactState {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: transcriptURL.path, isDirectory: &isDirectory) else {
+            return .missing
+        }
+        guard !isDirectory.boolValue else {
+            return .unreadable
+        }
+        guard FileManager.default.isReadableFile(atPath: transcriptURL.path) else {
+            return .unreadable
+        }
+        return .available
     }
 }

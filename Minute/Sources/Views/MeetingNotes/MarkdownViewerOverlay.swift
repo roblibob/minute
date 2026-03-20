@@ -40,6 +40,10 @@ struct MarkdownViewerOverlay: View {
     var onOpenSummaryInObsidian: (() -> Void)?
     var onOpenTranscriptInObsidian: (() -> Void)?
     var onRevealInFinder: (() -> Void)?
+    var reprocessTargetTypes: [MeetingTypeDefinition] = []
+    var canReprocess: Bool = false
+    var reprocessDisabledReason: String? = nil
+    var onSelectReprocessTarget: ((String) -> Void)?
     var onDelete: (() -> Void)?
     var speakerEditor: SpeakerEditorConfig? = nil
     private let scrollBottomInset: CGFloat = 160
@@ -123,6 +127,16 @@ struct MarkdownViewerOverlay: View {
                 } label: {
                     Label("Reveal in Finder", systemImage: "finder")
                 }
+
+                Menu("Resummarize as…") {
+                    ForEach(reprocessTargetTypes, id: \.typeId) { definition in
+                        Button(definition.displayName) {
+                            onSelectReprocessTarget?(definition.typeId)
+                        }
+                    }
+                }
+                .disabled(!canReprocess || reprocessTargetTypes.isEmpty)
+                .help(reprocessDisabledReason ?? "Resummarize using a different meeting type")
 
                 Divider()
 
@@ -546,6 +560,13 @@ private struct InteractiveTranscriptView: View {
                             }
                         )
 
+                    case .screenContextHeader(let label, let windowTitle, let timestampStartSeconds):
+                        ScreenContextHeaderRow(
+                            label: label,
+                            windowTitle: windowTitle,
+                            timestampStartSeconds: timestampStartSeconds
+                        )
+
                     case .text(let text):
                         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Spacer().frame(height: 2)
@@ -561,6 +582,44 @@ private struct InteractiveTranscriptView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+private struct ScreenContextHeaderRow: View {
+    let label: String
+    let windowTitle: String?
+    let timestampStartSeconds: Double
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.minuteTextPrimary)
+
+            Text(metadataLine)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.minuteTextMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 4)
+    }
+
+    private var metadataLine: String {
+        if let windowTitle, !windowTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "\(windowTitle) • \(formatTimestamp(timestampStartSeconds))"
+        }
+        return formatTimestamp(timestampStartSeconds)
+    }
+
+    private func formatTimestamp(_ seconds: Double) -> String {
+        let total = max(0, Int(seconds.rounded(.down)))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%02d:%02d", minutes, secs)
     }
 }
 

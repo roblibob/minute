@@ -11,6 +11,7 @@ public struct TranscriptMarkdownRenderer: Sendable {
         dateISO: String,
         transcript: String,
         attributedSegments: [AttributedTranscriptSegment] = [],
+        screenContextEntries: [TranscriptTimelineEntry] = [],
         speakerDisplayNames: [Int: String] = [:]
     ) -> String {
         let safeTitle = FilenameSanitizer.sanitizeTitle(title)
@@ -29,7 +30,7 @@ public struct TranscriptMarkdownRenderer: Sendable {
         lines.append("# \(safeTitle) — Transcript")
         lines.append("")
 
-        if attributedSegments.isEmpty {
+        if attributedSegments.isEmpty && screenContextEntries.isEmpty {
             let body = transcript
                 .replacingOccurrences(of: "\r\n", with: "\n")
                 .replacingOccurrences(of: "\r", with: "\n")
@@ -39,21 +40,16 @@ public struct TranscriptMarkdownRenderer: Sendable {
                 lines.append(body)
             }
         } else {
-            for (index, segment) in attributedSegments.enumerated() {
-                let start = formatTimestamp(segment.startSeconds)
-                let end = formatTimestamp(segment.endSeconds)
+            let timelineEntries = makeRenderableTimelineEntries(
+                attributedSegments: attributedSegments,
+                screenContextEntries: screenContextEntries,
+                speakerDisplayNames: speakerDisplayNames
+            )
 
-                let mappedName = speakerDisplayNames[segment.speakerId]?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let heading: String
-                if let mappedName, !mappedName.isEmpty {
-                    heading = "Speaker \(segment.speakerId) (\(mappedName)) [\(start) - \(end)]"
-                } else {
-                    heading = "Speaker \(segment.speakerId) [\(start) - \(end)]"
-                }
-
-                lines.append(heading)
-                lines.append(segment.text.trimmingCharacters(in: .whitespacesAndNewlines))
-                if index < attributedSegments.count - 1 {
+            for (index, entry) in timelineEntries.enumerated() {
+                lines.append(entry.heading)
+                lines.append(entry.body)
+                if index < timelineEntries.count - 1 {
                     lines.append("")
                 }
             }
@@ -83,4 +79,80 @@ public struct TranscriptMarkdownRenderer: Sendable {
         }
         return String(format: "%02d:%02d", minutes, secs)
     }
+
+    private func makeRenderableTimelineEntries(
+        attributedSegments: [AttributedTranscriptSegment],
+        screenContextEntries: [TranscriptTimelineEntry],
+        speakerDisplayNames: [Int: String]
+    ) -> [RenderableTimelineEntry] {
+        var entries: [RenderableTimelineEntry] = []
+        entries.reserveCapacity(attributedSegments.count + screenContextEntries.count)
+        var nextSequenceIndex = 0
+
+        for segment in attributedSegments {
+            let start = formatTimestamp(segment.startSeconds)
+            let end = formatTimestamp(segment.endSeconds)
+            let mappedName = speakerDisplayNames[segment.speakerId]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let heading: String
+            if let mappedName, !mappedName.isEmpty {
+                heading = "Speaker \(segment.speakerId) (\(mappedName)) [\(start) - \(end)]"
+            } else {
+                heading = "Speaker \(segment.speakerId) [\(start) - \(end)]"
+            }
+            let body = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !body.isEmpty else { continue }
+            entries.append(
+                RenderableTimelineEntry(
+                    timestampStartSeconds: max(0, segment.startSeconds),
+                    sortIndex: 0,
+                    sequenceIndex: nextSequenceIndex,
+                    heading: heading,
+                    body: body
+                )
+            )
+            nextSequenceIndex += 1
+        }
+
+        for entry in screenContextEntries where entry.kind == .screenContext {
+            let timestamp = formatTimestamp(entry.timestampStartSeconds)
+            let windowTitle = entry.windowTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let heading: String
+            if let windowTitle, !windowTitle.isEmpty {
+                heading = "Screen Context (\(windowTitle)) [\(timestamp)]"
+            } else {
+                heading = "Screen Context [\(timestamp)]"
+            }
+            let body = entry.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !body.isEmpty else { continue }
+            entries.append(
+                RenderableTimelineEntry(
+                    timestampStartSeconds: max(0, entry.timestampStartSeconds),
+                    sortIndex: 1,
+                    sequenceIndex: nextSequenceIndex,
+                    heading: heading,
+                    body: body
+                )
+            )
+            nextSequenceIndex += 1
+        }
+
+        entries.sort {
+            if $0.timestampStartSeconds == $1.timestampStartSeconds {
+                if $0.sortIndex == $1.sortIndex {
+                    return $0.sequenceIndex < $1.sequenceIndex
+                }
+                return $0.sortIndex < $1.sortIndex
+            }
+            return $0.timestampStartSeconds < $1.timestampStartSeconds
+        }
+        return entries
+    }
+}
+
+private struct RenderableTimelineEntry {
+    var timestampStartSeconds: Double
+    var sortIndex: Int
+    var sequenceIndex: Int
+    var heading: String
+    var body: String
 }

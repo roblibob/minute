@@ -125,6 +125,19 @@ public struct ScreenContextEvent: Sendable, Equatable {
         self.windowTitle = windowTitle
         self.inference = inference
     }
+
+    public func transcriptTimelineEntry() -> TranscriptTimelineEntry? {
+        let summary = inference.summaryLine()
+        guard !summary.isEmpty else { return nil }
+
+        return TranscriptTimelineEntry(
+            kind: .screenContext,
+            timestampStartSeconds: max(0, timestampSeconds),
+            displayLabel: "Screen Context",
+            text: summary,
+            windowTitle: windowTitle
+        )
+    }
 }
 
 public enum ScreenContextLifecycleEventType: String, Sendable, Equatable {

@@ -101,13 +101,19 @@ struct MeetingNotesSidebarView: View {
                                 timeLabel: timeLabel(for: item),
                                 durationLabel: durationLabel(for: preview),
                                 isSelected: model.selectedItem?.id == item.id,
+                                reprocessTargetTypes: model.availableReprocessTargetTypes(for: item),
+                                canReprocess: model.reprocessAvailability(for: item).canReprocess && !model.isReprocessingMeeting,
+                                reprocessDisabledReason: model.reprocessDisabledReason(for: item),
                                 onSelect: { model.select(item) },
                                 onOpenSummaryInApp: { model.openSummaryInApp(for: item) },
                                 onOpenTranscriptInApp: { model.openTranscriptInApp(for: item) },
                                 onOpenSummaryInObsidian: { model.openSummaryInObsidian(for: item) },
                                 onOpenTranscriptInObsidian: { model.openTranscriptInObsidian(for: item) },
                                 onRevealInFinder: { model.revealInFinder(for: item) },
-                                onDelete: { model.delete(item) }
+                                onDelete: { model.delete(item) },
+                                onPrepareReprocess: { targetTypeID in
+                                    model.prepareReprocess(for: item, targetTypeID: targetTypeID)
+                                }
                             )
                             .listRowInsets(EdgeInsets(top: 6, leading: 2, bottom: 6, trailing: 8))
                         }
@@ -254,6 +260,9 @@ private struct MeetingNoteRow: View {
     let timeLabel: String
     let durationLabel: String?
     let isSelected: Bool
+    let reprocessTargetTypes: [MeetingTypeDefinition]
+    let canReprocess: Bool
+    let reprocessDisabledReason: String?
     let onSelect: () -> Void
     let onOpenSummaryInApp: () -> Void
     let onOpenTranscriptInApp: () -> Void
@@ -261,6 +270,7 @@ private struct MeetingNoteRow: View {
     let onOpenTranscriptInObsidian: () -> Void
     let onRevealInFinder: () -> Void
     let onDelete: () -> Void
+    let onPrepareReprocess: (String) -> Void
 
     var body: some View {
         Button(action: onSelect) {
@@ -324,6 +334,16 @@ private struct MeetingNoteRow: View {
             } label: {
                 Label("Reveal in Finder", systemImage: "finder")
             }
+
+            Menu("Resummarize as…") {
+                ForEach(reprocessTargetTypes, id: \.typeId) { definition in
+                    Button(definition.displayName) {
+                        onPrepareReprocess(definition.typeId)
+                    }
+                }
+            }
+            .disabled(!canReprocess || reprocessTargetTypes.isEmpty)
+            .help(reprocessDisabledReason ?? "Resummarize using a different meeting type")
 
             Divider()
             Button(role: .destructive) {

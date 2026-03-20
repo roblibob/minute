@@ -29,6 +29,7 @@ public enum MinuteError: Error, LocalizedError, Sendable {
     case jsonInvalid
     case vaultWriteFailed
     case invalidMeetingTypeSelection
+    case reprocessOverwriteConfirmationRequired
     case pipelineRunAlreadyActive
 
     case llamaMTMDMissing
@@ -80,6 +81,8 @@ public enum MinuteError: Error, LocalizedError, Sendable {
             return "Failed to write meeting files to the vault."
         case .invalidMeetingTypeSelection:
             return "Selected meeting type is no longer available. Choose a valid meeting type."
+        case .reprocessOverwriteConfirmationRequired:
+            return "Confirm overwrite before reprocessing this meeting note."
         case .pipelineRunAlreadyActive:
             return "A processing run is already active for this meeting."
         case .llamaMTMDMissing:

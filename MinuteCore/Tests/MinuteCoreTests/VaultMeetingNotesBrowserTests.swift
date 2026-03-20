@@ -122,6 +122,47 @@ struct VaultMeetingNotesBrowserTests {
 
         expectEqual(content, "transcript contents")
     }
+
+    @Test
+    func listNotesParsesCurrentMeetingTypeFromNoteFrontmatter() async throws {
+        let rootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let noteURL = rootURL.appendingPathComponent("Meetings/2025/01/2025-01-10 10.00 - Team Sync.md")
+        try createFile(
+            at: noteURL,
+            contents: """
+            ---
+            meeting_type: planning
+            ---
+
+            # Team Sync
+            """
+        )
+
+        let browser = try makeBrowser(vaultRootURL: rootURL)
+        let notes = try await browser.listNotes()
+
+        expectEqual(notes.first?.currentMeetingTypeId, "planning")
+    }
+
+    @Test
+    func listNotesMarksUnreadableTranscriptForReprocessing() async throws {
+        let rootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let noteURL = rootURL.appendingPathComponent("Meetings/2025/01/2025-01-10 10.00 - Team Sync.md")
+        let transcriptURL = rootURL.appendingPathComponent("Meetings/_transcripts/2025-01-10 10.00 - Team Sync.md")
+
+        try createFile(at: noteURL, contents: "# Team Sync")
+        try FileManager.default.createDirectory(at: transcriptURL, withIntermediateDirectories: true)
+
+        let browser = try makeBrowser(vaultRootURL: rootURL)
+        let notes = try await browser.listNotes()
+
+        expectEqual(notes.first?.reprocessBlockingReason, .unreadableTranscript)
+        #expect(notes.first?.hasTranscript == false)
+    }
 }
 
 private final class InMemoryBookmarkStore: VaultBookmarkStoring {

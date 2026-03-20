@@ -25,6 +25,38 @@ struct VaultWriteCoverageTests {
         let transcriptURL = vaultRootURL.appendingPathComponent(transcriptRelativePath)
         #expect(!FileManager.default.fileExists(atPath: transcriptURL.path))
     }
+
+    @Test
+    func reprocessMeeting_keepsExistingThreeFileContractStable() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let noteURL = vaultRootURL.appendingPathComponent(ReprocessMeetingFixtures.noteRelativePath)
+        let transcriptURL = vaultRootURL.appendingPathComponent(ReprocessMeetingFixtures.transcriptRelativePath)
+        let audioURL = vaultRootURL.appendingPathComponent(ReprocessMeetingFixtures.audioRelativePath)
+
+        try FileManager.default.createDirectory(at: noteURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: transcriptURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: audioURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(ReprocessMeetingFixtures.noteMarkdown().utf8).write(to: noteURL, options: [.atomic])
+        try Data(ReprocessMeetingFixtures.transcriptMarkdown().utf8).write(to: transcriptURL, options: [.atomic])
+        try Data([0x01, 0x02]).write(to: audioURL, options: [.atomic])
+
+        let coordinator = makeCoordinator(
+            vaultRootURL: vaultRootURL,
+            summarizationJSON: validExtractionJSON(title: "Product Review", date: "2026-03-20"),
+            repairJSON: validExtractionJSON(title: "Product Review", date: "2026-03-20")
+        )
+
+        let request = ReprocessMeetingFixtures.reprocessRequest(in: vaultRootURL)
+        _ = try await coordinator.reprocessMeeting(request: request)
+
+        let files = try vaultFileRelativePaths(under: vaultRootURL)
+        #expect(files.count == 3)
+        #expect(files.contains(ReprocessMeetingFixtures.noteRelativePath))
+        #expect(files.contains(ReprocessMeetingFixtures.transcriptRelativePath))
+        #expect(files.contains(ReprocessMeetingFixtures.audioRelativePath))
+    }
 }
 
 private struct TestModelManager: ModelManaging {
@@ -191,6 +223,23 @@ private func validExtractionJSON(title: String, date: String) -> String {
       "key_points": []
     }
     """#
+}
+
+private func vaultFileRelativePaths(under vaultRootURL: URL) throws -> [String] {
+    guard let enumerator = FileManager.default.enumerator(
+        at: vaultRootURL,
+        includingPropertiesForKeys: [.isRegularFileKey],
+        options: [.skipsHiddenFiles, .skipsPackageDescendants]
+    ) else {
+        return []
+    }
+
+    var paths: [String] = []
+    for case let fileURL as URL in enumerator {
+        guard fileURL.hasDirectoryPath == false else { continue }
+        paths.append(VaultPathNormalizer.relativePath(from: vaultRootURL, to: fileURL))
+    }
+    return paths.sorted()
 }
 
 private struct TestDiarizationService: DiarizationServicing {
