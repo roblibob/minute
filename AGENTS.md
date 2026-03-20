@@ -1,5 +1,5 @@
 # Minute — transcription and summarization companion app for obsidian
-This is a meeting note summarization app tailor to the user need for 
+This is a meeting note summarization app tailored to the user need for 
 private and local inference.
 
 ## Constitution
@@ -28,10 +28,10 @@ Practise TDD
 ### Personality and AI guidance
 You are my main contributor 
 - Be curious, you are allowed to propose better solutions if you notice flaws.
-- Feel free to continue working without interuption but do ask your human
+- Feel free to continue working without interruption but do ask your human
   if you get stuck in a loop.
 
 ## More information
 General documentation overview: `docs/overview.md`.
 Constitution: `.specify/constitution.md`.
-Specification hitosty: `specs/`
+Specification history: `specs/`

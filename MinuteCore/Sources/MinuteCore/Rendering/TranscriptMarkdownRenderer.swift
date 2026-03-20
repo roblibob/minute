@@ -87,6 +87,7 @@ public struct TranscriptMarkdownRenderer: Sendable {
     ) -> [RenderableTimelineEntry] {
         var entries: [RenderableTimelineEntry] = []
         entries.reserveCapacity(attributedSegments.count + screenContextEntries.count)
+        var nextSequenceIndex = 0
 
         for segment in attributedSegments {
             let start = formatTimestamp(segment.startSeconds)
@@ -104,10 +105,12 @@ public struct TranscriptMarkdownRenderer: Sendable {
                 RenderableTimelineEntry(
                     timestampStartSeconds: max(0, segment.startSeconds),
                     sortIndex: 0,
+                    sequenceIndex: nextSequenceIndex,
                     heading: heading,
                     body: body
                 )
             )
+            nextSequenceIndex += 1
         }
 
         for entry in screenContextEntries where entry.kind == .screenContext {
@@ -125,14 +128,19 @@ public struct TranscriptMarkdownRenderer: Sendable {
                 RenderableTimelineEntry(
                     timestampStartSeconds: max(0, entry.timestampStartSeconds),
                     sortIndex: 1,
+                    sequenceIndex: nextSequenceIndex,
                     heading: heading,
                     body: body
                 )
             )
+            nextSequenceIndex += 1
         }
 
         entries.sort {
             if $0.timestampStartSeconds == $1.timestampStartSeconds {
+                if $0.sortIndex == $1.sortIndex {
+                    return $0.sequenceIndex < $1.sequenceIndex
+                }
                 return $0.sortIndex < $1.sortIndex
             }
             return $0.timestampStartSeconds < $1.timestampStartSeconds
@@ -144,6 +152,7 @@ public struct TranscriptMarkdownRenderer: Sendable {
 private struct RenderableTimelineEntry {
     var timestampStartSeconds: Double
     var sortIndex: Int
+    var sequenceIndex: Int
     var heading: String
     var body: String
 }

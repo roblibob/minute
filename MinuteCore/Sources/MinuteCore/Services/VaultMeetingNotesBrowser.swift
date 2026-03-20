@@ -136,8 +136,8 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
                     fileURL: url,
                     hasTranscript: hasTranscript,
                     transcriptURL: transcriptURL,
-                    currentMeetingTypeId: currentMeetingTypeId
-                    ,reprocessBlockingReason: reprocessBlockingReason
+                    currentMeetingTypeId: currentMeetingTypeId,
+                    reprocessBlockingReason: reprocessBlockingReason
                 )
                 candidates.append(NoteCandidate(item: item, sortDate: sortDate))
             }
@@ -306,7 +306,7 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
         guard !isDirectory.boolValue else {
             return .unreadable
         }
-        guard (try? Data(contentsOf: transcriptURL)) != nil else {
+        guard FileManager.default.isReadableFile(atPath: transcriptURL.path) else {
             return .unreadable
         }
         return .available

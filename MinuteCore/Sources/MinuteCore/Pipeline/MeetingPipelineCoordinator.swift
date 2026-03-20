@@ -120,6 +120,7 @@ public actor MeetingPipelineCoordinator {
             let transcriptSource = MeetingNoteParsing.summarizationSourceText(
                 fromTranscriptMarkdown: reprocessInputs.transcriptMarkdown
             )
+            let meetingDate = reprocessMeetingDate(noteURL: request.noteURL) ?? dateProvider()
 
             let participantFrontmatter = MeetingSpeakerNamingService(vaultWriter: vaultWriter)
                 .loadOwnedParticipantFrontmatter(from: reprocessInputs.existingNoteMarkdown)
@@ -146,7 +147,7 @@ public actor MeetingPipelineCoordinator {
             let summarizationService = summarizationServiceProvider()
             let rawSummaryJSON = try await summarizationService.summarize(
                 transcript: transcriptSource,
-                meetingDate: dateProvider(),
+                meetingDate: meetingDate,
                 meetingType: targetMeetingType,
                 languageProcessing: .autoToEnglish,
                 outputLanguage: .defaultSelection,
@@ -154,7 +155,6 @@ public actor MeetingPipelineCoordinator {
             )
             var extraction = try await decodeOrRepairExtraction(
                 rawOutput: rawSummaryJSON,
-                meetingDate: dateProvider(),
                 summarizationService: summarizationService
             )
             extraction.meetingType = targetMeetingType
@@ -824,10 +824,8 @@ public actor MeetingPipelineCoordinator {
 
     private func decodeOrRepairExtraction(
         rawOutput: String,
-        meetingDate: Date,
         summarizationService: any SummarizationServicing
     ) async throws -> MeetingExtraction {
-        _ = meetingDate
         do {
             return try decodeExtractionStrict(from: rawOutput)
         } catch {
@@ -1235,6 +1233,57 @@ public actor MeetingPipelineCoordinator {
                 transcriptMarkdown: try loadUTF8Contents(at: transcriptURL)
             )
         }
+    }
+
+    private func reprocessMeetingDate(noteURL: URL) -> Date? {
+        let basename = noteURL.deletingPathExtension().lastPathComponent
+        guard let separatorRange = basename.range(of: " - ") else {
+            return nil
+        }
+
+        return parseMeetingTimestampPrefix(String(basename[..<separatorRange.lowerBound]))
+    }
+
+    private func parseMeetingTimestampPrefix(_ value: String, calendar: Calendar = .current) -> Date? {
+        let parts = value.split(separator: " ")
+        guard let datePart = parts.first else { return nil }
+
+        let dateSegments = datePart.split(separator: "-")
+        guard dateSegments.count == 3,
+              let year = Int(dateSegments[0]),
+              let month = Int(dateSegments[1]),
+              let day = Int(dateSegments[2]) else {
+            return nil
+        }
+
+        var hour = 0
+        var minute = 0
+        if parts.count > 1 {
+            let rawTime = parts[1]
+            let timeSegments = rawTime.split(separator: ":")
+            let fallbackSegments = rawTime.split(separator: ".")
+            let segments = timeSegments.count == 2 ? timeSegments : fallbackSegments
+            if segments.count == 2,
+               let parsedHour = Int(segments[0]),
+               let parsedMinute = Int(segments[1]) {
+                hour = parsedHour
+                minute = parsedMinute
+            }
+        }
+
+        var cal = calendar
+        cal.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+
+        var components = DateComponents()
+        components.calendar = cal
+        components.timeZone = cal.timeZone
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+
+        return cal.date(from: components)
     }
 
     private func findAudioRelativePath(forNoteURL noteURL: URL, vaultRootURL: URL) -> String? {

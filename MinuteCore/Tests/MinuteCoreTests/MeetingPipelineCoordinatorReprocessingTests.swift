@@ -150,6 +150,40 @@ struct MeetingPipelineCoordinatorReprocessingTests {
         let invocations = await summarizationService.summarizeInvocations
         expectEqual(invocations, 0)
     }
+
+    @Test
+    func reprocessMeeting_usesOriginalMeetingDateFromNotePathForSummarization() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let noteURL = vaultRootURL.appendingPathComponent(ReprocessMeetingFixtures.noteRelativePath)
+        let transcriptURL = vaultRootURL.appendingPathComponent(ReprocessMeetingFixtures.transcriptRelativePath)
+
+        try createFile(at: noteURL, contents: ReprocessMeetingFixtures.noteMarkdown())
+        try createFile(at: transcriptURL, contents: ReprocessMeetingFixtures.transcriptMarkdown())
+
+        let summarizationService = ReprocessSummarizationServiceSpy(
+            summarizationJSON: validExtractionJSON(title: "Product Review", date: "2026-03-20")
+        )
+        let coordinator = makeReprocessCoordinator(
+            vaultRootURL: vaultRootURL,
+            summarizationServiceProvider: { summarizationService }
+        )
+
+        _ = try await coordinator.reprocessMeeting(request: ReprocessMeetingFixtures.reprocessRequest(in: vaultRootURL))
+
+        let meetingDates = await summarizationService.summarizeMeetingDates
+        expectEqual(meetingDates.count, 1)
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: try #require(meetingDates.first))
+        expectEqual(components.year, 2026)
+        expectEqual(components.month, 3)
+        expectEqual(components.day, 20)
+        expectEqual(components.hour, 9)
+        expectEqual(components.minute, 41)
+    }
 }
 
 private func makeReprocessCoordinator(
@@ -255,6 +289,7 @@ private struct TestReprocessSummarizationService: SummarizationServicing {
 
 private actor ReprocessSummarizationServiceSpy: SummarizationServicing {
     private(set) var summarizeInvocations: Int = 0
+    private(set) var summarizeMeetingDates: [Date] = []
     private let summarizationJSON: String
 
     init(summarizationJSON: String) {
@@ -274,6 +309,7 @@ private actor ReprocessSummarizationServiceSpy: SummarizationServicing {
         _ = languageProcessing
         _ = outputLanguage
         summarizeInvocations += 1
+        summarizeMeetingDates.append(meetingDate)
         return summarizationJSON
     }
 

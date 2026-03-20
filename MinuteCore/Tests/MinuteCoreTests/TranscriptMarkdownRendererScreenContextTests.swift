@@ -49,4 +49,38 @@ struct TranscriptMarkdownRendererScreenContextTests {
 
         expectEqual(markdown, expected)
     }
+
+    @Test
+    func render_withEqualTimestampEntries_preservesInsertionOrderDeterministically() {
+        let screenContextEntries: [TranscriptTimelineEntry] = [
+            TranscriptTimelineEntry(
+                kind: .screenContext,
+                timestampStartSeconds: 6,
+                displayLabel: "Screen Context",
+                text: "First context",
+                windowTitle: "Figma"
+            ),
+            TranscriptTimelineEntry(
+                kind: .screenContext,
+                timestampStartSeconds: 6,
+                displayLabel: "Screen Context",
+                text: "Second context",
+                windowTitle: "Notes"
+            )
+        ]
+
+        let markdown = TranscriptMarkdownRenderer().render(
+            title: "Weekly Sync",
+            dateISO: "2025-12-19",
+            transcript: "unused when timeline entries provided",
+            screenContextEntries: screenContextEntries
+        )
+
+        let firstIndex = markdown.range(of: "First context")
+        let secondIndex = markdown.range(of: "Second context")
+
+        #expect(firstIndex != nil)
+        #expect(secondIndex != nil)
+        #expect(firstIndex!.lowerBound < secondIndex!.lowerBound)
+    }
 }

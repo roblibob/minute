@@ -4,7 +4,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-04
 
 ## Active Technologies
 - JSON file-based metadata (Obsidian vault + internal app support) (003-meeting-type-prompts)
-- Swift 5.9 (Xcode 15.x) + SwiftUI (app), MinuteCore (SPM), MinuteLlama (llama XCFramework + CLI), FluidAudio (ASR/diarization), AVFoundation, ScreenCaptureKi (004-background-summarization)
+- Swift 5.9 (Xcode 15.x) + SwiftUI (app), MinuteCore (SPM), MinuteLlama (llama XCFramework + CLI), FluidAudio (ASR/diarization), AVFoundation, ScreenCaptureKit (004-background-summarization)
 - Filesystem (vault outputs + temp dirs) + UserDefaults (settings, security-scoped bookmarks) (004-background-summarization)
 - Swift 5.9 (Xcode 15.x) + MinuteCore (Swift Package), local llama.cpp XCFramework integration (`MinuteLlama`), SwiftUI app target (005-meeting-type-autodetect)
 - N/A (classification is derived from transcript text; no new persisted entities required) (005-meeting-type-autodetect)
@@ -14,7 +14,7 @@ Auto-generated from all feature plans. Last updated: 2026-02-04
 - N/A (UI layout fixes only) (007-fix-ui-layout)
 - Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore (008-main-ui-refactor)
 - Files (vault outputs + app support) + UserDefaults for preferences (008-main-ui-refactor)
-- Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, FluidAudio, AVFoundation, ScreenCaptureKi (016-reprocess-meeting-type)
+- Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, FluidAudio, AVFoundation, ScreenCaptureKit (016-reprocess-meeting-type)
 - Local vault files (meeting note/audio/transcript), temporary processing artifacts, security-scoped bookmarks and settings in `UserDefaults` (016-reprocess-meeting-type)
 
 - Swift 5.9 + SwiftUI, Combine, AVFoundation, MinuteCore (Internal), Llama (Internal C++ wrapper) (001-meeting-type-prompts)
@@ -35,7 +35,7 @@ tests/
 Swift 5.9: Follow standard conventions
 
 ## Recent Changes
-- 016-reprocess-meeting-type: Added Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, FluidAudio, AVFoundation, ScreenCaptureKi
+- 016-reprocess-meeting-type: Added Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, FluidAudio, AVFoundation, ScreenCaptureKit
 - 008-main-ui-refactor: Added Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore
 - 007-fix-ui-layout: Added Swift 5.9+ (Xcode 15.x), SwiftUI + SwiftUI, AppKit (for macOS window management), MinuteCore (domain logic)
 
