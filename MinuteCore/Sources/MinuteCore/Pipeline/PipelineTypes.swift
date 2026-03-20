@@ -120,7 +120,6 @@ public struct TranscriptTimelineEntry: Codable, Sendable, Equatable {
 public enum ReprocessBlockingReason: String, Codable, Sendable, Equatable {
     case missingTranscript
     case unreadableTranscript
-    case sameMeetingType
     case invalidTargetType
 }
 

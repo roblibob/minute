@@ -522,8 +522,6 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             return "Transcript required to resummarize this meeting."
         case .unreadableTranscript:
             return "Transcript file is unreadable, so resummarization is unavailable."
-        case .sameMeetingType:
-            return "Choose a different meeting type to resummarize."
         case .invalidTargetType:
             return "Selected meeting type is unavailable."
         case nil:

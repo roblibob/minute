@@ -58,7 +58,7 @@ Represents the internal command to regenerate a meeting note from an existing tr
 
 **Validation**:
 - `targetMeetingTypeId` must be an explicit meeting type and must not equal `autodetect`.
-- `targetMeetingTypeId` must differ from `currentMeetingTypeId` when `currentMeetingTypeId` is known.
+- `targetMeetingTypeId` may match `currentMeetingTypeId`; reprocessing is allowed for the current type as well as `General`, with only `autodetect` excluded.
 - `overwriteConfirmed` must be true before the note write step proceeds.
 
 ### ReprocessAvailability
@@ -69,7 +69,7 @@ Represents the browser/view-model decision about whether reprocessing can start.
 - `meetingId: String`
 - `canReprocess: Bool`
 - `blockingReason: ReprocessBlockingReason?`
-  - Enum: `missingTranscript | unreadableTranscript | sameMeetingType | invalidTargetType`
+  - Enum: `missingTranscript | unreadableTranscript | invalidTargetType`
 - `allowedTargetTypeIds: [String]`
 - `requiresOverwriteConfirmation: Bool`
 

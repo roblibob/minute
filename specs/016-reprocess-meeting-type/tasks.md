@@ -59,7 +59,7 @@
 - [X] T013 [US1] Add meeting notes browser state and shared `Resummarize as…` actions for explicit-type reprocessing in `/Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/MeetingNotes/MeetingNotesBrowserViewModel.swift`
 - [X] T014 [US1] Add `Resummarize as…` to the meeting row context menu in `/Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/MeetingNotes/MeetingNotesSidebarView.swift`
 - [X] T015 [US1] Add `Resummarize as…` to the meatball menu in `/Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/MeetingNotes/MarkdownViewerOverlay.swift`
-- [X] T016 [US1] Exclude `Autodetect` from reprocess target selection and enforce different-type validation in `/Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/MeetingNotes/MeetingNotesBrowserViewModel.swift`
+- [X] T016 [US1] Exclude `Autodetect` from reprocess target selection in `/Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/MeetingNotes/MeetingNotesBrowserViewModel.swift`
 
 **Checkpoint**: User Story 1 is independently functional and testable as the MVP.
 
