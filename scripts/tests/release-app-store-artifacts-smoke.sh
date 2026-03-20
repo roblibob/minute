@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RELEASE_SCRIPT="$ROOT_DIR/scripts/release-notarize.sh"
+APP_STORE_ENTITLEMENTS="$ROOT_DIR/Minute/Sources/App/MinuteAppStore.entitlements"
 
 make_fake_app() {
   local app_path="$1"
@@ -77,6 +78,28 @@ fi
 
 if [ -f "$output_dir/appcast.xml" ]; then
   echo "app-store profile must not produce appcast output" >&2
+  exit 1
+fi
+
+if zipinfo -1 "$zip_path" | grep -Eq '(^|/)\._'; then
+  echo "app-store ZIP must not contain AppleDouble sidecar entries" >&2
+  exit 1
+fi
+
+unzipped_dir="$tmp_dir/unzipped"
+mkdir -p "$unzipped_dir"
+(
+  cd "$unzipped_dir"
+  unzip -q "$zip_path"
+)
+
+if ! /usr/bin/codesign --verify --deep --strict "$unzipped_dir/Minute.app" >/dev/null 2>&1; then
+  echo "unzipped app-store ZIP app must pass code-sign verification" >&2
+  exit 1
+fi
+
+if ! grep -q "com.apple.security.temporary-exception.shared-preference.read-write" "$APP_STORE_ENTITLEMENTS"; then
+  echo "app-store entitlements template must include Sparkle shared preference access" >&2
   exit 1
 fi
 

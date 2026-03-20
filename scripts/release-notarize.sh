@@ -301,6 +301,14 @@ sign_app_bundle() {
   fi
 }
 
+create_zip_archive() {
+  local source_app="$1"
+  local destination_zip="$2"
+
+  rm -f "$destination_zip"
+  /usr/bin/ditto --norsrc -c -k --keepParent "$source_app" "$destination_zip"
+}
+
 sign_app_helpers() {
   local helper_fallback=""
   if profile_is_app_store "$DIST_PROFILE"; then
@@ -370,7 +378,7 @@ sign_app_helpers
 sign_app_bundle
 
 TEMP_ZIP="$TEMP_DIR/Minute-notary.zip"
-ditto -c -k --keepParent "$APP_PATH" "$TEMP_ZIP"
+create_zip_archive "$APP_PATH" "$TEMP_ZIP"
 
 submit_and_wait() {
   local file="$1"
@@ -452,8 +460,7 @@ fi
 
 if [ "$CREATE_ZIP" = "1" ]; then
   echo "Creating release ZIP"
-  rm -f "$ZIP_PATH"
-  ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+  create_zip_archive "$APP_PATH" "$ZIP_PATH"
   summary_add_artifact "$SUMMARY_PATH" "zip" "$ZIP_PATH" "$DIST_PROFILE"
 fi
 
