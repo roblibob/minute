@@ -84,6 +84,49 @@ struct MeetingPipelineCoordinatorSpeakerTranscriptTests {
         #expect(contents.contains("Hello."))
         #expect(!contents.contains("Speaker 1"))
     }
+
+    @Test
+    func execute_persistsScreenContextEntriesInTranscript() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let transcription = TestTranscriptionService(result: TranscriptionResult(
+            text: "Hello. Let’s review.",
+            segments: [
+                TranscriptSegment(startSeconds: 0, endSeconds: 4, text: "Hello."),
+                TranscriptSegment(startSeconds: 8, endSeconds: 10, text: "Let’s review."),
+            ]
+        ))
+
+        let coordinator = makeCoordinator(
+            vaultRootURL: vaultRootURL,
+            diarizationService: TestDiarizationService(segments: []),
+            transcriptionService: transcription,
+            summarizationJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12"),
+            repairJSON: validExtractionJSON(title: "Weekly Sync", date: "2025-01-12")
+        )
+
+        let context = try makePipelineContext(
+            saveAudio: false,
+            saveTranscript: true,
+            screenContextEvents: [
+                ScreenContextEvent(
+                    timestampSeconds: 5,
+                    windowTitle: "Figma",
+                    inference: ScreenContextInference(text: "Roadmap review in Figma")
+                )
+            ]
+        )
+        _ = try await coordinator.execute(context: context)
+
+        let contract = MeetingFileContract(folders: context.vaultFolders)
+        let relative = contract.transcriptRelativePath(date: context.startedAt, title: "Weekly Sync")
+        let transcriptURL = vaultRootURL.appendingPathComponent(relative)
+
+        let contents = try String(contentsOf: transcriptURL)
+        #expect(contents.contains("Screen Context (Figma) [00:05]"))
+        #expect(contents.contains("Roadmap review in Figma"))
+    }
 }
 
 private struct TestModelManager: ModelManaging {
@@ -221,7 +264,11 @@ private func makeTemporaryVault() throws -> URL {
     return url
 }
 
-private func makePipelineContext(saveAudio: Bool, saveTranscript: Bool) throws -> PipelineContext {
+private func makePipelineContext(
+    saveAudio: Bool,
+    saveTranscript: Bool,
+    screenContextEvents: [ScreenContextEvent] = []
+) throws -> PipelineContext {
     let audioTempURL = try makeTemporaryAudioFile()
     let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
     let stoppedAt = startedAt.addingTimeInterval(60)
@@ -237,7 +284,7 @@ private func makePipelineContext(saveAudio: Bool, saveTranscript: Bool) throws -
         workingDirectoryURL: workingDirectoryURL,
         saveAudio: saveAudio,
         saveTranscript: saveTranscript,
-        screenContextEvents: []
+        screenContextEvents: screenContextEvents
     )
 }
 

@@ -84,6 +84,113 @@ public struct PipelineResult: Sendable, Equatable {
     }
 }
 
+public enum TranscriptTimelineEntryKind: String, Codable, Sendable, Equatable {
+    case speakerSegment
+    case screenContext
+}
+
+public struct TranscriptTimelineEntry: Codable, Sendable, Equatable {
+    public var kind: TranscriptTimelineEntryKind
+    public var timestampStartSeconds: Double
+    public var timestampEndSeconds: Double?
+    public var displayLabel: String
+    public var text: String
+    public var speakerId: Int?
+    public var windowTitle: String?
+
+    public init(
+        kind: TranscriptTimelineEntryKind,
+        timestampStartSeconds: Double,
+        timestampEndSeconds: Double? = nil,
+        displayLabel: String,
+        text: String,
+        speakerId: Int? = nil,
+        windowTitle: String? = nil
+    ) {
+        self.kind = kind
+        self.timestampStartSeconds = timestampStartSeconds
+        self.timestampEndSeconds = timestampEndSeconds
+        self.displayLabel = displayLabel
+        self.text = text
+        self.speakerId = speakerId
+        self.windowTitle = windowTitle
+    }
+}
+
+public enum ReprocessBlockingReason: String, Codable, Sendable, Equatable {
+    case missingTranscript
+    case unreadableTranscript
+    case sameMeetingType
+    case invalidTargetType
+}
+
+public struct ReprocessAvailability: Codable, Sendable, Equatable {
+    public var meetingId: String
+    public var canReprocess: Bool
+    public var blockingReason: ReprocessBlockingReason?
+    public var currentMeetingTypeId: String?
+    public var allowedTargetTypeIds: [String]
+    public var requiresOverwriteConfirmation: Bool
+
+    public init(
+        meetingId: String,
+        canReprocess: Bool,
+        blockingReason: ReprocessBlockingReason? = nil,
+        currentMeetingTypeId: String? = nil,
+        allowedTargetTypeIds: [String] = [],
+        requiresOverwriteConfirmation: Bool = false
+    ) {
+        self.meetingId = meetingId
+        self.canReprocess = canReprocess
+        self.blockingReason = blockingReason
+        self.currentMeetingTypeId = currentMeetingTypeId
+        self.allowedTargetTypeIds = allowedTargetTypeIds
+        self.requiresOverwriteConfirmation = requiresOverwriteConfirmation
+    }
+}
+
+public struct ReprocessMeetingRequest: Codable, Sendable, Equatable {
+    public var meetingId: String
+    public var noteURL: URL
+    public var transcriptURL: URL
+    public var targetMeetingTypeId: String
+    public var currentMeetingTypeId: String?
+    public var overwriteConfirmed: Bool
+
+    public init(
+        meetingId: String,
+        noteURL: URL,
+        transcriptURL: URL,
+        targetMeetingTypeId: String,
+        currentMeetingTypeId: String? = nil,
+        overwriteConfirmed: Bool
+    ) {
+        self.meetingId = meetingId
+        self.noteURL = noteURL
+        self.transcriptURL = transcriptURL
+        self.targetMeetingTypeId = targetMeetingTypeId
+        self.currentMeetingTypeId = currentMeetingTypeId
+        self.overwriteConfirmed = overwriteConfirmed
+    }
+
+    public func validated(availableTargetTypeIDs: Set<String>) throws -> ReprocessMeetingRequest {
+        let normalizedTargetTypeID = targetMeetingTypeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTargetTypeID.isEmpty,
+              normalizedTargetTypeID != MeetingType.autodetect.rawValue,
+              availableTargetTypeIDs.contains(normalizedTargetTypeID) else {
+            throw MinuteError.invalidMeetingTypeSelection
+        }
+
+        guard overwriteConfirmed else {
+            throw MinuteError.reprocessOverwriteConfirmationRequired
+        }
+
+        var copy = self
+        copy.targetMeetingTypeId = normalizedTargetTypeID
+        return copy
+    }
+}
+
 public struct PipelineContext: Sendable {
     public var vaultFolders: MeetingFileContract.VaultFolders
     public var audioTempURL: URL

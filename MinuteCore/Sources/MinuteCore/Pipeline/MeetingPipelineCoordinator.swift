@@ -27,6 +27,11 @@ public actor MeetingPipelineCoordinator {
         var transcriptRelativePath: String?
     }
 
+    private struct ReprocessInputs: Sendable {
+        var existingNoteMarkdown: String
+        var transcriptMarkdown: String
+    }
+
     public init(
         transcriptionService: some TranscriptionServicing,
         diarizationService: some DiarizationServicing,
@@ -82,6 +87,109 @@ public actor MeetingPipelineCoordinator {
             return result
         } catch {
             await runGate.end(meetingID: meetingRunID)
+            throw error
+        }
+    }
+
+    public func reprocessMeeting(
+        request: ReprocessMeetingRequest,
+        progress: (@Sendable (PipelineProgress) -> Void)? = nil
+    ) async throws -> PipelineResult {
+        let meetingTypeLibrary = meetingTypeLibraryStore.load()
+        let availableTargetTypeIDs = Set(
+            meetingTypeLibrary.activeDefinitions
+                .map(\.typeId)
+                .filter { $0 != MeetingType.autodetect.rawValue }
+        )
+        let request = try request.validated(availableTargetTypeIDs: availableTargetTypeIDs)
+
+        do {
+            try Task.checkCancellation()
+            progress?(.downloadingModels(fractionCompleted: 0))
+            try await modelManager.ensureModelsPresent { update in
+                let clamped = min(max(update.fractionCompleted, 0), 1)
+                progress?(.downloadingModels(fractionCompleted: clamped * 0.1))
+            }
+
+            progress?(.summarizing(fractionCompleted: 0.2))
+
+            let reprocessInputs = try loadReprocessInputs(
+                noteURL: request.noteURL,
+                transcriptURL: request.transcriptURL
+            )
+            let transcriptSource = MeetingNoteParsing.summarizationSourceText(
+                fromTranscriptMarkdown: reprocessInputs.transcriptMarkdown
+            )
+
+            let participantFrontmatter = MeetingSpeakerNamingService(vaultWriter: vaultWriter)
+                .loadOwnedParticipantFrontmatter(from: reprocessInputs.existingNoteMarkdown)
+            let targetMeetingType = MeetingType(rawValue: request.targetMeetingTypeId) ?? .general
+            let selection = MeetingTypeSelection(selectionMode: .manual, selectedTypeId: request.targetMeetingTypeId)
+            let resolvedPromptBundle: ResolvedPromptBundle
+            do {
+                resolvedPromptBundle = try promptBundleResolver.resolvePromptBundle(
+                    library: meetingTypeLibrary,
+                    selection: selection,
+                    languageProcessing: .autoToEnglish,
+                    outputLanguage: .defaultSelection,
+                    autodetectResolvedTypeID: nil
+                )
+            } catch ResolvedPromptBundleResolverError.selectedTypeUnavailable(let typeID) {
+                logger.error("Reprocess prompt bundle resolution failed due to unavailable meeting type: \(typeID, privacy: .public)")
+                throw MinuteError.invalidMeetingTypeSelection
+            } catch {
+                logger.error("Reprocess prompt bundle resolution failed unexpectedly: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
+                throw error
+            }
+            let sectionVisibility = summarySectionVisibility(for: resolvedPromptBundle.typeId, in: meetingTypeLibrary)
+
+            let summarizationService = summarizationServiceProvider()
+            let rawSummaryJSON = try await summarizationService.summarize(
+                transcript: transcriptSource,
+                meetingDate: dateProvider(),
+                meetingType: targetMeetingType,
+                languageProcessing: .autoToEnglish,
+                outputLanguage: .defaultSelection,
+                resolvedPromptBundle: resolvedPromptBundle
+            )
+            var extraction = try await decodeOrRepairExtraction(
+                rawOutput: rawSummaryJSON,
+                meetingDate: dateProvider(),
+                summarizationService: summarizationService
+            )
+            extraction.meetingType = targetMeetingType
+
+            progress?(.writing(fractionCompleted: 0.85, extraction: extraction))
+
+            return try vaultAccess.withVaultAccess { vaultRootURL in
+                let transcriptRelativePath = VaultPathNormalizer.relativePath(from: vaultRootURL, to: request.transcriptURL)
+                let audioRelativePath = MeetingNoteParsing.linkedRelativePath(
+                    inNoteMarkdown: reprocessInputs.existingNoteMarkdown,
+                    sectionHeading: "## Audio"
+                ) ?? findAudioRelativePath(forNoteURL: request.noteURL, vaultRootURL: vaultRootURL)
+
+                let noteDateTime = MeetingNoteParsing.frontmatterValue(forKey: "date", inNoteMarkdown: reprocessInputs.existingNoteMarkdown)
+                    ?? MeetingNoteDateFormatter.format(dateProvider())
+                let audioDurationSeconds = MeetingNoteParsing.parseAudioDurationSeconds(fromNoteMarkdown: reprocessInputs.existingNoteMarkdown)
+
+                let noteMarkdown = MarkdownRenderer().render(
+                    extraction: extraction,
+                    noteDateTime: noteDateTime,
+                    audioDurationSeconds: audioDurationSeconds,
+                    audioRelativePath: audioRelativePath,
+                    transcriptRelativePath: transcriptRelativePath,
+                    participantFrontmatter: participantFrontmatter,
+                    sectionVisibility: sectionVisibility
+                )
+                try vaultWriter.writeAtomically(data: Data(noteMarkdown.utf8), to: request.noteURL)
+
+                return PipelineResult(
+                    noteURL: request.noteURL,
+                    audioURL: audioRelativePath.map { vaultRootURL.appendingPathComponent($0) }
+                )
+            }
+        } catch {
+            logger.error("Reprocess failed: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
             throw error
         }
     }
@@ -714,6 +822,26 @@ public actor MeetingPipelineCoordinator {
         }
     }
 
+    private func decodeOrRepairExtraction(
+        rawOutput: String,
+        meetingDate: Date,
+        summarizationService: any SummarizationServicing
+    ) async throws -> MeetingExtraction {
+        _ = meetingDate
+        do {
+            return try decodeExtractionStrict(from: rawOutput)
+        } catch {
+            logger.info("Extraction JSON invalid during reprocessing; attempting repair")
+            let repaired = try await summarizationService.repairJSON(rawOutput)
+            do {
+                return try decodeExtractionStrict(from: repaired)
+            } catch {
+                logger.error("Extraction JSON still invalid after repair during reprocessing")
+                throw MinuteError.jsonInvalid
+            }
+        }
+    }
+
     private func writeOutputsToVault(
         context: PipelineContext,
         extraction: MeetingExtraction,
@@ -737,11 +865,13 @@ public actor MeetingPipelineCoordinator {
         let transcriptData: Data?
         if transcriptRelativePath != nil {
             let speakerDisplayNames = participantFrontmatter?.speakerMap ?? [:]
+            let screenContextEntries = context.screenContextEvents.compactMap { $0.transcriptTimelineEntry() }
             let transcriptMarkdown = TranscriptMarkdownRenderer().render(
                 title: extraction.title,
                 dateISO: meetingDateISO,
                 transcript: transcription.text,
                 attributedSegments: attributedSegments,
+                screenContextEntries: screenContextEntries,
                 speakerDisplayNames: speakerDisplayNames
             )
             transcriptData = Data(transcriptMarkdown.utf8)
@@ -1088,6 +1218,44 @@ public actor MeetingPipelineCoordinator {
                 "Failed to save summarization checkpoint during \(operation, privacy: .public) [meetingID=\(meetingID, privacy: .public)]: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))"
             )
         }
+    }
+
+    private func loadUTF8Contents(at url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        if let content = String(data: data, encoding: .utf8) {
+            return content
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private func loadReprocessInputs(noteURL: URL, transcriptURL: URL) throws -> ReprocessInputs {
+        try vaultAccess.withVaultAccess { _ in
+            ReprocessInputs(
+                existingNoteMarkdown: try loadUTF8Contents(at: noteURL),
+                transcriptMarkdown: try loadUTF8Contents(at: transcriptURL)
+            )
+        }
+    }
+
+    private func findAudioRelativePath(forNoteURL noteURL: URL, vaultRootURL: URL) -> String? {
+        let basename = noteURL.deletingPathExtension().lastPathComponent
+        let resourceKeys: Set<URLResourceKey> = [.isRegularFileKey]
+
+        guard let enumerator = FileManager.default.enumerator(
+            at: vaultRootURL,
+            includingPropertiesForKeys: Array(resourceKeys),
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
+            return nil
+        }
+
+        for case let candidateURL as URL in enumerator {
+            guard candidateURL.pathExtension.lowercased() == "wav" else { continue }
+            guard candidateURL.deletingPathExtension().lastPathComponent == basename else { continue }
+            return VaultPathNormalizer.relativePath(from: vaultRootURL, to: candidateURL)
+        }
+
+        return nil
     }
 
     private func diarizeIfPossible(wavURL: URL, embeddingExportURL: URL?) async -> [SpeakerSegment] {

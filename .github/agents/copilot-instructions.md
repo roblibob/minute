@@ -14,6 +14,8 @@ Auto-generated from all feature plans. Last updated: 2026-02-04
 - N/A (UI layout fixes only) (007-fix-ui-layout)
 - Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore (008-main-ui-refactor)
 - Files (vault outputs + app support) + UserDefaults for preferences (008-main-ui-refactor)
+- Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, FluidAudio, AVFoundation, ScreenCaptureKi (016-reprocess-meeting-type)
+- Local vault files (meeting note/audio/transcript), temporary processing artifacts, security-scoped bookmarks and settings in `UserDefaults` (016-reprocess-meeting-type)
 
 - Swift 5.9 + SwiftUI, Combine, AVFoundation, MinuteCore (Internal), Llama (Internal C++ wrapper) (001-meeting-type-prompts)
 
@@ -33,9 +35,9 @@ tests/
 Swift 5.9: Follow standard conventions
 
 ## Recent Changes
+- 016-reprocess-meeting-type: Added Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, FluidAudio, AVFoundation, ScreenCaptureKi
 - 008-main-ui-refactor: Added Swift 5.9 (Xcode 15.x) + SwiftUI, AVFoundation, ScreenCaptureKit, MinuteCore
 - 007-fix-ui-layout: Added Swift 5.9+ (Xcode 15.x), SwiftUI + SwiftUI, AppKit (for macOS window management), MinuteCore (domain logic)
-- 006-speaker-diarization: Added Swift 5.9+ (Xcode 15.x), macOS 14+.
 
 
 <!-- MANUAL ADDITIONS START -->

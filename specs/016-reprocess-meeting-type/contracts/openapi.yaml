@@ -1,0 +1,163 @@
+openapi: 3.1.0
+info:
+  title: Minute Reprocess Meeting Contract
+  version: 0.1.0
+  description: |
+    Internal, local-only contracts for transcript-based meeting reprocessing and
+    persisted transcript timeline entries. This is not a network API; it models
+    app and MinuteCore boundaries for determinism and testability.
+servers:
+  - url: local://minute-core
+paths:
+  /meetings/{meetingId}/reprocess-availability:
+    get:
+      operationId: getReprocessAvailability
+      summary: Resolve whether a processed meeting can be reprocessed
+      parameters:
+        - $ref: '#/components/parameters/MeetingId'
+      responses:
+        '200':
+          description: Reprocess availability resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReprocessAvailability'
+  /meetings/{meetingId}/transcript-timeline:
+    get:
+      operationId: getTranscriptTimeline
+      summary: Read parsed transcript timeline entries for a processed meeting
+      parameters:
+        - $ref: '#/components/parameters/MeetingId'
+      responses:
+        '200':
+          description: Parsed transcript timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranscriptTimelineResponse'
+  /meetings/{meetingId}/reprocess:
+    post:
+      operationId: reprocessMeeting
+      summary: Regenerate the meeting note from the saved transcript using an explicit target meeting type
+      parameters:
+        - $ref: '#/components/parameters/MeetingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReprocessMeetingRequest'
+      responses:
+        '202':
+          description: Reprocessing accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReprocessMeetingResponse'
+        '409':
+          description: Reprocessing blocked by validation or overwrite policy
+components:
+  parameters:
+    MeetingId:
+      name: meetingId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    ReprocessAvailability:
+      type: object
+      required:
+        - meetingId
+        - canReprocess
+        - allowedTargetTypeIds
+        - requiresOverwriteConfirmation
+      properties:
+        meetingId:
+          type: string
+        canReprocess:
+          type: boolean
+        blockingReason:
+          type: string
+          enum: [missingTranscript, unreadableTranscript, sameMeetingType, invalidTargetType]
+        currentMeetingTypeId:
+          type: string
+        allowedTargetTypeIds:
+          type: array
+          items:
+            type: string
+        requiresOverwriteConfirmation:
+          type: boolean
+    TranscriptTimelineResponse:
+      type: object
+      required:
+        - meetingId
+        - entries
+      properties:
+        meetingId:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/TranscriptTimelineEntry'
+    TranscriptTimelineEntry:
+      type: object
+      required:
+        - kind
+        - timestampStartSeconds
+        - displayLabel
+        - text
+      properties:
+        kind:
+          type: string
+          enum: [speakerSegment, screenContext]
+        timestampStartSeconds:
+          type: number
+          minimum: 0
+        timestampEndSeconds:
+          type: number
+          minimum: 0
+        displayLabel:
+          type: string
+        text:
+          type: string
+        speakerId:
+          type: integer
+          minimum: 1
+        windowTitle:
+          type: string
+    ReprocessMeetingRequest:
+      type: object
+      required:
+        - targetMeetingTypeId
+        - overwriteConfirmed
+      properties:
+        targetMeetingTypeId:
+          type: string
+          description: Explicit meeting type identifier. `autodetect` is invalid.
+        overwriteConfirmed:
+          type: boolean
+          description: Must be true before the note overwrite is allowed.
+    ReprocessMeetingResponse:
+      type: object
+      required:
+        - meetingId
+        - status
+        - noteRelativePath
+        - transcriptRelativePath
+      properties:
+        meetingId:
+          type: string
+        status:
+          type: string
+          enum: [accepted, completed, failed, cancelled]
+        noteRelativePath:
+          type: string
+        transcriptRelativePath:
+          type: string
+        audioRelativePath:
+          type: string
+        resolvedMeetingTypeId:
+          type: string
+        warning:
+          type: string

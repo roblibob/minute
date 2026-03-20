@@ -2,6 +2,8 @@ import AppKit
 import Combine
 import Foundation
 import MinuteCore
+import MinuteLlama
+import MinuteWhisper
 
 enum MeetingNotePreviewTab: String, CaseIterable, Identifiable {
     case summary
@@ -21,6 +23,18 @@ enum MeetingNotePreviewTab: String, CaseIterable, Identifiable {
 
 @MainActor
 final class MeetingNotesBrowserViewModel: ObservableObject {
+    struct PendingReprocessSelection: Identifiable {
+        var meetingId: String
+        var meetingTitle: String
+        var noteURL: URL
+        var transcriptURL: URL
+        var currentMeetingTypeId: String?
+        var targetMeetingTypeId: String
+        var targetMeetingTypeDisplayName: String
+
+        var id: String { meetingId + ":" + targetMeetingTypeId }
+    }
+
     struct NotePreview: Equatable {
         var summaryLine: String
         var durationSeconds: TimeInterval?
@@ -48,6 +62,9 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     @Published private(set) var transcriptErrorMessage: String?
     @Published private(set) var renderTranscriptPlainText: Bool = false
     @Published private(set) var overlayState = MeetingNotesOverlayState()
+    @Published private(set) var pendingReprocessSelection: PendingReprocessSelection?
+    @Published private(set) var isReprocessingMeeting: Bool = false
+    @Published private(set) var reprocessErrorMessage: String?
 
     var selectedItem: MeetingNoteItem? { overlayState.selectedItem }
     var selectedTab: MeetingNotePreviewTab { overlayState.selectedTab }
@@ -79,22 +96,29 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
     private let defaults: UserDefaults
     private let browserProvider: @Sendable () -> any MeetingNotesBrowsing
+    private let meetingTypeLibraryStore: any MeetingTypeLibraryStoring
+    private let reprocessRunner: @Sendable (ReprocessMeetingRequest) async throws -> PipelineResult
     private var pendingSelectionURL: URL?
     private var listTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     private var transcriptLoadTask: Task<Void, Never>?
     private var transcriptSpeakerIDsTask: Task<Void, Never>?
     private var deleteTask: Task<Void, Never>?
+    private var reprocessTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
     private var defaultsObserver: AnyCancellable?
     private var observedDefaultsSnapshot: ObservedDefaultsSnapshot?
 
     init(
         defaults: UserDefaults = .standard,
-        browserProvider: @escaping @Sendable () -> any MeetingNotesBrowsing = MeetingNotesBrowserViewModel.defaultBrowserProvider
+        browserProvider: @escaping @Sendable () -> any MeetingNotesBrowsing = MeetingNotesBrowserViewModel.defaultBrowserProvider,
+        meetingTypeLibraryStore: any MeetingTypeLibraryStoring = MeetingTypeLibraryStore(),
+        reprocessRunner: @escaping @Sendable (ReprocessMeetingRequest) async throws -> PipelineResult = MeetingNotesBrowserViewModel.defaultReprocessRunner()
     ) {
         self.defaults = defaults
         self.browserProvider = browserProvider
+        self.meetingTypeLibraryStore = meetingTypeLibraryStore
+        self.reprocessRunner = reprocessRunner
         observedDefaultsSnapshot = makeObservedDefaultsSnapshot()
 
         defaultsObserver = NotificationCenter.default.publisher(
@@ -113,6 +137,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         transcriptLoadTask?.cancel()
         transcriptSpeakerIDsTask?.cancel()
         deleteTask?.cancel()
+        reprocessTask?.cancel()
         previewTask?.cancel()
         knownSpeakerStatusTask?.cancel()
     }
@@ -451,6 +476,158 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
 
     func preview(for item: MeetingNoteItem) -> NotePreview? {
         notePreviews[item.id]
+    }
+
+    func reprocessAvailability(for item: MeetingNoteItem) -> ReprocessAvailability {
+        let allowedTargetTypeIds = availableReprocessTargetTypes(for: item).map(\.typeId)
+
+        if let blockingReason = item.reprocessBlockingReason {
+            return ReprocessAvailability(
+                meetingId: item.id,
+                canReprocess: false,
+                blockingReason: blockingReason,
+                currentMeetingTypeId: item.currentMeetingTypeId,
+                allowedTargetTypeIds: allowedTargetTypeIds,
+                requiresOverwriteConfirmation: false
+            )
+        }
+
+        guard item.hasTranscript, item.transcriptURL != nil else {
+            return ReprocessAvailability(
+                meetingId: item.id,
+                canReprocess: false,
+                blockingReason: .missingTranscript,
+                currentMeetingTypeId: item.currentMeetingTypeId,
+                allowedTargetTypeIds: allowedTargetTypeIds,
+                requiresOverwriteConfirmation: false
+            )
+        }
+
+        return ReprocessAvailability(
+            meetingId: item.id,
+            canReprocess: true,
+            blockingReason: nil,
+            currentMeetingTypeId: item.currentMeetingTypeId,
+            allowedTargetTypeIds: allowedTargetTypeIds,
+            requiresOverwriteConfirmation: true
+        )
+    }
+
+    func reprocessDisabledReason(for item: MeetingNoteItem) -> String? {
+        let availability = reprocessAvailability(for: item)
+        guard availability.canReprocess == false else { return nil }
+
+        switch availability.blockingReason {
+        case .missingTranscript:
+            return "Transcript required to resummarize this meeting."
+        case .unreadableTranscript:
+            return "Transcript file is unreadable, so resummarization is unavailable."
+        case .sameMeetingType:
+            return "Choose a different meeting type to resummarize."
+        case .invalidTargetType:
+            return "Selected meeting type is unavailable."
+        case nil:
+            return nil
+        }
+    }
+
+    func availableReprocessTargetTypes(for item: MeetingNoteItem) -> [MeetingTypeDefinition] {
+        return meetingTypeLibraryStore.load().activeDefinitions.filter { definition in
+            guard definition.typeId != MeetingType.autodetect.rawValue else { return false }
+            return true
+        }
+    }
+
+    func prepareReprocess(for item: MeetingNoteItem, targetTypeID: String) {
+        let availability = reprocessAvailability(for: item)
+        guard availability.canReprocess,
+              availability.allowedTargetTypeIds.contains(targetTypeID),
+              let transcriptURL = item.transcriptURL,
+              let targetMeetingType = availableReprocessTargetTypes(for: item)
+                .first(where: { $0.typeId == targetTypeID }) else {
+            return
+        }
+
+        reprocessErrorMessage = nil
+        pendingReprocessSelection = PendingReprocessSelection(
+            meetingId: item.id,
+            meetingTitle: item.title,
+            noteURL: item.fileURL,
+            transcriptURL: transcriptURL,
+            currentMeetingTypeId: item.currentMeetingTypeId,
+            targetMeetingTypeId: targetMeetingType.typeId,
+            targetMeetingTypeDisplayName: targetMeetingType.displayName
+        )
+    }
+
+    func cancelPendingReprocess() {
+        pendingReprocessSelection = nil
+    }
+
+    func confirmPendingReprocess() {
+        guard let selection = pendingReprocessSelection else { return }
+
+        pendingReprocessSelection = nil
+        reprocessErrorMessage = nil
+        isReprocessingMeeting = true
+        reprocessTask?.cancel()
+
+        let request = ReprocessMeetingRequest(
+            meetingId: selection.meetingId,
+            noteURL: selection.noteURL,
+            transcriptURL: selection.transcriptURL,
+            targetMeetingTypeId: selection.targetMeetingTypeId,
+            currentMeetingTypeId: selection.currentMeetingTypeId,
+            overwriteConfirmed: true
+        )
+
+        reprocessTask = Task { [weak self] in
+            do {
+                guard let self else { return }
+                let result = try await self.reprocessRunner(request)
+                await MainActor.run {
+                    self.isReprocessingMeeting = false
+                    self.refreshAndSelect(noteURL: result.noteURL)
+                }
+            } catch is CancellationError {
+                await MainActor.run { [weak self] in
+                    self?.isReprocessingMeeting = false
+                }
+            } catch {
+                let message = ErrorHandler.userMessage(
+                    for: error,
+                    fallback: "Failed to resummarize meeting."
+                )
+                await MainActor.run { [weak self] in
+                    self?.isReprocessingMeeting = false
+                    self?.reprocessErrorMessage = message
+                }
+            }
+        }
+    }
+
+    func dismissReprocessError() {
+        reprocessErrorMessage = nil
+    }
+
+    var reprocessConfirmationTitle: String {
+        "Overwrite meeting summary?"
+    }
+
+    var reprocessConfirmationMessage: String {
+        guard let pendingReprocessSelection else { return "" }
+        let noteMayContainUserEdits: Bool
+        if let selectedItem, selectedItem.fileURL == pendingReprocessSelection.noteURL, let noteContent {
+            noteMayContainUserEdits = MeetingNoteParsing.noteMayContainUserEdits(inNoteMarkdown: noteContent)
+        } else {
+            noteMayContainUserEdits = false
+        }
+
+        if noteMayContainUserEdits {
+            return "Resummarize \(pendingReprocessSelection.meetingTitle) as \(pendingReprocessSelection.targetMeetingTypeDisplayName)? Manual changes in the current summary note will be replaced. The transcript and audio remain unchanged."
+        }
+
+        return "Resummarize \(pendingReprocessSelection.meetingTitle) as \(pendingReprocessSelection.targetMeetingTypeDisplayName)? This replaces the existing summary note and keeps the transcript and audio unchanged."
     }
 
     func refreshAndSelect(noteURL: URL) {
@@ -805,6 +982,59 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             audioRelativePath: configuration.audioRelativePath,
             transcriptsRelativePath: configuration.transcriptsRelativePath
         )
+    }
+
+    nonisolated private static func defaultReprocessRunner() -> @Sendable (ReprocessMeetingRequest) async throws -> PipelineResult {
+        let selectionStore = SummarizationModelSelectionStore()
+        let contextWindowStore = SummarizationContextWindowSelectionStore()
+        let hardwareProfile = SummarizationHardwareProfile.current()
+        let transcriptionSelectionStore = TranscriptionModelSelectionStore()
+        let transcriptionBackendStore = TranscriptionBackendSelectionStore()
+        let fluidAudioModelStore = FluidAudioASRModelSelectionStore()
+        let summarizationServiceProvider: @Sendable () -> any SummarizationServicing = {
+            LlamaLibrarySummarizationService.liveDefault(
+                selectionStore: selectionStore,
+                contextWindowStore: contextWindowStore,
+                hardwareProfile: hardwareProfile
+            )
+        }
+        let transcriptionService: any TranscriptionServicing
+        switch transcriptionBackendStore.selectedBackend() {
+        case .whisper:
+            transcriptionService = ResilientWhisperTranscriptionService.liveDefault()
+        case .fluidAudio:
+            transcriptionService = FluidAudioTranscriptionService.liveDefault(selectionStore: fluidAudioModelStore)
+        }
+
+        let modelManager = DefaultModelManager(
+            selectionStore: selectionStore,
+            transcriptionSelectionStore: transcriptionSelectionStore,
+            transcriptionBackendStore: transcriptionBackendStore,
+            fluidAudioModelStore: fluidAudioModelStore
+        )
+        let vaultAccess = makeVaultAccess()
+        let coordinator = MeetingPipelineCoordinator(
+            transcriptionService: transcriptionService,
+            diarizationService: FluidAudioOfflineDiarizationService.meetingDefault(),
+            summarizationServiceProvider: summarizationServiceProvider,
+            audioLoudnessNormalizer: AudioLoudnessNormalizer(),
+            modelManager: modelManager,
+            vaultAccess: vaultAccess,
+            vaultWriter: DefaultVaultWriter(),
+            summarizationModelIDProvider: { selectionStore.selectedModel().id },
+            summarizationPreflightConfigurationProvider: {
+                SummarizationPreflightConfiguration(
+                    contextWindowTokens: contextWindowStore.requestedContextTokens(
+                        hardwareProfile: hardwareProfile
+                    ),
+                    reservedOutputTokens: 1_024
+                )
+            }
+        )
+
+        return { request in
+            try await coordinator.reprocessMeeting(request: request)
+        }
     }
 
     private static func shouldRenderPlainText(_ content: String) -> Bool {

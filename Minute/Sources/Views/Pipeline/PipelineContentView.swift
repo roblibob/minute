@@ -128,6 +128,31 @@ struct PipelineContentView: View {
                     model.workspaceDidBecomeVisible()
                 }
             }
+            .confirmationDialog(
+                notesModel.reprocessConfirmationTitle,
+                isPresented: reprocessConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Resummarize") {
+                    notesModel.confirmPendingReprocess()
+                }
+
+                Button("Cancel", role: .cancel) {
+                    notesModel.cancelPendingReprocess()
+                }
+            } message: {
+                Text(notesModel.reprocessConfirmationMessage)
+            }
+            .alert(
+                "Resummarization Failed",
+                isPresented: reprocessErrorPresented
+            ) {
+                Button("OK", role: .cancel) {
+                    notesModel.dismissReprocessError()
+                }
+            } message: {
+                Text(notesModel.reprocessErrorMessage ?? "")
+            }
         }
     }
 
@@ -177,6 +202,19 @@ struct PipelineContentView: View {
                     guard let item = notesModel.selectedItem else { return }
                     notesModel.revealInFinder(for: item)
                 },
+                reprocessTargetTypes: notesModel.selectedItem.map {
+                    notesModel.availableReprocessTargetTypes(for: $0)
+                } ?? [],
+                canReprocess: (notesModel.selectedItem.map {
+                    notesModel.reprocessAvailability(for: $0).canReprocess
+                } ?? false) && !notesModel.isReprocessingMeeting,
+                reprocessDisabledReason: notesModel.selectedItem.flatMap {
+                    notesModel.reprocessDisabledReason(for: $0)
+                },
+                onSelectReprocessTarget: { targetTypeID in
+                    guard let item = notesModel.selectedItem else { return }
+                    notesModel.prepareReprocess(for: item, targetTypeID: targetTypeID)
+                },
                 onDelete: {
                     guard let item = notesModel.selectedItem else { return }
                     notesModel.delete(item)
@@ -205,6 +243,28 @@ struct PipelineContentView: View {
             }
             .background(MinuteTheme.windowBackground)
         }
+    }
+
+    private var reprocessConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { notesModel.pendingReprocessSelection != nil },
+            set: { isPresented in
+                if !isPresented {
+                    notesModel.cancelPendingReprocess()
+                }
+            }
+        )
+    }
+
+    private var reprocessErrorPresented: Binding<Bool> {
+        Binding(
+            get: { notesModel.reprocessErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    notesModel.dismissReprocessError()
+                }
+            }
+        )
     }
 
     private var floatingControlBar: some View {
