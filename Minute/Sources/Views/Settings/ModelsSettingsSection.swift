@@ -3,9 +3,20 @@ import SwiftUI
 
 struct ModelsSettingsSection: View {
     @ObservedObject var model: ModelsSettingsViewModel
+    @AppStorage(AppDefaultsKey.screenContextEnabled)
+    private var screenContextEnabled: Bool = AppConfiguration.Defaults.defaultScreenContextEnabled
 
     var body: some View {
-        Section("AI Models") {
+        Group {
+            transcriptionSection
+            ollamaSection
+            summarizationSection
+            screenContextSection
+        }
+    }
+
+    private var transcriptionSection: some View {
+        Section("Transcription") {
             VStack(alignment: .leading, spacing: 12) {
                 TranscriptionBackendPicker(
                     backends: model.transcriptionBackends,
@@ -29,6 +40,8 @@ struct ModelsSettingsSection: View {
                         selection: $model.selectedTranscriptionModelID
                     )
 
+                    Divider()
+
                     TranscriptionLanguagePicker(
                         languages: model.transcriptionLanguages,
                         selection: $model.selectedTranscriptionLanguage
@@ -37,10 +50,64 @@ struct ModelsSettingsSection: View {
 
                 Divider()
 
-                SummarizationModelPicker(
-                    models: model.summarizationModels,
-                    selection: $model.selectedSummarizationModelID
+                ModelDownloadStatusView(
+                    title: "\(model.selectedTranscriptionBackendDisplayName) models",
+                    detail: "Downloads the local transcription models required by the current transcription setup.",
+                    status: model.transcriptionDownloadStatusState,
+                    progress: model.activeDownloadProgress,
+                    showsSpinner: model.isCheckingModels,
+                    message: model.transcriptionDownloadMessage,
+                    buttonTitle: downloadButtonTitle,
+                    buttonEnabled: model.canStartModelDownload,
+                    style: .plain,
+                    action: { model.startDownload() }
                 )
+            }
+        }
+    }
+
+    private var summarizationSection: some View {
+        Section("Summarization") {
+            VStack(alignment: .leading, spacing: 12) {
+                SummarizationProviderPicker(
+                    providers: model.inferenceProviders,
+                    selection: $model.selectedSummarizationProviderID,
+                    ollamaModelTag: $model.selectedSummarizationOllamaModelTag
+                )
+
+                if model.selectedSummarizationProviderID == InferenceProvider.ollama.rawValue {
+                    InferenceCapabilityStatusView(
+                        title: "Summarization validation",
+                        state: model.summarizationAvailabilityState,
+                        discoveredModelTags: model.ollamaDiscoveredModelTags,
+                        isRefreshing: model.isRefreshingAvailability,
+                        onRefresh: { model.refreshAvailability() }
+                    )
+                }
+
+                if model.isBuiltInSummarizationProviderSelected {
+                    Divider()
+
+                    SummarizationModelPicker(
+                        models: model.summarizationModels,
+                        selection: $model.selectedSummarizationModelID
+                    )
+
+                    Divider()
+
+                    ModelDownloadStatusView(
+                        title: "Built-in summarization model",
+                        detail: "Downloads the selected local summarization model when you use the built-in provider.",
+                        status: model.summarizationDownloadStatusState,
+                        progress: model.activeDownloadProgress,
+                        showsSpinner: model.isCheckingModels,
+                        message: model.summarizationDownloadMessage,
+                        buttonTitle: downloadButtonTitle,
+                        buttonEnabled: model.canStartModelDownload,
+                        style: .plain,
+                        action: { model.startDownload() }
+                    )
+                }
 
                 Divider()
 
@@ -49,57 +116,85 @@ struct ModelsSettingsSection: View {
                     recommendedPreset: model.recommendedSummarizationContextWindowPreset,
                     selection: $model.selectedSummarizationContextWindowPreset
                 )
-
-                Divider()
-
-                ModelDownloadStatusView(
-                    title: "\(model.selectedTranscriptionBackendDisplayName) + Llama models",
-                    detail: "Required for local transcription and summarization.",
-                    status: statusState,
-                    progress: progressValue,
-                    showsSpinner: showsSpinner,
-                    message: messageText,
-                    buttonTitle: buttonTitle,
-                    buttonEnabled: buttonEnabled,
-                    style: .plain,
-                    action: { model.startDownload() }
-                )
             }
         }
     }
 
-    private var statusState: StatusIcon.State {
-        if case .ready = model.state {
-            return .ready
+    @ViewBuilder
+    private var ollamaSection: some View {
+        if model.showsOllamaEndpointConfiguration {
+            Section("Ollama") {
+                SettingsFieldBlock(
+                    title: "Ollama base URL",
+                    subtitle: "Use the full Ollama endpoint, including protocol and port."
+                ) {
+                    SettingsSingleLineInput(
+                        text: $model.selectedOllamaBaseURLString,
+                        placeholder: AppConfiguration.Defaults.defaultOllamaBaseURL
+                    )
+                }
+            }
         }
-        if case .needsDownload = model.state {
-            return .attention
-        }
-        return .blocked
     }
 
-    private var showsSpinner: Bool {
-        if case .checking = model.state {
-            return true
+    private var screenContextSection: some View {
+        Section("Screen Context") {
+            VStack(alignment: .leading, spacing: 12) {
+                SettingsToggleRow(
+                    "Enhance notes with selected screen context",
+                    detail: "Choose a window each time you start recording. No video is stored.",
+                    isOn: $screenContextEnabled
+                )
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 12) {
+                VisionProviderPicker(
+                    providers: model.inferenceProviders,
+                    builtInModels: model.visionModels,
+                    selection: $model.selectedVisionProviderID,
+                    builtInModelSelection: $model.selectedVisionModelID,
+                    ollamaModelTag: $model.selectedVisionOllamaModelTag
+                )
+
+                if model.selectedVisionProviderID == InferenceProvider.ollama.rawValue {
+                    InferenceCapabilityStatusView(
+                        title: "Screen context validation",
+                        state: model.visionAvailabilityState,
+                        discoveredModelTags: model.ollamaDiscoveredModelTags,
+                        isRefreshing: model.isRefreshingAvailability,
+                        onRefresh: { model.refreshAvailability() }
+                    )
+                }
+
+                if model.isBuiltInVisionProviderSelected {
+                    Divider()
+
+                    ModelDownloadStatusView(
+                        title: "Built-in screen context model",
+                        detail: "Downloads the selected local screen-context model when you use the built-in provider.",
+                        status: model.screenContextDownloadStatusState,
+                        progress: model.activeDownloadProgress,
+                        showsSpinner: model.isCheckingModels,
+                        message: model.screenContextDownloadMessage,
+                        buttonTitle: downloadButtonTitle,
+                        buttonEnabled: model.canStartModelDownload,
+                        style: .plain,
+                        action: { model.startDownload() }
+                    )
+                }
+
+                Divider()
+
+                ScreenContextSettingsSection(title: nil, showsMasterToggle: false)
+                }
+                .disabled(!screenContextEnabled)
+                .opacity(screenContextEnabled ? 1 : 0.55)
+            }
         }
-        return false
     }
 
-    private var progressValue: ModelDownloadProgress? {
-        if case .downloading(let progress) = model.state {
-            return progress
-        }
-        return nil
-    }
-
-    private var messageText: String? {
-        if case .needsDownload(let message) = model.state {
-            return message
-        }
-        return nil
-    }
-
-    private var buttonTitle: String {
+    private var downloadButtonTitle: String {
         switch model.state {
         case .ready:
             return "Models Ready"
@@ -109,15 +204,6 @@ struct ModelsSettingsSection: View {
             return "Download Models"
         case .checking:
             return "Checking..."
-        }
-    }
-
-    private var buttonEnabled: Bool {
-        switch model.state {
-        case .ready, .downloading, .checking:
-            return false
-        case .needsDownload:
-            return true
         }
     }
 }

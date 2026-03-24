@@ -145,12 +145,59 @@ public struct MissingSummarizationService: SummarizationServicing {
     }
 }
 
+public struct ErrorSummarizationService: SummarizationServicing {
+    public var error: MinuteError
+
+    public init(error: MinuteError) {
+        self.error = error
+    }
+
+    public func summarize(
+        transcript: String,
+        meetingDate: Date,
+        meetingType: MeetingType,
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
+    ) async throws -> String {
+        _ = transcript
+        _ = meetingDate
+        _ = meetingType
+        _ = languageProcessing
+        _ = outputLanguage
+        throw error
+    }
+
+    public func classify(transcript: String) async throws -> MeetingType {
+        _ = transcript
+        throw error
+    }
+
+    public func repairJSON(_ invalidJSON: String) async throws -> String {
+        _ = invalidJSON
+        throw error
+    }
+}
+
 public struct MissingScreenContextInferenceService: ScreenContextInferencing {
     public init() {}
     public func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
         _ = imageData
         _ = windowTitle
         throw MinuteError.llamaMTMDMissing
+    }
+}
+
+public struct ErrorScreenContextInferenceService: ScreenContextInferencing {
+    public var error: MinuteError
+
+    public init(error: MinuteError) {
+        self.error = error
+    }
+
+    public func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        _ = windowTitle
+        throw error
     }
 }
 

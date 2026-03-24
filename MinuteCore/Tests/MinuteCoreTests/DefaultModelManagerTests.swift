@@ -140,6 +140,26 @@ struct DefaultModelManagerTests {
     }
 
     @Test
+    func defaultRequiredModels_skipsVisionArtifactsWhenScreenContextDisabled() {
+        let visionModel = SummarizationModelCatalog.all.first { $0.mmprojDestinationURL != nil } ?? SummarizationModelCatalog.defaultModel
+        let summarizationModel = SummarizationModelCatalog.all.first { $0.id != visionModel.id }
+            ?? SummarizationModelCatalog.defaultModel
+
+        let models = DefaultModelManager.defaultRequiredModels(
+            selectedSummarizationModelID: summarizationModel.id,
+            summarizationProvider: .builtIn,
+            selectedVisionModelID: visionModel.id,
+            visionProvider: .builtIn,
+            screenContextEnabled: false,
+            selectedTranscriptionModelID: "whisper/base",
+            transcriptionBackend: .whisper
+        )
+
+        #expect(!models.contains { $0.id == visionModel.id })
+        #expect(!models.contains { $0.id == "\(visionModel.id)/mmproj" })
+    }
+
+    @Test
     func validateModels_mergesFluidAudioVocabularyReadinessWhenFluidBackendSelected() async throws {
         let suite = "DefaultModelManagerTests.validateModels.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

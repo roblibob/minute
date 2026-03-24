@@ -3,12 +3,23 @@ import MinuteCore
 import SwiftUI
 
 struct SummarizationModelPicker: View {
+    let title: String
     let models: [SummarizationModel]
     @Binding var selection: String
 
+    init(
+        title: String = "Summarization model",
+        models: [SummarizationModel],
+        selection: Binding<String>
+    ) {
+        self.title = title
+        self.models = models
+        self._selection = selection
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Summarization model")
+            Text(title)
                 .minuteRowTitle()
 
             Menu {

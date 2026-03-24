@@ -16,7 +16,7 @@ struct MeetingTypesSettingsSection: View {
 
     var body: some View {
         Group {
-            FieldBlock(
+            SettingsFieldBlock(
                 title: "Selected Meeting Type",
                 subtitle: "Built-in types can be overridden. Custom types can be fully edited and deleted."
             ) {
@@ -62,13 +62,13 @@ struct MeetingTypesSettingsSection: View {
             }
 
             Section(model.isCreatingCustomType ? "New Meeting Type" : "Prompt Content") {
-                FieldBlock(
+                SettingsFieldBlock(
                     title: "Display Name",
                     subtitle: model.isEditingBuiltIn
                         ? "Built-in names are fixed. Prompt content remains editable."
                         : "Name shown in Settings and the stage picker."
                 ) {
-                    SingleLineInput(
+                    SettingsSingleLineInput(
                         text: $model.draftDisplayName,
                         placeholder: "Customer Discovery",
                         isEditable: !model.isEditingBuiltIn
@@ -76,7 +76,7 @@ struct MeetingTypesSettingsSection: View {
                     .focused($focusedField, equals: .displayName)
                 }
 
-                FieldBlock(
+                SettingsFieldBlock(
                     title: "Objective",
                     subtitle: "What should this meeting summary optimize for?"
                 ) {
@@ -87,7 +87,7 @@ struct MeetingTypesSettingsSection: View {
                     )
                 }
 
-                FieldBlock(
+                SettingsFieldBlock(
                     title: "Summary Focus",
                     subtitle: "Which outcomes should be prioritized in this type of meeting?"
                 ) {
@@ -172,18 +172,18 @@ struct MeetingTypesSettingsSection: View {
                     )
 
                     if model.draftAutodetectEligible {
-                        FieldBlock(
+                        SettingsFieldBlock(
                             title: "Classifier Label",
                             subtitle: "Canonical label used for classifier output matching."
                         ) {
-                            SingleLineInput(
+                            SettingsSingleLineInput(
                                 text: $model.draftClassifierLabel,
                                 placeholder: "e.g. Standup"
                             )
                             .focused($focusedField, equals: .classifierLabel)
                         }
 
-                        FieldBlock(
+                        SettingsFieldBlock(
                             title: "Strong Signals",
                             subtitle: "Comma or newline separated cues. \(model.parsedClassifierSignalCount) signal(s)."
                         ) {
@@ -312,26 +312,6 @@ struct MeetingTypesSettingsSection: View {
 
 }
 
-private struct FieldBlock<Content: View>: View {
-    let title: String
-    let subtitle: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .minuteRowTitle()
-
-            Text(subtitle)
-                .minuteCaption()
-                .fixedSize(horizontal: false, vertical: true)
-
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 private struct PromptRuleBlock: View {
     let title: String
     let subtitle: String
@@ -379,83 +359,6 @@ private struct PromptRuleBlock: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.minuteOutline, lineWidth: 1)
         )
-    }
-}
-
-private struct SingleLineInput: View {
-    @Binding var text: String
-    let placeholder: String
-    var isEditable: Bool = true
-
-    var body: some View {
-        Group {
-            if isEditable {
-                LeftAlignedTextField(text: $text, placeholder: placeholder)
-            } else {
-                Text(text.isEmpty ? placeholder : text)
-                    .foregroundStyle(text.isEmpty ? Color.minuteTextMuted : Color.minuteTextPrimary)
-                    .font(.system(size: 14, weight: .medium))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.minuteOutline, lineWidth: 1)
-        )
-    }
-}
-
-private struct LeftAlignedTextField: NSViewRepresentable {
-    @Binding var text: String
-    let placeholder: String
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
-    }
-
-    func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField(string: text)
-        field.delegate = context.coordinator
-        field.placeholderString = placeholder
-        field.isBezeled = false
-        field.isBordered = false
-        field.drawsBackground = false
-        field.focusRingType = .none
-        field.alignment = .left
-        field.baseWritingDirection = .leftToRight
-        field.usesSingleLineMode = true
-        field.lineBreakMode = .byTruncatingTail
-        field.font = NSFont.systemFont(ofSize: 14, weight: .medium)
-        return field
-    }
-
-    func updateNSView(_ nsView: NSTextField, context: Context) {
-        nsView.alignment = .left
-        nsView.baseWritingDirection = .leftToRight
-        nsView.placeholderString = placeholder
-        if nsView.stringValue != text {
-            nsView.stringValue = text
-        }
-    }
-
-    final class Coordinator: NSObject, NSTextFieldDelegate {
-        private var text: Binding<String>
-
-        init(text: Binding<String>) {
-            self.text = text
-        }
-
-        func controlTextDidChange(_ obj: Notification) {
-            guard let field = obj.object as? NSTextField else { return }
-            text.wrappedValue = field.stringValue
-        }
     }
 }
 

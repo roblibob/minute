@@ -41,8 +41,12 @@ struct OnboardingView: View {
             return "Welcome"
         case .permissions:
             return "Permissions"
-        case .models:
-            return "Models"
+        case .transcription:
+            return "Transcription"
+        case .summarization:
+            return "Summarization"
+        case .screenContext:
+            return "Screen Context"
         case .vault:
             return "Vault Setup"
         case .complete:
@@ -56,8 +60,8 @@ struct OnboardingView: View {
             return "Minute records meetings, transcribes them locally, and writes structured notes to your vault."
         case .permissions:
             return "Enable the required permissions to capture microphone and system audio."
-        case .models:
-            return "Download the local models used for transcription and summarization."
+        case .transcription, .summarization, .screenContext:
+            return model.modelStepDescription
         case .vault:
             return "Choose where meeting notes and audio should be written."
         case .complete:
@@ -72,18 +76,33 @@ struct OnboardingView: View {
             introStep
         case .permissions:
             permissionsStep
-        case .models:
-            modelsStep
+        case .transcription:
+            transcriptionSetupStep
+        case .summarization:
+            summarizationSetupStep
+        case .screenContext:
+            screenContextSetupStep
         case .vault:
             OnboardingVaultStep(model: model)
         case .complete:
-            introStep
+            completionStep
         }
     }
 
     private var introStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("We will guide you through permissions, model downloads, and choosing your vault.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var completionStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("Permissions, models, and vault setup are ready.", systemImage: "checkmark.circle.fill")
+                .font(.headline)
+                .foregroundStyle(.green)
+
+            Text("Minute is configured and ready to process meetings.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -112,7 +131,7 @@ struct OnboardingView: View {
         }
     }
 
-    private var modelsStep: some View {
+    private var transcriptionSetupStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             TranscriptionBackendPicker(
                 backends: model.transcriptionBackends,
@@ -131,20 +150,9 @@ struct OnboardingView: View {
                 )
             }
 
-            SummarizationModelPicker(
-                models: model.summarizationModels,
-                selection: $model.selectedSummarizationModelID
-            )
-
-            SummarizationContextWindowPicker(
-                presets: model.summarizationContextWindowPresets,
-                recommendedPreset: model.recommendedSummarizationContextWindowPreset,
-                selection: $model.selectedSummarizationContextWindowPreset
-            )
-
             ModelDownloadStatusView(
-                title: "\(model.selectedTranscriptionBackendDisplayName) + Llama models",
-                detail: "Required for local transcription and summarization.",
+                title: "\(model.selectedTranscriptionBackendDisplayName) models",
+                detail: "Download the local transcription model for the backend you selected.",
                 status: modelStatus,
                 progress: modelProgressValue,
                 showsSpinner: modelShowsSpinner,
@@ -154,6 +162,142 @@ struct OnboardingView: View {
                 style: .card,
                 action: { model.startModelDownload() }
             )
+        }
+    }
+
+    private var summarizationSetupStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            OnboardingProviderChoicePicker(
+                title: "Summarization provider",
+                selection: $model.selectedSummarizationProviderID
+            )
+
+            if model.showsOllamaEndpointConfigurationForSummarization {
+                SettingsFieldBlock(
+                    title: "Ollama base URL",
+                    subtitle: "Use the full Ollama endpoint, including protocol and port."
+                ) {
+                    SettingsSingleLineInput(
+                        text: $model.selectedOllamaBaseURLString,
+                        placeholder: AppConfiguration.Defaults.defaultOllamaBaseURL
+                    )
+                }
+            }
+
+            if model.usesOllamaForSummarization {
+                SettingsFieldBlock(
+                    title: "Ollama model tag",
+                    subtitle: "Use a summarization model that is already available in your Ollama daemon."
+                ) {
+                    SettingsSingleLineInput(
+                        text: $model.selectedSummarizationOllamaModelTag,
+                        placeholder: "e.g. llama3.2:latest"
+                    )
+                }
+
+                InferenceCapabilityStatusView(
+                    title: "Summarization validation",
+                    state: model.summarizationAvailabilityState,
+                    discoveredModelTags: model.ollamaDiscoveredModelTags,
+                    isRefreshing: model.isRefreshingAvailability,
+                    onRefresh: { model.refreshAvailability() }
+                )
+            } else {
+                SummarizationModelPicker(
+                    models: model.summarizationModels,
+                    selection: $model.selectedSummarizationModelID
+                )
+
+                ModelDownloadStatusView(
+                    title: "Built-in summarization model",
+                    detail: "Download the local summarization model for the built-in provider.",
+                    status: modelStatus,
+                    progress: modelProgressValue,
+                    showsSpinner: modelShowsSpinner,
+                    message: modelMessageText,
+                    buttonTitle: modelButtonTitle,
+                    buttonEnabled: modelButtonEnabled,
+                    style: .card,
+                    action: { model.startModelDownload() }
+                )
+            }
+
+            SummarizationContextWindowPicker(
+                presets: model.summarizationContextWindowPresets,
+                recommendedPreset: model.recommendedSummarizationContextWindowPreset,
+                selection: $model.selectedSummarizationContextWindowPreset
+            )
+        }
+    }
+
+    private var screenContextSetupStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SettingsToggleRow(
+                "Use screen context while summarizing",
+                detail: "Minute will ask you to choose a window when you record. No video is stored.",
+                isOn: $model.screenContextEnabled
+            )
+
+            if model.screenContextEnabled {
+                OnboardingProviderChoicePicker(
+                    title: "Screen context provider",
+                    selection: $model.selectedVisionProviderID
+                )
+
+                if model.showsOllamaEndpointConfigurationForScreenContext {
+                    SettingsFieldBlock(
+                        title: "Ollama base URL",
+                        subtitle: "Use the full Ollama endpoint, including protocol and port."
+                    ) {
+                        SettingsSingleLineInput(
+                            text: $model.selectedOllamaBaseURLString,
+                            placeholder: AppConfiguration.Defaults.defaultOllamaBaseURL
+                        )
+                    }
+                }
+
+                if model.usesOllamaForScreenContext {
+                    SettingsFieldBlock(
+                        title: "Ollama model tag",
+                        subtitle: "Use an installed Ollama model that supports vision or screen-context input."
+                    ) {
+                        SettingsSingleLineInput(
+                            text: $model.selectedVisionOllamaModelTag,
+                            placeholder: "e.g. llava:latest"
+                        )
+                    }
+
+                    InferenceCapabilityStatusView(
+                        title: "Screen context validation",
+                        state: model.visionAvailabilityState,
+                        discoveredModelTags: model.ollamaDiscoveredModelTags,
+                        isRefreshing: model.isRefreshingAvailability,
+                        onRefresh: { model.refreshAvailability() }
+                    )
+                } else {
+                    SummarizationModelPicker(
+                        title: "Screen context model",
+                        models: model.visionModels,
+                        selection: $model.selectedVisionModelID
+                    )
+
+                    ModelDownloadStatusView(
+                        title: "Built-in screen context model",
+                        detail: "Download the local screen-context model for the built-in provider.",
+                        status: modelStatus,
+                        progress: modelProgressValue,
+                        showsSpinner: modelShowsSpinner,
+                        message: modelMessageText,
+                        buttonTitle: modelButtonTitle,
+                        buttonEnabled: modelButtonEnabled,
+                        style: .card,
+                        action: { model.startModelDownload() }
+                    )
+                }
+            } else {
+                Text("Screen context stays off by default. You can enable it later in Settings.")
+                    .minuteCaption()
+            }
         }
     }
 
@@ -175,6 +319,75 @@ private struct OnboardingHeader: View {
                 }
             }
         }
+    }
+}
+
+private struct OnboardingProviderChoicePicker: View {
+    let title: String
+    @Binding var selection: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .minuteRowTitle()
+
+            HStack(spacing: 12) {
+                optionButton(
+                    title: "Built-in",
+                    subtitle: "Easy",
+                    provider: .builtIn
+                )
+                optionButton(
+                    title: "Ollama",
+                    subtitle: "Advanced",
+                    provider: .ollama
+                )
+            }
+        }
+    }
+
+    private func optionButton(
+        title: String,
+        subtitle: String,
+        provider: InferenceProvider
+    ) -> some View {
+        let isSelected = selection == provider.rawValue
+
+        return Button {
+            selection = provider.rawValue
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(title)
+                        .font(.headline)
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.accent)
+                    }
+                }
+
+                Text(subtitle)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.secondary)
+
+                Text(provider.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.7) : Color.secondary.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

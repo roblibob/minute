@@ -15,10 +15,14 @@ public struct ScreenContextVideoInferenceResult: Sendable, Equatable {
 
 public final class ScreenContextVideoFrameExtractor: @unchecked Sendable {
     private let logger = Logger(subsystem: "roblibob.Minute", category: "screen-context-video")
-    private let inferencer: any ScreenContextInferencing
+    private let inferencerProvider: @Sendable () throws -> any ScreenContextInferencing
 
     public init(inferencer: any ScreenContextInferencing) {
-        self.inferencer = inferencer
+        self.inferencerProvider = { inferencer }
+    }
+
+    public init(inferencerProvider: @escaping @Sendable () throws -> any ScreenContextInferencing) {
+        self.inferencerProvider = inferencerProvider
     }
 
     /// Runs screen-context inference on a video by sampling frames at regular intervals.
@@ -36,6 +40,7 @@ public final class ScreenContextVideoFrameExtractor: @unchecked Sendable {
         from sourceURL: URL,
         intervalSeconds: TimeInterval = 300.0
     ) async throws -> ScreenContextVideoInferenceResult? {
+        let inferencer = try inferencerProvider()
         let asset = AVURLAsset(url: sourceURL)
         let videoTracks = try await asset.loadTracks(withMediaType: .video)
         guard !videoTracks.isEmpty else { return nil }

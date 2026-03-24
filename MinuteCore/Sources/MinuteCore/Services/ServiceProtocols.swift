@@ -350,6 +350,10 @@ public protocol ScreenContextInferencing: Sendable {
     func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference
 }
 
+public protocol CapabilityAvailabilityProviding: Sendable {
+    func availability(for capability: InferenceCapability) async throws -> CapabilityAvailabilityState
+}
+
 public enum SilenceAutoStopEvent: Sendable, Equatable {
     case warningStarted(RecordingAlert)
     case warningCanceledBySpeech

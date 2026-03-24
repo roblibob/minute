@@ -2,6 +2,9 @@ import MinuteCore
 import SwiftUI
 
 struct ScreenContextSettingsSection: View {
+    let title: String?
+    let showsMasterToggle: Bool
+
     @AppStorage(AppDefaultsKey.screenContextEnabled)
     private var screenContextEnabled: Bool = AppConfiguration.Defaults.defaultScreenContextEnabled
     @AppStorage(AppDefaultsKey.screenContextVideoImportEnabled)
@@ -9,14 +12,34 @@ struct ScreenContextSettingsSection: View {
     @AppStorage(AppDefaultsKey.screenContextCaptureIntervalSeconds)
     private var captureIntervalSeconds: Double = AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
 
+    init(title: String? = "Screen Context", showsMasterToggle: Bool = true) {
+        self.title = title
+        self.showsMasterToggle = showsMasterToggle
+    }
+
     var body: some View {
-        Section("Screen Context") {
+        Group {
+            if let title {
+                Section(title) {
+                    content
+                }
+            } else {
+                content
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if showsMasterToggle {
             SettingsToggleRow(
-                "Enhance notes with selected screen content",
+                "Enhance notes with selected screen context",
                 detail: "Choose a window each time you start recording. No video is stored.",
                 isOn: $screenContextEnabled
             )
+        }
 
+        VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Capture interval")
@@ -38,9 +61,11 @@ struct ScreenContextSettingsSection: View {
                 isOn: $videoImportEnabled
             )
         }
+        .disabled(showsMasterToggle && !screenContextEnabled)
+        .opacity(!showsMasterToggle || screenContextEnabled ? 1 : 0.55)
     }
 
-    private static let captureIntervals: [Double] = [10, 30, 60]
+    nonisolated private static let captureIntervals: [Double] = [10, 30, 60]
 
     private var captureIntervalIndex: Binding<Int> {
         Binding<Int>(
@@ -58,7 +83,7 @@ struct ScreenContextSettingsSection: View {
         Self.label(for: captureIntervalSeconds)
     }
 
-    private static func index(for value: Double) -> Int {
+    nonisolated private static func index(for value: Double) -> Int {
         if let index = captureIntervals.firstIndex(of: value) {
             return index
         }
@@ -67,7 +92,7 @@ struct ScreenContextSettingsSection: View {
         return deltas.firstIndex(of: minDelta) ?? 0
     }
 
-    private static func label(for value: Double) -> String {
+    nonisolated private static func label(for value: Double) -> String {
         if value >= 60 {
             return "1 min"
         }

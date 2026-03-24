@@ -15,7 +15,9 @@ public actor MeetingPipelineCoordinator {
     private let vaultWriter: any VaultWriting
     private let speakerProfileStore: SpeakerProfileStore
     private let meetingSpeakerEmbeddingCache: MeetingSpeakerEmbeddingCache
+    private let summarizationServiceForBinding: (@Sendable (InferenceTaskBinding) -> any SummarizationServicing)?
     private let summarizationModelIDProvider: @Sendable () -> String
+    private let summarizationPreflightConfigurationForBinding: (@Sendable (InferenceTaskBinding) -> SummarizationPreflightConfiguration)?
     private let summarizationPreflightConfigurationProvider: @Sendable () -> SummarizationPreflightConfiguration
     private let dateProvider: @Sendable () -> Date
 
@@ -46,7 +48,9 @@ public actor MeetingPipelineCoordinator {
         vaultWriter: some VaultWriting,
         speakerProfileStore: SpeakerProfileStore = SpeakerProfileStore(),
         meetingSpeakerEmbeddingCache: MeetingSpeakerEmbeddingCache = MeetingSpeakerEmbeddingCache(),
+        summarizationServiceForBinding: (@Sendable (InferenceTaskBinding) -> any SummarizationServicing)? = nil,
         summarizationModelIDProvider: @escaping @Sendable () -> String = { SummarizationModelCatalog.defaultModel.id },
+        summarizationPreflightConfigurationForBinding: (@Sendable (InferenceTaskBinding) -> SummarizationPreflightConfiguration)? = nil,
         summarizationPreflightConfigurationProvider: @escaping @Sendable () -> SummarizationPreflightConfiguration = { .default },
         dateProvider: @escaping @Sendable () -> Date = Date.init
     ) {
@@ -63,7 +67,9 @@ public actor MeetingPipelineCoordinator {
         self.vaultWriter = vaultWriter
         self.speakerProfileStore = speakerProfileStore
         self.meetingSpeakerEmbeddingCache = meetingSpeakerEmbeddingCache
+        self.summarizationServiceForBinding = summarizationServiceForBinding
         self.summarizationModelIDProvider = summarizationModelIDProvider
+        self.summarizationPreflightConfigurationForBinding = summarizationPreflightConfigurationForBinding
         self.summarizationPreflightConfigurationProvider = summarizationPreflightConfigurationProvider
         self.dateProvider = dateProvider
     }
@@ -144,7 +150,12 @@ public actor MeetingPipelineCoordinator {
             }
             let sectionVisibility = summarySectionVisibility(for: resolvedPromptBundle.typeId, in: meetingTypeLibrary)
 
-            let summarizationService = summarizationServiceProvider()
+            let summarizationBinding = request.summarizationBinding
+            let summarizationService = if let summarizationBinding, let summarizationServiceForBinding {
+                summarizationServiceForBinding(summarizationBinding)
+            } else {
+                summarizationServiceProvider()
+            }
             let rawSummaryJSON = try await summarizationService.summarize(
                 transcript: transcriptSource,
                 meetingDate: meetingDate,
@@ -303,7 +314,12 @@ public actor MeetingPipelineCoordinator {
                 screenEvents: context.screenContextEvents
             )
             let timelineText = MeetingTimelineRenderer().render(entries: timelineEntries)
-            let preflightConfiguration = summarizationPreflightConfigurationProvider()
+            let summarizationBinding = context.summarizationBinding
+            let preflightConfiguration = if let summarizationBinding, let summarizationPreflightConfigurationForBinding {
+                summarizationPreflightConfigurationForBinding(summarizationBinding)
+            } else {
+                summarizationPreflightConfigurationProvider()
+            }
             let preflight = SummarizationPassPlanner.estimate(
                 transcript: timelineText,
                 contextWindowTokens: preflightConfiguration.contextWindowTokens,
@@ -316,7 +332,7 @@ public actor MeetingPipelineCoordinator {
                 availableInputTokensPerPass: preflight.availableInputTokensPerPass
             )
             let runID = existingRunState?.runID ?? UUID().uuidString
-            let summarizationModelID = summarizationModelIDProvider()
+            let summarizationModelID = summarizationBinding?.providerReference ?? summarizationModelIDProvider()
             var budgetEstimate = SummarizationTokenBudgetEstimate(
                 runID: runID,
                 modelID: summarizationModelID,
@@ -357,7 +373,11 @@ public actor MeetingPipelineCoordinator {
             await saveCheckpointState(planningState, for: meetingRunID, operation: "planning")
 
             try Task.checkCancellation()
-            let summarizationService = summarizationServiceProvider()
+            let summarizationService = if let summarizationBinding, let summarizationServiceForBinding {
+                summarizationServiceForBinding(summarizationBinding)
+            } else {
+                summarizationServiceProvider()
+            }
             let meetingDate = context.startedAt
 
             let meetingTypeLibrary = meetingTypeLibraryStore.load()

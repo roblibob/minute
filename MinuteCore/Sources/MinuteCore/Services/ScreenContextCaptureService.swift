@@ -48,11 +48,15 @@ public struct ScreenContextCapturedFrame: Sendable, Equatable {
 
 public actor ScreenContextCaptureService {
     private let logger = Logger(subsystem: "roblibob.Minute", category: "screen-context")
-    private let inferencer: any ScreenContextInferencing
+    private let inferencerProvider: @Sendable () throws -> any ScreenContextInferencing
     private var session: ScreenContextCaptureSession?
 
     public init(inferencer: any ScreenContextInferencing) {
-        self.inferencer = inferencer
+        self.inferencerProvider = { inferencer }
+    }
+
+    public init(inferencerProvider: @escaping @Sendable () throws -> any ScreenContextInferencing) {
+        self.inferencerProvider = inferencerProvider
     }
 
     public func startCapture(
@@ -74,6 +78,7 @@ public actor ScreenContextCaptureService {
             return
         }
 
+        let inferencer = try inferencerProvider()
         session = try await ScreenContextCaptureSession.start(
             sources: ScreenContextCaptureSource.makeSources(from: resolved),
             inferencer: inferencer,
@@ -112,6 +117,7 @@ public actor ScreenContextCaptureService {
         guard session == nil else { return }
         guard !sources.isEmpty else { return }
 
+        let inferencer = try inferencerProvider()
         session = try await ScreenContextCaptureSession.start(
             sources: sources,
             inferencer: inferencer,

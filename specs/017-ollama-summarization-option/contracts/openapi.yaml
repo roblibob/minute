@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: Minute Inference Provider Contract
+  version: 0.1.0
+  description: |
+    Internal local-only contract for selecting and validating inference providers
+    separately for summarization and vision.
+    These endpoints describe behavior boundaries and do not imply any public or remote API.
+servers:
+  - url: local://minute-core
+paths:
+  /inference/capabilities:
+    get:
+      summary: List configurable inference capabilities and their current selections
+      operationId: listInferenceCapabilities
+      responses:
+        '200':
+          description: Capability catalog and current selections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceCapabilityCatalogResponse'
+  /inference/capabilities/{capabilityId}/selection:
+    put:
+      summary: Update the active provider and model for one inference capability
+      operationId: updateInferenceCapabilitySelection
+      parameters:
+        - $ref: '#/components/parameters/CapabilityId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InferenceSelectionRequest'
+      responses:
+        '200':
+          description: Selection persisted and current readiness returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceSelectionResponse'
+        '409':
+          description: Selection accepted for future tasks but current provider/model is not ready
+  /inference/providers/ollama/discovery:
+    get:
+      summary: Discover locally downloaded Ollama models and daemon state
+      operationId: discoverOllamaModels
+      responses:
+        '200':
+          description: Local Ollama daemon was contacted and inventory returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OllamaDiscoverySnapshot'
+        '503':
+          description: Ollama daemon is unavailable
+  /inference/providers/ollama/validate:
+    post:
+      summary: Validate the selected Ollama model tag for one capability
+      operationId: validateOllamaSelection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OllamaValidationRequest'
+      responses:
+        '200':
+          description: Selected tag is available locally
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilityAvailabilityState'
+        '404':
+          description: Selected tag is not installed locally
+        '503':
+          description: Ollama daemon is unavailable
+components:
+  schemas:
+    InferenceCapabilityCatalogResponse:
+      type: object
+      required:
+        - capabilities
+      properties:
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/InferenceCapabilityState'
+    InferenceCapabilityState:
+      type: object
+      required:
+        - capabilityId
+        - selectedProviderId
+        - availability
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        selectedProviderId:
+          type: string
+          enum: [builtIn, ollama]
+        selectedReference:
+          type: string
+        availableProviders:
+          type: array
+          items:
+            $ref: '#/components/schemas/InferenceProvider'
+        availability:
+          $ref: '#/components/schemas/CapabilityAvailabilityState'
+    InferenceSelectionRequest:
+      type: object
+      required:
+        - selectedProviderId
+      properties:
+        selectedProviderId:
+          type: string
+          enum: [builtIn, ollama]
+        builtInModelId:
+          type: string
+        ollamaModelTag:
+          type: string
+    InferenceSelectionResponse:
+      type: object
+      required:
+        - capabilityId
+        - selectedProviderId
+        - availability
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        selectedProviderId:
+          type: string
+          enum: [builtIn, ollama]
+        availability:
+          $ref: '#/components/schemas/CapabilityAvailabilityState'
+        preservedSelections:
+          type: object
+          additionalProperties:
+            type: string
+    InferenceProvider:
+      type: object
+      required:
+        - id
+        - displayName
+        - description
+        - supportsManagedDownloads
+        - supportsLocalDiscovery
+      properties:
+        id:
+          type: string
+          enum: [builtIn, ollama]
+        displayName:
+          type: string
+        description:
+          type: string
+        supportsManagedDownloads:
+          type: boolean
+        supportsLocalDiscovery:
+          type: boolean
+    CapabilityAvailabilityState:
+      type: object
+      required:
+        - capabilityId
+        - providerId
+        - isReady
+        - status
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        providerId:
+          type: string
+          enum: [builtIn, ollama]
+        isReady:
+          type: boolean
+        status:
+          type: string
+          enum: [ready, needs_configuration, daemon_unavailable, model_missing, unsupported, vision_unsupported, unknown]
+        message:
+          type: string
+        selectedReference:
+          type: string
+    OllamaValidationRequest:
+      type: object
+      required:
+        - capabilityId
+        - modelTag
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        modelTag:
+          type: string
+          minLength: 1
+    OllamaDiscoverySnapshot:
+      type: object
+      required:
+        - daemonReachable
+        - discoveredAt
+        - models
+      properties:
+        daemonReachable:
+          type: boolean
+        daemonVersion:
+          type: string
+        discoveredAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/OllamaModelDescriptor'
+    OllamaModelDescriptor:
+      type: object
+      required:
+        - tag
+        - digest
+        - sizeBytes
+        - capabilities
+        - supportsVision
+      properties:
+        tag:
+          type: string
+        displayName:
+          type: string
+        digest:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        modifiedAt:
+          type: string
+          format: date-time
+        families:
+          type: array
+          items:
+            type: string
+        parameterSizeLabel:
+          type: string
+        quantizationLabel:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        supportsVision:
+          type: boolean
+        contextLength:
+          type: integer
+          minimum: 1
+  parameters:
+    CapabilityId:
+      name: capabilityId
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [summarization, vision]

@@ -6,9 +6,50 @@ import Combine
 import Foundation
 import MinuteCore
 import MinuteLlama
+import MinuteOllama
 import MinuteWhisper
 import os
 import UniformTypeIdentifiers
+
+final class ActiveVisionBindingStore: @unchecked Sendable {
+    private let lock = NSLock()
+    nonisolated(unsafe) private var binding: InferenceTaskBinding?
+
+    nonisolated init() {}
+
+    nonisolated func set(_ binding: InferenceTaskBinding?) {
+        lock.lock()
+        self.binding = binding
+        lock.unlock()
+    }
+
+    nonisolated func currentBinding() -> InferenceTaskBinding? {
+        lock.lock()
+        defer { lock.unlock() }
+        return binding
+    }
+}
+
+private func makeLiveScreenContextInferencerProvider(
+    runtimeFactory: InferenceRuntimeFactory,
+    activeVisionBindingStore: ActiveVisionBindingStore
+) -> @Sendable () -> any ScreenContextInferencing {
+    {
+        let binding = activeVisionBindingStore.currentBinding()
+        do {
+            if let binding {
+                return try runtimeFactory.makeScreenContextInferencer(binding: binding)
+            }
+            return try runtimeFactory.makeScreenContextInferencer()
+        } catch let minuteError as MinuteError {
+            return ErrorScreenContextInferenceService(error: minuteError)
+        } catch {
+            return ErrorScreenContextInferenceService(
+                error: .llamaMTMDFailed(exitCode: -1, output: ErrorHandler.debugMessage(for: error))
+            )
+        }
+    }
+}
 
 @MainActor
 final class MeetingPipelineViewModel: ObservableObject {
@@ -238,6 +279,10 @@ final class MeetingPipelineViewModel: ObservableObject {
     private let vocabularySettingsStore: any VocabularyBoostingSettingsStoring
     private let sessionVocabularyResolver: any SessionVocabularyResolving
     private let modelValidationProvider: @Sendable () async throws -> ModelValidationResult
+    private let visionAvailabilityProvider: @Sendable () async throws -> CapabilityAvailabilityState
+    private let resolveSummarizationBinding: @Sendable () throws -> InferenceTaskBinding
+    private let resolveVisionBinding: @Sendable () throws -> InferenceTaskBinding
+    private let activeVisionBindingStore: ActiveVisionBindingStore
 
     private let vaultAccess: VaultAccess
 
@@ -283,6 +328,10 @@ final class MeetingPipelineViewModel: ObservableObject {
         vocabularySettingsStore: (any VocabularyBoostingSettingsStoring) = VocabularyBoostingSettingsStore(),
         sessionVocabularyResolver: (any SessionVocabularyResolving) = SessionVocabularyResolver(),
         modelValidationProvider: (@Sendable () async throws -> ModelValidationResult)? = nil,
+        visionAvailabilityProvider: (@Sendable () async throws -> CapabilityAvailabilityState)? = nil,
+        resolveSummarizationBinding: (@Sendable () throws -> InferenceTaskBinding)? = nil,
+        resolveVisionBinding: (@Sendable () throws -> InferenceTaskBinding)? = nil,
+        activeVisionBindingStore: ActiveVisionBindingStore? = nil,
         defaults: UserDefaults = .standard
     ) {
         self.audioService = audioService
@@ -304,6 +353,31 @@ final class MeetingPipelineViewModel: ObservableObject {
         self.vocabularySettingsStore = vocabularySettingsStore
         self.sessionVocabularyResolver = sessionVocabularyResolver
         self.modelValidationProvider = modelValidationProvider ?? { ModelValidationResult(missingModelIDs: [], invalidModelIDs: []) }
+        self.visionAvailabilityProvider = visionAvailabilityProvider ?? {
+            CapabilityAvailabilityState(
+                capabilityID: .vision,
+                providerID: .builtIn,
+                isReady: true,
+                status: .ready
+            )
+        }
+        self.resolveSummarizationBinding = resolveSummarizationBinding ?? {
+            InferenceTaskBinding(
+                capabilityID: .summarization,
+                providerID: .builtIn,
+                providerReference: SummarizationModelCatalog.defaultModel.id,
+                supportsVisionInputs: false
+            )
+        }
+        self.resolveVisionBinding = resolveVisionBinding ?? {
+            InferenceTaskBinding(
+                capabilityID: .vision,
+                providerID: .builtIn,
+                providerReference: SummarizationModelCatalog.defaultModel.id,
+                supportsVisionInputs: true
+            )
+        }
+        self.activeVisionBindingStore = activeVisionBindingStore ?? ActiveVisionBindingStore()
         self.vaultAccess = vaultAccess
         self.defaults = defaults
         self.screenCaptureEnabled = screenContextSettingsStore.isEnabled
@@ -475,18 +549,80 @@ final class MeetingPipelineViewModel: ObservableObject {
     }
 
     static func live() -> MeetingPipelineViewModel {
-        let selectionStore = SummarizationModelSelectionStore()
-        let contextWindowStore = SummarizationContextWindowSelectionStore()
+        let defaults = UserDefaults.standard
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        let ollamaEndpointStore = OllamaEndpointSettingsStore(defaults: defaults)
+        let selectionStore = SummarizationModelSelectionStore(defaults: defaults)
+        let contextWindowStore = SummarizationContextWindowSelectionStore(defaults: defaults)
+        let visionModelStore = VisionModelSelectionStore(defaults: defaults)
         let hardwareProfile = SummarizationHardwareProfile.current()
-        let transcriptionSelectionStore = TranscriptionModelSelectionStore()
-        let transcriptionBackendStore = TranscriptionBackendSelectionStore()
-        let fluidAudioModelStore = FluidAudioASRModelSelectionStore()
+        let transcriptionSelectionStore = TranscriptionModelSelectionStore(defaults: defaults)
+        let transcriptionBackendStore = TranscriptionBackendSelectionStore(defaults: defaults)
+        let fluidAudioModelStore = FluidAudioASRModelSelectionStore(defaults: defaults)
+        let runtimeFactory = InferenceRuntimeFactory(
+            providerStore: providerStore,
+            summarizationModelStore: selectionStore,
+            summarizationContextWindowStore: contextWindowStore,
+            visionModelStore: visionModelStore,
+            hardwareProfileProvider: { hardwareProfile },
+            builtInSummarizationBuilder: { store, contextStore, profile in
+                LlamaLibrarySummarizationService.liveDefault(
+                    selectionStore: store,
+                    contextWindowStore: contextStore,
+                    hardwareProfile: profile
+                )
+            },
+            ollamaSummarizationBuilder: { tag in
+                guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+                    return ErrorSummarizationService(
+                        error: .llamaFailed(exitCode: -1, output: "Invalid Ollama base URL")
+                    )
+                }
+                return OllamaSummarizationService(
+                    modelTag: tag,
+                    client: OllamaAPIClient(baseURL: baseURL)
+                )
+            },
+            builtInVisionBuilder: { store in
+                let model = store.selectedModel()
+                guard let mmprojURL = model.mmprojDestinationURL else {
+                    return ErrorScreenContextInferenceService(error: .mmprojMissing)
+                }
+                return LlamaMTMDScreenInferenceService(
+                    configuration: LlamaMTMDScreenInferenceConfiguration(
+                        modelURL: model.destinationURL,
+                        mmprojURL: mmprojURL
+                    )
+                )
+            },
+            ollamaVisionBuilder: { tag in
+                guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+                    return ErrorScreenContextInferenceService(
+                        error: .llamaMTMDFailed(exitCode: -1, output: "Invalid Ollama base URL")
+                    )
+                }
+                return OllamaVisionInferenceService(
+                    modelTag: tag,
+                    client: OllamaAPIClient(baseURL: baseURL)
+                )
+            },
+            ollamaModelDiscoverer: nil
+        )
+        let activeVisionBindingStore = ActiveVisionBindingStore()
+        let liveScreenContextInferencerProvider = makeLiveScreenContextInferencerProvider(
+            runtimeFactory: runtimeFactory,
+            activeVisionBindingStore: activeVisionBindingStore
+        )
         let summarizationServiceProvider: @Sendable () -> any SummarizationServicing = {
-            LlamaLibrarySummarizationService.liveDefault(
-                selectionStore: selectionStore,
-                contextWindowStore: contextWindowStore,
-                hardwareProfile: hardwareProfile
-            )
+            do {
+                return try runtimeFactory.makeSummarizationService()
+            } catch let minuteError as MinuteError {
+                return ErrorSummarizationService(error: minuteError)
+            } catch {
+                return ErrorSummarizationService(
+                    error: .llamaFailed(exitCode: -1, output: ErrorHandler.debugMessage(for: error))
+                )
+            }
         }
         let transcriptionService: any TranscriptionServicing
         switch transcriptionBackendStore.selectedBackend() {
@@ -495,14 +631,12 @@ final class MeetingPipelineViewModel: ObservableObject {
         case .fluidAudio:
             transcriptionService = FluidAudioTranscriptionService.liveDefault(selectionStore: fluidAudioModelStore)
         }
-        let screenInferencer: any ScreenContextInferencing = LlamaMTMDScreenInferenceService
-            .liveDefault(selectionStore: selectionStore)
-            ?? MissingScreenContextInferenceService()
-
         let bookmarkStore = UserDefaultsVaultBookmarkStore(key: AppConfiguration.Defaults.vaultRootBookmarkKey)
         let vaultAccess = VaultAccess(bookmarkStore: bookmarkStore)
         let modelManager = DefaultModelManager(
+            providerStore: providerStore,
             selectionStore: selectionStore,
+            visionModelStore: visionModelStore,
             transcriptionSelectionStore: transcriptionSelectionStore,
             transcriptionBackendStore: transcriptionBackendStore,
             fluidAudioModelStore: fluidAudioModelStore
@@ -515,14 +649,40 @@ final class MeetingPipelineViewModel: ObservableObject {
             modelManager: modelManager,
             vaultAccess: vaultAccess,
             vaultWriter: DefaultVaultWriter(),
-            summarizationModelIDProvider: { selectionStore.selectedModel().id },
+            summarizationServiceForBinding: { binding in
+                do {
+                    return try runtimeFactory.makeSummarizationService(binding: binding)
+                } catch let minuteError as MinuteError {
+                    return ErrorSummarizationService(error: minuteError)
+                } catch {
+                    return ErrorSummarizationService(
+                        error: .llamaFailed(exitCode: -1, output: ErrorHandler.debugMessage(for: error))
+                    )
+                }
+            },
+            summarizationModelIDProvider: {
+                do {
+                    return try runtimeFactory.resolveBinding(for: .summarization).providerReference
+                } catch {
+                    return selectionStore.selectedModel().id
+                }
+            },
+            summarizationPreflightConfigurationForBinding: { binding in
+                runtimeFactory.preflightConfiguration(for: binding)
+            },
             summarizationPreflightConfigurationProvider: {
-                SummarizationPreflightConfiguration(
-                    contextWindowTokens: contextWindowStore.requestedContextTokens(
-                        hardwareProfile: hardwareProfile
-                    ),
-                    reservedOutputTokens: 1_024
-                )
+                let provider = providerStore.selectedProvider(for: .summarization)
+                switch provider {
+                case .builtIn:
+                    return SummarizationPreflightConfiguration(
+                        contextWindowTokens: contextWindowStore.requestedContextTokens(
+                            hardwareProfile: hardwareProfile
+                        ),
+                        reservedOutputTokens: 1_024
+                    )
+                case .ollama:
+                    return .default
+                }
             }
         )
 
@@ -531,8 +691,12 @@ final class MeetingPipelineViewModel: ObservableObject {
             mediaImportService: DefaultMediaImportService(),
             recoveryService: DefaultRecordingRecoveryService(),
             pipelineCoordinator: coordinator,
-            screenContextCaptureService: ScreenContextCaptureService(inferencer: screenInferencer),
-            screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: screenInferencer),
+            screenContextCaptureService: ScreenContextCaptureService(
+                inferencerProvider: liveScreenContextInferencerProvider
+            ),
+            screenContextVideoExtractor: ScreenContextVideoFrameExtractor(
+                inferencerProvider: liveScreenContextInferencerProvider
+            ),
             screenContextSettingsStore: ScreenContextSettingsStore(),
             vaultAccess: vaultAccess,
             transcriptionBackendStore: transcriptionBackendStore,
@@ -540,7 +704,17 @@ final class MeetingPipelineViewModel: ObservableObject {
             sessionVocabularyResolver: SessionVocabularyResolver(),
             modelValidationProvider: {
                 try await modelManager.validateModels()
-            }
+            },
+            visionAvailabilityProvider: {
+                try await runtimeFactory.availability(for: .vision)
+            },
+            resolveSummarizationBinding: {
+                try runtimeFactory.resolveBinding(for: .summarization)
+            },
+            resolveVisionBinding: {
+                try runtimeFactory.resolveBinding(for: .vision)
+            },
+            activeVisionBindingStore: activeVisionBindingStore
         )
     }
 
@@ -851,6 +1025,20 @@ final class MeetingPipelineViewModel: ObservableObject {
 
         Task {
             do {
+                let requestedVisionAvailability = shouldCaptureScreen
+                    ? ((try? await visionAvailabilityProvider()) ?? CapabilityAvailabilityState(
+                        capabilityID: .vision,
+                        providerID: .ollama,
+                        isReady: false,
+                        status: .daemonUnavailable,
+                        message: "Ollama is unavailable. Start the local daemon and refresh."
+                    ))
+                    : CapabilityAvailabilityState(
+                        capabilityID: .vision,
+                        providerID: .builtIn,
+                        isReady: true,
+                        status: .ready
+                    )
                 sessionVocabularyReadiness = await resolveSessionVocabularyReadiness()
                 let globalSettings = vocabularySettingsStore.load()
                 let vocabularyResolution = sessionVocabularyResolver.resolve(
@@ -866,9 +1054,17 @@ final class MeetingPipelineViewModel: ObservableObject {
                     screenRecordingPermissionGranted = try await recordingPermissions.requestScreenRecordingPermission()
                 }
 
-                if let resolvedSelection {
+                let shouldStartScreenCapture = shouldCaptureScreen && requestedVisionAvailability.isReady
+
+                if let resolvedSelection, shouldStartScreenCapture {
                     screenCaptureSelection = resolvedSelection
                     screenCaptureEnabled = true
+                    activeVisionBindingStore.set(try resolveVisionBinding())
+                } else {
+                    activeVisionBindingStore.set(nil)
+                    if shouldCaptureScreen && !requestedVisionAvailability.isReady {
+                        screenCaptureEnabled = false
+                    }
                 }
 
                 latestScreenCaptureImage = nil
@@ -888,16 +1084,26 @@ final class MeetingPipelineViewModel: ObservableObject {
                 let session = RecordingSession()
                 await applyAudioCaptureToggles()
                 try await audioService.startRecording()
-                await startScreenContextCaptureIfNeeded(selection: resolvedSelection, offsetSeconds: 0)
+                await startScreenContextCaptureIfNeeded(
+                    selection: shouldStartScreenCapture ? resolvedSelection : nil,
+                    offsetSeconds: 0
+                )
                 await startAudioLevelMonitoring()
                 resetAudioLevelSamples()
                 state = .recording(session: session)
                 captureState = .recording
                 await startSilenceMonitoring(for: session)
+                if shouldCaptureScreen && !requestedVisionAvailability.isReady {
+                    await presentScreenContextConfigurationAlert(
+                        sessionID: session.id,
+                        message: requestedVisionAvailability.message ?? "Screen context is unavailable for the selected vision configuration."
+                    )
+                }
             } catch let minuteError as MinuteError {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
                 await stopSilenceMonitoring()
+                activeVisionBindingStore.set(nil)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -911,6 +1117,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
                 await stopSilenceMonitoring()
+                activeVisionBindingStore.set(nil)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -933,6 +1140,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             await stopSilenceMonitoring()
             resetAudioLevelSamples()
             await screenContextCaptureService.cancelCapture()
+            activeVisionBindingStore.set(nil)
             screenInferenceStatus = nil
             screenContextEvents = []
             screenCaptureSelection = nil
@@ -973,6 +1181,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 let result = try await audioService.stopRecording()
                 await stopSilenceMonitoring()
                 _ = await stopScreenContextCaptureAndAppend()
+                activeVisionBindingStore.set(nil)
                 await stopAudioLevelMonitoring()
                 resetAudioLevelSamples()
                 await clearActiveRecordingWarnings()
@@ -1007,6 +1216,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
                 await stopSilenceMonitoring()
+                activeVisionBindingStore.set(nil)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -1020,6 +1230,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 await stopAudioLevelMonitoring()
                 await screenContextCaptureService.cancelCapture()
                 await stopSilenceMonitoring()
+                activeVisionBindingStore.set(nil)
                 screenInferenceStatus = nil
                 screenContextEvents = []
                 screenCaptureSelection = nil
@@ -1052,26 +1263,40 @@ final class MeetingPipelineViewModel: ObservableObject {
             do {
                 let result = try await mediaImportService.importMedia(from: url)
                 if screenContextSettingsStore.isVideoImportEnabled, isVideoImport {
+                    let visionAvailability = (try? await visionAvailabilityProvider()) ?? CapabilityAvailabilityState(
+                        capabilityID: .vision,
+                        providerID: .ollama,
+                        isReady: false,
+                        status: .daemonUnavailable,
+                        message: "Ollama is unavailable. Start the local daemon and refresh."
+                    )
                     progress = 0.3
                     statusLabelOverride = "Analyzing Video"
-                    screenInferenceStatus = ScreenInferenceStatus(
-                        processedCount: 0,
-                        skippedCount: 0,
-                        isInferenceRunning: true,
-                        isFirstInferenceDeferred: false
-                    )
-                    if let inferenceResult = await extractScreenContextForImport(sourceURL: url) {
-                        screenContextEvents = inferenceResult.events
+                    if visionAvailability.isReady {
+                        activeVisionBindingStore.set(try resolveVisionBinding())
                         screenInferenceStatus = ScreenInferenceStatus(
-                            processedCount: inferenceResult.processedCount,
+                            processedCount: 0,
                             skippedCount: 0,
-                            isInferenceRunning: false,
+                            isInferenceRunning: true,
                             isFirstInferenceDeferred: false
                         )
+                        if let inferenceResult = await extractScreenContextForImport(sourceURL: url) {
+                            screenContextEvents = inferenceResult.events
+                            screenInferenceStatus = ScreenInferenceStatus(
+                                processedCount: inferenceResult.processedCount,
+                                skippedCount: 0,
+                                isInferenceRunning: false,
+                                isFirstInferenceDeferred: false
+                            )
+                        } else {
+                            logger.info("Screen context extraction returned nil for imported video \(url.lastPathComponent, privacy: .private(mask: .hash))")
+                            screenInferenceStatus = nil
+                        }
                     } else {
-                        logger.info("Screen context extraction returned nil for imported video \(url.lastPathComponent, privacy: .private(mask: .hash))")
+                        logger.info("Skipping video screen context: \(visionAvailability.message ?? "vision configuration unavailable", privacy: .private(mask: .hash))")
                         screenInferenceStatus = nil
                     }
+                    activeVisionBindingStore.set(nil)
                 }
                 try Task.checkCancellation()
                 let startedAt = result.suggestedStartDate
@@ -1085,6 +1310,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                     stoppedAt: stoppedAt
                 )
             } catch is CancellationError {
+                activeVisionBindingStore.set(nil)
                 progress = nil
                 statusLabelOverride = nil
                 screenInferenceStatus = nil
@@ -1093,6 +1319,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureBaseSkippedCount = 0
                 state = .idle
             } catch let minuteError as MinuteError {
+                activeVisionBindingStore.set(nil)
                 progress = nil
                 statusLabelOverride = nil
                 screenInferenceStatus = nil
@@ -1101,6 +1328,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                 screenCaptureBaseSkippedCount = 0
                 state = .failed(error: minuteError, debugOutput: minuteError.debugSummary)
             } catch {
+                activeVisionBindingStore.set(nil)
                 progress = nil
                 statusLabelOverride = nil
                 screenInferenceStatus = nil
@@ -1175,6 +1403,7 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenCaptureSelection = nil
         screenCaptureBaseProcessedCount = 0
         screenCaptureBaseSkippedCount = 0
+        activeVisionBindingStore.set(nil)
         screenContextAutoStopTask?.cancel()
         screenContextAutoStopTask = nil
         activeSilenceAlert = nil
@@ -1250,6 +1479,17 @@ final class MeetingPipelineViewModel: ObservableObject {
         activeSilenceAlert = nil
         await recordingAlertNotifier.clearSilenceStopWarning()
         await clearScreenContextAutoStopWarning()
+    }
+
+    private func presentScreenContextConfigurationAlert(sessionID: UUID, message: String) async {
+        let alert = RecordingAlert(
+            type: .screenWindowClosed,
+            sessionID: sessionID,
+            message: message,
+            actions: [.acknowledge]
+        )
+        activeScreenContextAlert = alert
+        _ = await recordingAlertNotifier.notifySharedWindowClosed(alert: alert)
     }
 
     private func beginScreenContextAutoStopWarning(session: RecordingSession, windowTitle: String) {
@@ -1736,6 +1976,7 @@ final class MeetingPipelineViewModel: ObservableObject {
             screenContextEvents: screenContextEvents,
             transcriptionOverride: nil,
             transcriptionVocabulary: vocabularyResolution.transcriptionVocabulary,
+            summarizationBinding: try resolveSummarizationBinding(),
             meetingTypeSelection: MeetingTypeSelection(
                 selectionMode: selectionMode,
                 selectedTypeId: resolvedTypeID
