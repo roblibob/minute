@@ -23,6 +23,11 @@ struct AppConfigurationTests {
             configuration.screenContextCaptureIntervalSeconds,
             AppConfiguration.Defaults.defaultScreenContextCaptureIntervalSeconds
         )
+        expectEqual(configuration.summarizationProviderID, AppConfiguration.Defaults.defaultSummarizationProviderID)
+        expectEqual(configuration.summarizationOllamaModelTag, nil)
+        expectEqual(configuration.visionProviderID, AppConfiguration.Defaults.defaultVisionProviderID)
+        expectEqual(configuration.visionBuiltInModelID, AppConfiguration.Defaults.defaultVisionBuiltInModelID)
+        expectEqual(configuration.visionOllamaModelTag, nil)
         expectEqual(
             configuration.micActivityNotificationsEnabled,
             AppConfiguration.Defaults.defaultMicActivityNotificationsEnabled
@@ -97,6 +102,36 @@ struct AppConfigurationTests {
         expectEqual(configuration.vocabularyBoostingEnabled, true)
         expectEqual(configuration.vocabularyBoostingTerms, ["Acme", "Roadmap"])
         expectEqual(configuration.vocabularyBoostingStrength, .aggressive)
+    }
+
+    @Test
+    func defaults_normalizesInferenceConfiguration() {
+        let defaults = makeDefaults()
+        defaults.set("invalid", forKey: AppConfiguration.Defaults.summarizationProviderIDKey)
+        defaults.set("ollama", forKey: AppConfiguration.Defaults.visionProviderIDKey)
+        defaults.set("   llama3.2-vision   ", forKey: AppConfiguration.Defaults.visionOllamaModelTagKey)
+        defaults.set("   ", forKey: AppConfiguration.Defaults.summarizationOllamaModelTagKey)
+        defaults.set("missing-model", forKey: AppConfiguration.Defaults.visionBuiltInModelIDKey)
+        defaults.set("  http://192.168.1.20:11434  ", forKey: AppConfiguration.Defaults.ollamaBaseURLKey)
+
+        let configuration = AppConfiguration(defaults: defaults)
+
+        expectEqual(configuration.summarizationProviderID, AppConfiguration.Defaults.defaultSummarizationProviderID)
+        expectEqual(configuration.visionProviderID, InferenceProvider.ollama.rawValue)
+        expectEqual(configuration.summarizationOllamaModelTag, nil)
+        expectEqual(configuration.visionOllamaModelTag, "llama3.2-vision")
+        expectEqual(configuration.visionBuiltInModelID, AppConfiguration.Defaults.defaultVisionBuiltInModelID)
+        expectEqual(configuration.ollamaBaseURL, "http://192.168.1.20:11434")
+    }
+
+    @Test
+    func defaults_fallsBackForInvalidOllamaBaseURL() {
+        let defaults = makeDefaults()
+        defaults.set("not a url", forKey: AppConfiguration.Defaults.ollamaBaseURLKey)
+
+        let configuration = AppConfiguration(defaults: defaults)
+
+        expectEqual(configuration.ollamaBaseURL, AppConfiguration.Defaults.defaultOllamaBaseURL)
     }
 
     private func makeDefaults() -> UserDefaults {

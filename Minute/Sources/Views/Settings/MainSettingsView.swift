@@ -40,7 +40,6 @@ struct MainSettingsView: View {
                     case .general:
                         Form {
                             GeneralSettingsSection()
-                            ScreenContextSettingsSection()
                         }
                     case .storage:
                         Form {

@@ -45,6 +45,69 @@ struct ScreenContextCaptureServiceWindowLifecycleTests {
         let events = await recorder.events
         #expect(events.isEmpty)
     }
+
+    @Test
+    func activeCapture_usesInjectedVisionInferencer() async throws {
+        let inferencer = VisionInferencerSpy()
+        let service = ScreenContextCaptureService(inferencer: inferencer)
+
+        try await service._testStartCapture(
+            sources: [
+                ScreenContextCaptureSource(
+                    windowTitle: "Slides",
+                    captureImageData: { Data([0x01, 0x02, 0x03]) }
+                )
+            ],
+            minimumFrameInterval: 1.0
+        )
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+        _ = await service.stopCapture()
+
+        let calls = await inferencer.calls
+        #expect(calls == ["Slides"])
+    }
+
+    @Test
+    func captureStart_resolvesInferencerFromProviderForEachSession() async throws {
+        let provider = VisionInferencerProviderSpy()
+        let service = ScreenContextCaptureService(
+            inferencerProvider: {
+                provider.makeInferencer()
+            }
+        )
+
+        try await service._testStartCapture(
+            sources: [
+                ScreenContextCaptureSource(
+                    windowTitle: "Slides",
+                    captureImageData: { Data([0x01]) }
+                )
+            ],
+            minimumFrameInterval: 1.0
+        )
+        try await Task.sleep(nanoseconds: 150_000_000)
+        _ = await service.stopCapture()
+
+        try await service._testStartCapture(
+            sources: [
+                ScreenContextCaptureSource(
+                    windowTitle: "Browser",
+                    captureImageData: { Data([0x02]) }
+                )
+            ],
+            minimumFrameInterval: 1.0
+        )
+        try await Task.sleep(nanoseconds: 150_000_000)
+        _ = await service.stopCapture()
+
+        let inferencers = provider.snapshotInferencers()
+        var resolvedTitles: [[String]] = []
+        for inferencer in inferencers {
+            resolvedTitles.append(await inferencer.calls)
+        }
+        #expect(resolvedTitles == [["Slides"], ["Browser"]])
+    }
 }
 
 private actor LifecycleEventRecorder {
@@ -52,5 +115,34 @@ private actor LifecycleEventRecorder {
 
     func append(_ event: ScreenContextLifecycleEvent) {
         events.append(event)
+    }
+}
+
+private actor VisionInferencerSpy: ScreenContextInferencing {
+    private(set) var calls: [String] = []
+
+    func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        calls.append(windowTitle)
+        return ScreenContextInference(text: "Vision context for \(windowTitle)")
+    }
+}
+
+private final class VisionInferencerProviderSpy: @unchecked Sendable {
+    private var inferencers: [VisionInferencerSpy] = []
+    private let lock = NSLock()
+
+    func makeInferencer() -> VisionInferencerSpy {
+        lock.lock()
+        defer { lock.unlock() }
+        let inferencer = VisionInferencerSpy()
+        inferencers.append(inferencer)
+        return inferencer
+    }
+
+    func snapshotInferencers() -> [VisionInferencerSpy] {
+        lock.lock()
+        defer { lock.unlock() }
+        return inferencers
     }
 }

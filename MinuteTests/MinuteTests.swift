@@ -606,6 +606,76 @@ struct OnboardingPersistenceCoverageTests {
     }
 
     @Test
+    func debugEnvironmentFlag_forcesOnboardingVisibility() {
+        let processInfo = StubProcessInfo(
+            environment: [ContentView.forceOnboardingEnvironmentKey: "1"]
+        )
+
+        #expect(ContentView.shouldForceOnboardingInDebugBuild(processInfo: processInfo))
+    }
+
+    @Test
+    func debugWalkthroughStartsAtIntroEvenForCompletedUser() throws {
+        let suite = "OnboardingPersistenceCoverageTests.debugWalkthrough.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(true, forKey: "didShowOnboardingIntro")
+        defaults.set(true, forKey: "didCompleteOnboarding")
+        defaults.set(OnboardingViewModel.Step.complete.rawValue, forKey: "onboardingLastStep")
+
+        let model = OnboardingViewModel(modelManager: MockModelManager(), defaults: defaults)
+        model.startDebugWalkthrough()
+
+        #expect(model.isDebugWalkthroughActive)
+        #expect(model.currentStep == .intro)
+    }
+
+    @Test
+    func debugWalkthroughCompletionDoneDismissesForcedSession() async throws {
+        let suite = "OnboardingPersistenceCoverageTests.debugWalkthroughDismiss.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(true, forKey: "didShowOnboardingIntro")
+        defaults.set(true, forKey: "didCompleteOnboarding")
+        defaults.set(OnboardingViewModel.Step.complete.rawValue, forKey: "onboardingLastStep")
+
+        let vaultRootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("minute-onboarding-debug-dismiss-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: vaultRootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let bookmark = try VaultAccess.makeBookmarkData(forVaultRootURL: vaultRootURL)
+        let bookmarkStore = UserDefaultsVaultBookmarkStore(
+            defaults: defaults,
+            key: AppConfiguration.Defaults.vaultRootBookmarkKey
+        )
+        bookmarkStore.saveVaultRootBookmark(bookmark)
+
+        let model = OnboardingViewModel(modelManager: MockModelManager(), defaults: defaults)
+        model.startDebugWalkthrough()
+
+        model.advance()
+        model.skipPermissions()
+
+        for _ in 0..<10 where !model.modelsReady {
+            await Task.yield()
+        }
+
+        model.advance()
+        model.advance()
+        model.advance()
+        model.advance()
+        #expect(model.currentStep == .complete)
+        model.advance()
+
+        #expect(model.isDebugWalkthroughActive == false)
+    }
+
+    @Test
     func selectedSummarizationContextWindowPreset_persistsAcrossRelaunches() throws {
         let suite = "OnboardingPersistenceCoverageTests.contextPreset.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -620,6 +690,19 @@ struct OnboardingPersistenceCoverageTests {
 
         #expect(firstLaunch.selectedSummarizationContextWindowPreset == .maximum)
         #expect(secondLaunch.selectedSummarizationContextWindowPreset == .maximum)
+    }
+}
+
+private final class StubProcessInfo: ProcessInfo {
+    private let stubEnvironment: [String: String]
+
+    init(environment: [String: String]) {
+        self.stubEnvironment = environment
+        super.init()
+    }
+
+    override var environment: [String: String] {
+        stubEnvironment
     }
 }
 

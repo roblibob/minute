@@ -155,6 +155,7 @@ public struct ReprocessMeetingRequest: Codable, Sendable, Equatable {
     public var targetMeetingTypeId: String
     public var currentMeetingTypeId: String?
     public var overwriteConfirmed: Bool
+    public var summarizationBinding: InferenceTaskBinding?
 
     public init(
         meetingId: String,
@@ -162,7 +163,8 @@ public struct ReprocessMeetingRequest: Codable, Sendable, Equatable {
         transcriptURL: URL,
         targetMeetingTypeId: String,
         currentMeetingTypeId: String? = nil,
-        overwriteConfirmed: Bool
+        overwriteConfirmed: Bool,
+        summarizationBinding: InferenceTaskBinding? = nil
     ) {
         self.meetingId = meetingId
         self.noteURL = noteURL
@@ -170,6 +172,7 @@ public struct ReprocessMeetingRequest: Codable, Sendable, Equatable {
         self.targetMeetingTypeId = targetMeetingTypeId
         self.currentMeetingTypeId = currentMeetingTypeId
         self.overwriteConfirmed = overwriteConfirmed
+        self.summarizationBinding = summarizationBinding
     }
 
     public func validated(availableTargetTypeIDs: Set<String>) throws -> ReprocessMeetingRequest {
@@ -207,6 +210,7 @@ public struct PipelineContext: Sendable {
     public var screenContextEvents: [ScreenContextEvent]
     public var transcriptionOverride: TranscriptionResult?
     public var transcriptionVocabulary: TranscriptionVocabularySettings?
+    public var summarizationBinding: InferenceTaskBinding?
     public var meetingTypeSelection: MeetingTypeSelection
     public var meetingType: MeetingType
     public var languageProcessing: LanguageProcessingProfile
@@ -227,6 +231,7 @@ public struct PipelineContext: Sendable {
         screenContextEvents: [ScreenContextEvent] = [],
         transcriptionOverride: TranscriptionResult? = nil,
         transcriptionVocabulary: TranscriptionVocabularySettings? = nil,
+        summarizationBinding: InferenceTaskBinding? = nil,
         meetingTypeSelection: MeetingTypeSelection? = nil,
         meetingType: MeetingType = .autodetect,
         languageProcessing: LanguageProcessingProfile = .autoToEnglish,
@@ -246,6 +251,7 @@ public struct PipelineContext: Sendable {
         self.screenContextEvents = screenContextEvents
         self.transcriptionOverride = transcriptionOverride
         self.transcriptionVocabulary = transcriptionVocabulary
+        self.summarizationBinding = summarizationBinding
         self.meetingTypeSelection = meetingTypeSelection ?? MeetingTypeSelection(
             selectionMode: meetingType == .autodetect ? .autodetect : .manual,
             selectedTypeId: meetingType.rawValue

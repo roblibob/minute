@@ -11,6 +11,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var appState: AppNavigationModel
     @StateObject private var onboardingModel = OnboardingViewModel()
+    @State private var forcesOnboardingForCurrentLaunch = ContentView.shouldForceOnboardingInDebugBuild()
 
     var body: some View {
         Group {
@@ -20,6 +21,19 @@ struct ContentView: View {
         .background(MinuteTheme.windowBackground)
         .onAppear {
             onboardingModel.refreshAll()
+            if forcesOnboardingForCurrentLaunch {
+                onboardingModel.startDebugWalkthrough()
+            }
+        }
+        .onChange(of: onboardingModel.isComplete) { _, isComplete in
+            if isComplete {
+                forcesOnboardingForCurrentLaunch = false
+            }
+        }
+        .onChange(of: onboardingModel.isDebugWalkthroughActive) { _, isActive in
+            if !isActive {
+                forcesOnboardingForCurrentLaunch = false
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .minuteMicActivityShowPipeline)) { _ in
             appState.showPipeline()
@@ -28,7 +42,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var contentBody: some View {
-        if onboardingModel.isComplete {
+        if showsMainApplication {
             ZStack {
                 PipelineContentView()
                     .opacity(appState.mainContent == .pipeline ? 1 : 0)
@@ -44,6 +58,26 @@ struct ContentView: View {
         } else {
             OnboardingView(model: onboardingModel)
         }
+    }
+
+    private var showsMainApplication: Bool {
+        onboardingModel.isComplete && !forcesOnboardingForCurrentLaunch
+    }
+}
+
+extension ContentView {
+    static let forceOnboardingEnvironmentKey = "MINUTE_FORCE_ONBOARDING"
+
+    static func shouldForceOnboardingInDebugBuild(processInfo: ProcessInfo = .processInfo) -> Bool {
+#if DEBUG
+        let rawValue = processInfo.environment[forceOnboardingEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return rawValue == "1" || rawValue == "true" || rawValue == "yes"
+#else
+        _ = processInfo
+        return false
+#endif
     }
 }
 

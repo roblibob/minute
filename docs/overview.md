@@ -2,15 +2,17 @@ Minute Overview
 
 Minute is a native macOS app for capturing meetings locally and writing
 deterministic notes into a user-selected Obsidian vault. It records audio,
-transcribes with Fluidaudio, summarizes with Llama, and writes a fixed set of
-artifacts to the vault.
+transcribes with Fluidaudio, summarizes with local built-in or Ollama-backed
+inference, and writes a fixed set of artifacts to the vault.
 
 What the app does
 - Record microphone + system audio locally.
 - Transcribe audio locally (Fluidaudio).
 - Optionally capture screen context locally for summaries.
+- Let advanced users configure summarization and screen-context vision separately,
+  with independent `Built-in` and `Ollama` provider/model choices.
 - **Tailor summaries based on meeting type (built-in and custom).**
-- Summarize locally with a JSON-only LLM prompt (llama).
+- Summarize locally with a JSON-only LLM prompt using the configured local provider.
 - Render a deterministic Markdown note from JSON.
 - Write exactly three files to the vault per meeting.
 
@@ -40,13 +42,22 @@ How the app works (pipeline)
    - Run Fluidaudio on the WAV file.
    - Write transcript markdown to Meetings/_transcripts/.
 3) Summarize
-   - Run llama with a JSON-only prompt.
+   - Resolve the configured summarization provider/model for that run.
+   - Run the built-in local model or the local Ollama daemon with a JSON-only prompt.
    - Validate JSON; if invalid, run a single repair pass.
    - If still invalid, emit a fallback note with empty sections.
+   - Keep the resolved provider/model fixed for the lifetime of the in-flight task.
 4) Render
    - Convert validated JSON to deterministic Markdown.
 5) Write
    - Atomically write the note and audio into the vault.
+
+Advanced inference configuration
+- Summarization and screen-context vision are configured independently.
+- Each capability can use `Built-in` or `Ollama`.
+- Ollama discovery reflects models already downloaded to the configured Ollama daemon.
+- Vision validation checks whether the selected Ollama model advertises `vision` capability.
+- If a capability is unavailable, the app surfaces actionable readiness state instead of silently falling back.
 
 State model
 Single pipeline state machine:
@@ -56,7 +67,8 @@ idle -> recording -> recorded -> processing(transcribe) -> processing(summarize)
 Permissions and privacy
 - The app is sandboxed and uses security-scoped bookmarks for the vault.
 - All audio and inference runs locally.
-- The only network access is for downloading model weights.
+- The only network access is for downloading model weights and, when enabled by the user, talking to the configured Ollama daemon endpoint.
+- The default Ollama endpoint is loopback. Advanced users can point it at another user-managed Ollama host on their network.
 - No transcript content is logged by default.
 - Known-speaker profiles and diarization embeddings (when enabled) are stored in app support, not in the vault.
 - The vault output contract remains exactly three files per meeting.
@@ -71,7 +83,8 @@ Technology snapshot
 - UI: SwiftUI (macOS 14+)
 - Audio: AVFoundation + ScreenCaptureKit
 - Transcription: Fluidaudio (library, XPC helper)
-- Summarization: llama (library)
+- Summarization: built-in llama runtime or local Ollama daemon
+- Vision inference: built-in llama runtime or local Ollama daemon
 - Markdown: deterministic renderer (model outputs JSON only)
 
 Code structure
@@ -108,7 +121,7 @@ Ownership highlights (013 simplification)
 
 Core module boundaries (MinuteCore)
 - Domain/types: schemas, file contracts, errors
-- Services: audio, transcription, summarization, vault access, model management
+- Services: audio, transcription, summarization, vision inference, vault access, model management, capability discovery/validation
 - Rendering: deterministic Markdown renderer
 - Utilities: validation + JSON repair
 
@@ -121,5 +134,6 @@ Concurrency
 
 Non-goals (v1)
 - Cloud transcription or summarization
+- Remote hosted inference dependencies for summarization or screen-context vision
 - Non-deterministic note formatting
 - Additional integrations beyond the Obsidian vault

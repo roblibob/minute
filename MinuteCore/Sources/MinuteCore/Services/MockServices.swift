@@ -145,12 +145,59 @@ public struct MissingSummarizationService: SummarizationServicing {
     }
 }
 
+public struct ErrorSummarizationService: SummarizationServicing {
+    public var error: MinuteError
+
+    public init(error: MinuteError) {
+        self.error = error
+    }
+
+    public func summarize(
+        transcript: String,
+        meetingDate: Date,
+        meetingType: MeetingType,
+        languageProcessing: LanguageProcessingProfile,
+        outputLanguage: OutputLanguage
+    ) async throws -> String {
+        _ = transcript
+        _ = meetingDate
+        _ = meetingType
+        _ = languageProcessing
+        _ = outputLanguage
+        throw error
+    }
+
+    public func classify(transcript: String) async throws -> MeetingType {
+        _ = transcript
+        throw error
+    }
+
+    public func repairJSON(_ invalidJSON: String) async throws -> String {
+        _ = invalidJSON
+        throw error
+    }
+}
+
 public struct MissingScreenContextInferenceService: ScreenContextInferencing {
     public init() {}
     public func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
         _ = imageData
         _ = windowTitle
         throw MinuteError.llamaMTMDMissing
+    }
+}
+
+public struct ErrorScreenContextInferenceService: ScreenContextInferencing {
+    public var error: MinuteError
+
+    public init(error: MinuteError) {
+        self.error = error
+    }
+
+    public func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        _ = windowTitle
+        throw error
     }
 }
 
@@ -353,6 +400,7 @@ public actor MockSilenceAutoStopController: SilenceAutoStopControlling {
 public final class MockRecordingAlertNotifier: RecordingAlertNotifying {
     public private(set) var silenceWarnings: [RecordingAlert] = []
     public private(set) var sharedWindowAlerts: [RecordingAlert] = []
+    public private(set) var screenContextConfigurationAlerts: [RecordingAlert] = []
 
     public init() {}
 
@@ -366,11 +414,20 @@ public final class MockRecordingAlertNotifier: RecordingAlertNotifying {
         return true
     }
 
+    public func notifyScreenContextConfigurationFailure(alert: RecordingAlert) async -> Bool {
+        screenContextConfigurationAlerts.append(alert)
+        return true
+    }
+
     public func clearSilenceStopWarning() async {
         silenceWarnings.removeAll()
     }
 
     public func clearSharedWindowClosedWarning() async {
         sharedWindowAlerts.removeAll()
+    }
+
+    public func clearScreenContextConfigurationFailure() async {
+        screenContextConfigurationAlerts.removeAll()
     }
 }

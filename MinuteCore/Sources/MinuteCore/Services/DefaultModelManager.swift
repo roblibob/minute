@@ -42,7 +42,10 @@ public actor DefaultModelManager: ModelManaging {
     }
 
     private let requiredModelsOverride: [ModelSpec]?
+    private let providerStore: InferenceProviderSelectionStore
     private let selectionStore: SummarizationModelSelectionStore
+    private let visionModelStore: VisionModelSelectionStore
+    private let screenContextSettingsStore: ScreenContextSettingsStore
     private let transcriptionSelectionStore: TranscriptionModelSelectionStore
     private let transcriptionBackendStore: TranscriptionBackendSelectionStore
     private let fluidAudioModelManager: any FluidAudioModelManaging
@@ -50,14 +53,20 @@ public actor DefaultModelManager: ModelManaging {
 
     public init(
         requiredModels: [ModelSpec]? = nil,
+        providerStore: InferenceProviderSelectionStore = InferenceProviderSelectionStore(),
         selectionStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore(),
+        visionModelStore: VisionModelSelectionStore = VisionModelSelectionStore(),
+        screenContextSettingsStore: ScreenContextSettingsStore = ScreenContextSettingsStore(),
         transcriptionSelectionStore: TranscriptionModelSelectionStore = TranscriptionModelSelectionStore(),
         transcriptionBackendStore: TranscriptionBackendSelectionStore = TranscriptionBackendSelectionStore(),
         fluidAudioModelStore: FluidAudioASRModelSelectionStore = FluidAudioASRModelSelectionStore(),
         fluidAudioModelManager: (any FluidAudioModelManaging)? = nil
     ) {
         self.requiredModelsOverride = requiredModels
+        self.providerStore = providerStore
         self.selectionStore = selectionStore
+        self.visionModelStore = visionModelStore
+        self.screenContextSettingsStore = screenContextSettingsStore
         self.transcriptionSelectionStore = transcriptionSelectionStore
         self.transcriptionBackendStore = transcriptionBackendStore
         self.fluidAudioModelManager = fluidAudioModelManager ?? FluidAudioASRModelManager(selectionStore: fluidAudioModelStore)
@@ -245,12 +254,19 @@ public actor DefaultModelManager: ModelManaging {
     /// Default pinned model list.
     public static func defaultRequiredModels(
         selectedSummarizationModelID: String? = nil,
+        summarizationProvider: InferenceProvider = .builtIn,
+        selectedVisionModelID: String? = nil,
+        visionProvider: InferenceProvider = .builtIn,
+        screenContextEnabled: Bool = true,
         selectedTranscriptionModelID: String? = nil,
         transcriptionBackend: TranscriptionBackend = .whisper
     ) -> [ModelSpec] {
         let transcriptionModel = TranscriptionModelCatalog.model(for: selectedTranscriptionModelID)
             ?? TranscriptionModelCatalog.defaultModel
         let summarizationModel = SummarizationModelCatalog.model(for: selectedSummarizationModelID) ?? SummarizationModelCatalog.defaultModel
+        let visionModel = SummarizationModelCatalog.model(for: selectedVisionModelID)
+            ?? SummarizationModelCatalog.all.first(where: { $0.mmprojDestinationURL != nil })
+            ?? SummarizationModelCatalog.defaultModel
 
         var models: [ModelSpec] = []
 
@@ -266,26 +282,42 @@ public actor DefaultModelManager: ModelManaging {
             )
         }
 
-        models.append(
-            ModelSpec(
-                id: summarizationModel.id,
-                destinationURL: summarizationModel.destinationURL,
-                sourceURL: summarizationModel.sourceURL,
-                expectedSHA256Hex: summarizationModel.expectedSHA256Hex,
-                expectedFileSizeBytes: summarizationModel.expectedFileSizeBytes
-            )
-        )
-
-        if let mmprojURL = summarizationModel.mmprojDestinationURL,
-           let mmprojSourceURL = summarizationModel.mmprojSourceURL,
-           let mmprojExpectedSHA256Hex = summarizationModel.mmprojExpectedSHA256Hex {
+        if summarizationProvider == .builtIn {
             models.append(
                 ModelSpec(
-                    id: "\(summarizationModel.id)/mmproj",
+                    id: summarizationModel.id,
+                    destinationURL: summarizationModel.destinationURL,
+                    sourceURL: summarizationModel.sourceURL,
+                    expectedSHA256Hex: summarizationModel.expectedSHA256Hex,
+                    expectedFileSizeBytes: summarizationModel.expectedFileSizeBytes
+                )
+            )
+        }
+
+        if screenContextEnabled && visionProvider == .builtIn {
+            models.append(
+                ModelSpec(
+                    id: visionModel.id,
+                    destinationURL: visionModel.destinationURL,
+                    sourceURL: visionModel.sourceURL,
+                    expectedSHA256Hex: visionModel.expectedSHA256Hex,
+                    expectedFileSizeBytes: visionModel.expectedFileSizeBytes
+                )
+            )
+        }
+
+        if screenContextEnabled,
+           visionProvider == .builtIn,
+           let mmprojURL = visionModel.mmprojDestinationURL,
+           let mmprojSourceURL = visionModel.mmprojSourceURL,
+           let mmprojExpectedSHA256Hex = visionModel.mmprojExpectedSHA256Hex {
+            models.append(
+                ModelSpec(
+                    id: "\(visionModel.id)/mmproj",
                     destinationURL: mmprojURL,
                     sourceURL: mmprojSourceURL,
                     expectedSHA256Hex: mmprojExpectedSHA256Hex,
-                    expectedFileSizeBytes: summarizationModel.mmprojExpectedFileSizeBytes
+                    expectedFileSizeBytes: visionModel.mmprojExpectedFileSizeBytes
                 )
             )
         }
@@ -308,7 +340,7 @@ public actor DefaultModelManager: ModelManaging {
             )
         }
 
-        return models
+        return deduplicated(models)
     }
 
     private func resolvedRequiredModels() -> [ModelSpec] {
@@ -317,13 +349,34 @@ public actor DefaultModelManager: ModelManaging {
         }
 
         let summarizationID = selectionStore.selectedModelID()
+        let summarizationProvider = providerStore.selectedProvider(for: .summarization)
+        let visionID = visionModelStore.selectedModelID()
+        let visionProvider = providerStore.selectedProvider(for: .vision)
+        let screenContextEnabled = screenContextSettingsStore.isEnabled
         let transcriptionID = transcriptionSelectionStore.selectedModelID()
         let backend = transcriptionBackendStore.selectedBackend()
         return DefaultModelManager.defaultRequiredModels(
             selectedSummarizationModelID: summarizationID,
+            summarizationProvider: summarizationProvider,
+            selectedVisionModelID: visionID,
+            visionProvider: visionProvider,
+            screenContextEnabled: screenContextEnabled,
             selectedTranscriptionModelID: transcriptionID,
             transcriptionBackend: backend
         )
+    }
+
+    private static func deduplicated(_ models: [ModelSpec]) -> [ModelSpec] {
+        var seen: Set<String> = []
+        var result: [ModelSpec] = []
+
+        for model in models {
+            let key = model.destinationURL.standardizedFileURL.path
+            guard seen.insert(key).inserted else { continue }
+            result.append(model)
+        }
+
+        return result
     }
 
     private func validatePinnedModels() throws -> ModelValidationResult {

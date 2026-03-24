@@ -266,6 +266,123 @@ struct MeetingPipelineCoordinatorTests {
     }
 
     @Test
+    func execute_recordsOllamaModelBindingWhenSelected() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let suiteName = "MeetingPipelineCoordinatorTests.ollama.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        providerStore.setSelectedProvider(.ollama, for: .summarization)
+        providerStore.setSelectedOllamaModelTag("phi4-mini", for: .summarization)
+
+        let runtimeFactory = InferenceRuntimeFactory(
+            providerStore: providerStore,
+            summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults),
+            summarizationContextWindowStore: SummarizationContextWindowSelectionStore(defaults: defaults),
+            visionModelStore: VisionModelSelectionStore(defaults: defaults),
+            ollamaSummarizationBuilder: { tag in
+                #expect(tag == "phi4-mini")
+                return TestSummarizationService(
+                    summarizationJSON: validExtractionJSON(title: "Ollama", date: "2025-01-12"),
+                    repairJSON: validExtractionJSON(title: "Ollama", date: "2025-01-12")
+                )
+            }
+        )
+
+        let checkpointStore = RecordingCheckpointStore()
+        let context = try makePipelineContext(saveAudio: false, saveTranscript: false)
+        let coordinator = makeRecoveryCoordinator(
+            vaultRootURL: vaultRootURL,
+            transcriptionService: TestTranscriptionService(
+                result: TranscriptionResult(
+                    text: "ollama transcript",
+                    segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "ollama transcript")]
+                )
+            ),
+            summarizationServiceProvider: {
+                try! runtimeFactory.makeSummarizationService()
+            },
+            checkpointStore: checkpointStore,
+            summarizationModelID: try runtimeFactory.resolveBinding(for: .summarization).providerReference
+        )
+
+        _ = try await coordinator.execute(context: context)
+
+        let meetingID = makeMeetingRunID(for: context)
+        let finalState = await checkpointStore.lastSavedState(meetingID: meetingID)
+
+        #expect(finalState?.tokenBudgetEstimate?.modelID == "phi4-mini")
+    }
+
+    @Test
+    func execute_usesCapturedSummarizationBindingEvenIfCurrentSelectionChanges() async throws {
+        let vaultRootURL = try makeTemporaryVault()
+        defer { try? FileManager.default.removeItem(at: vaultRootURL) }
+
+        let capturedBinding = InferenceTaskBinding(
+            capabilityID: .summarization,
+            providerID: .ollama,
+            providerReference: "phi4-captured",
+            supportsVisionInputs: false
+        )
+        let checkpointStore = RecordingCheckpointStore()
+        let serviceFactory = SummarizationBindingServiceFactory()
+        var context = try makePipelineContext(saveAudio: false, saveTranscript: false)
+        context.summarizationBinding = capturedBinding
+
+        let coordinator = makeRecoveryCoordinator(
+            vaultRootURL: vaultRootURL,
+            transcriptionService: TestTranscriptionService(
+                result: TranscriptionResult(
+                    text: "binding transcript",
+                    segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "binding transcript")]
+                )
+            ),
+            summarizationServiceProvider: {
+                serviceFactory.makeService(tag: "live-selection")
+            },
+            checkpointStore: checkpointStore,
+            summarizationModelID: "live-selection",
+            summarizationPreflightConfiguration: .default
+        )
+
+        let boundCoordinator = MeetingPipelineCoordinator(
+            transcriptionService: TestTranscriptionService(
+                result: TranscriptionResult(
+                    text: "binding transcript",
+                    segments: [TranscriptSegment(startSeconds: 0, endSeconds: 1, text: "binding transcript")]
+                )
+            ),
+            diarizationService: TestDiarizationService(segments: []),
+            summarizationServiceProvider: {
+                serviceFactory.makeService(tag: "live-selection")
+            },
+            modelManager: TestModelManager(progressSteps: [0, 1]),
+            checkpointStore: checkpointStore,
+            vaultAccess: VaultAccess(bookmarkStore: TestBookmarkStore(bookmark: try? VaultAccess.makeBookmarkData(forVaultRootURL: vaultRootURL))),
+            vaultWriter: TestVaultWriter(),
+            summarizationServiceForBinding: { binding in
+                serviceFactory.makeService(tag: binding.providerReference)
+            },
+            summarizationModelIDProvider: { "live-selection" },
+            summarizationPreflightConfigurationForBinding: { _ in .default }
+        )
+
+        _ = try await boundCoordinator.execute(context: context)
+
+        let meetingID = makeMeetingRunID(for: context)
+        let finalState = await checkpointStore.lastSavedState(meetingID: meetingID)
+
+        #expect(finalState?.tokenBudgetEstimate?.modelID == "phi4-captured")
+        let tags = serviceFactory.recordedTags()
+        #expect(tags == ["phi4-captured"])
+    }
+
+    @Test
     func execute_failedPassPreservesLastValidCheckpointAndSummaryDocument() async throws {
         let vaultRootURL = try makeTemporaryVault()
         defer { try? FileManager.default.removeItem(at: vaultRootURL) }
@@ -606,6 +723,27 @@ private struct TestVaultWriter: VaultWriting {
 
     func ensureDirectoryExists(_ url: URL) throws {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+}
+
+private final class SummarizationBindingServiceFactory: @unchecked Sendable {
+    private var tags: [String] = []
+    private let lock = NSLock()
+
+    func makeService(tag: String) -> any SummarizationServicing {
+        lock.lock()
+        tags.append(tag)
+        lock.unlock()
+        return TestSummarizationService(
+            summarizationJSON: validExtractionJSON(title: tag, date: "2025-01-12"),
+            repairJSON: validExtractionJSON(title: tag, date: "2025-01-12")
+        )
+    }
+
+    func recordedTags() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return tags
     }
 }
 

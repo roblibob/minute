@@ -3,6 +3,7 @@ import Combine
 import Foundation
 import MinuteCore
 import MinuteLlama
+import MinuteOllama
 import MinuteWhisper
 
 enum MeetingNotePreviewTab: String, CaseIterable, Identifiable {
@@ -576,7 +577,8 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             transcriptURL: selection.transcriptURL,
             targetMeetingTypeId: selection.targetMeetingTypeId,
             currentMeetingTypeId: selection.currentMeetingTypeId,
-            overwriteConfirmed: true
+            overwriteConfirmed: true,
+            summarizationBinding: nil
         )
 
         reprocessTask = Task { [weak self] in
@@ -983,18 +985,51 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     }
 
     nonisolated private static func defaultReprocessRunner() -> @Sendable (ReprocessMeetingRequest) async throws -> PipelineResult {
-        let selectionStore = SummarizationModelSelectionStore()
-        let contextWindowStore = SummarizationContextWindowSelectionStore()
+        let defaults = UserDefaults.standard
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        let ollamaEndpointStore = OllamaEndpointSettingsStore(defaults: defaults)
+        let selectionStore = SummarizationModelSelectionStore(defaults: defaults)
+        let contextWindowStore = SummarizationContextWindowSelectionStore(defaults: defaults)
+        let visionModelStore = VisionModelSelectionStore(defaults: defaults)
         let hardwareProfile = SummarizationHardwareProfile.current()
-        let transcriptionSelectionStore = TranscriptionModelSelectionStore()
-        let transcriptionBackendStore = TranscriptionBackendSelectionStore()
-        let fluidAudioModelStore = FluidAudioASRModelSelectionStore()
+        let transcriptionSelectionStore = TranscriptionModelSelectionStore(defaults: defaults)
+        let transcriptionBackendStore = TranscriptionBackendSelectionStore(defaults: defaults)
+        let fluidAudioModelStore = FluidAudioASRModelSelectionStore(defaults: defaults)
+        let runtimeFactory = InferenceRuntimeFactory(
+            providerStore: providerStore,
+            summarizationModelStore: selectionStore,
+            summarizationContextWindowStore: contextWindowStore,
+            visionModelStore: visionModelStore,
+            hardwareProfileProvider: { hardwareProfile },
+            builtInSummarizationBuilder: { store, contextStore, profile in
+                LlamaLibrarySummarizationService.liveDefault(
+                    selectionStore: store,
+                    contextWindowStore: contextStore,
+                    hardwareProfile: profile
+                )
+            },
+            ollamaSummarizationBuilder: { tag in
+                guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+                    return ErrorSummarizationService(
+                        error: .llamaFailed(exitCode: -1, output: "Invalid Ollama base URL")
+                    )
+                }
+                return OllamaSummarizationService(
+                    modelTag: tag,
+                    client: OllamaAPIClient(baseURL: baseURL)
+                )
+            }
+        )
         let summarizationServiceProvider: @Sendable () -> any SummarizationServicing = {
-            LlamaLibrarySummarizationService.liveDefault(
-                selectionStore: selectionStore,
-                contextWindowStore: contextWindowStore,
-                hardwareProfile: hardwareProfile
-            )
+            do {
+                return try runtimeFactory.makeSummarizationService()
+            } catch let minuteError as MinuteError {
+                return ErrorSummarizationService(error: minuteError)
+            } catch {
+                return ErrorSummarizationService(
+                    error: .llamaFailed(exitCode: -1, output: ErrorHandler.debugMessage(for: error))
+                )
+            }
         }
         let transcriptionService: any TranscriptionServicing
         switch transcriptionBackendStore.selectedBackend() {
@@ -1005,7 +1040,9 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         }
 
         let modelManager = DefaultModelManager(
+            providerStore: providerStore,
             selectionStore: selectionStore,
+            visionModelStore: visionModelStore,
             transcriptionSelectionStore: transcriptionSelectionStore,
             transcriptionBackendStore: transcriptionBackendStore,
             fluidAudioModelStore: fluidAudioModelStore
@@ -1019,19 +1056,49 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
             modelManager: modelManager,
             vaultAccess: vaultAccess,
             vaultWriter: DefaultVaultWriter(),
-            summarizationModelIDProvider: { selectionStore.selectedModel().id },
+            summarizationServiceForBinding: { binding in
+                do {
+                    return try runtimeFactory.makeSummarizationService(binding: binding)
+                } catch let minuteError as MinuteError {
+                    return ErrorSummarizationService(error: minuteError)
+                } catch {
+                    return ErrorSummarizationService(
+                        error: .llamaFailed(exitCode: -1, output: ErrorHandler.debugMessage(for: error))
+                    )
+                }
+            },
+            summarizationModelIDProvider: {
+                do {
+                    return try runtimeFactory.resolveBinding(for: .summarization).providerReference
+                } catch {
+                    return selectionStore.selectedModel().id
+                }
+            },
+            summarizationPreflightConfigurationForBinding: { binding in
+                runtimeFactory.preflightConfiguration(for: binding)
+            },
             summarizationPreflightConfigurationProvider: {
-                SummarizationPreflightConfiguration(
-                    contextWindowTokens: contextWindowStore.requestedContextTokens(
-                        hardwareProfile: hardwareProfile
-                    ),
-                    reservedOutputTokens: 1_024
-                )
+                let provider = providerStore.selectedProvider(for: .summarization)
+                switch provider {
+                case .builtIn:
+                    return SummarizationPreflightConfiguration(
+                        contextWindowTokens: contextWindowStore.requestedContextTokens(
+                            hardwareProfile: hardwareProfile
+                        ),
+                        reservedOutputTokens: 1_024
+                    )
+                case .ollama:
+                    return .default
+                }
             }
         )
 
         return { request in
-            try await coordinator.reprocessMeeting(request: request)
+            var boundRequest = request
+            if boundRequest.summarizationBinding == nil {
+                boundRequest.summarizationBinding = try? runtimeFactory.resolveBinding(for: .summarization)
+            }
+            return try await coordinator.reprocessMeeting(request: boundRequest)
         }
     }
 

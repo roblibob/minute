@@ -35,3 +35,10 @@ You are my main contributor
 General documentation overview: `docs/overview.md`.
 Constitution: `.specify/constitution.md`.
 Specification history: `specs/`
+
+## Active Technologies
+- Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, new `MinuteOllama` target, Foundation networking for localhost daemon calls, AVFoundation, ScreenCaptureKit, FluidAudio (017-ollama-summarization-option)
+- Local vault files, `UserDefaults`-backed app preferences, Application Support model artifacts for llama.cpp, and Ollama daemon state managed outside Minute (017-ollama-summarization-option)
+
+## Recent Changes
+- 017-ollama-summarization-option: Added Swift 6.2 tools for `MinuteCore`; Swift/SwiftUI macOS app target on Xcode 15.x conventions + SwiftUI, Combine, `MinuteCore`, `MinuteLlama`, new `MinuteOllama` target, Foundation networking for localhost daemon calls, AVFoundation, ScreenCaptureKit, FluidAudio

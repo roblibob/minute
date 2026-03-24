@@ -15,7 +15,13 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let screenContextVideoImportEnabledKey = "screenContextVideoImportEnabled"
         public static let screenContextCaptureIntervalSecondsKey = "screenContextCaptureIntervalSeconds"
         public static let summarizationModelIDKey = "summarizationModelID"
+        public static let summarizationProviderIDKey = "summarizationProviderID"
+        public static let summarizationOllamaModelTagKey = "summarizationOllamaModelTag"
+        public static let ollamaBaseURLKey = "ollamaBaseURL"
         public static let summarizationContextWindowPresetKey = "summarizationContextWindowPreset"
+        public static let visionProviderIDKey = "visionProviderID"
+        public static let visionBuiltInModelIDKey = "visionBuiltInModelID"
+        public static let visionOllamaModelTagKey = "visionOllamaModelTag"
         public static let transcriptionModelIDKey = "transcriptionModelID"
         public static let transcriptionBackendIDKey = "transcriptionBackendID"
         public static let fluidAudioAsrModelIDKey = "fluidAudioAsrModelID"
@@ -43,9 +49,13 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let defaultScreenContextEnabled = false
         public static let defaultScreenContextVideoImportEnabled = false
         public static let defaultScreenContextCaptureIntervalSeconds: TimeInterval = 60
+        public static let defaultOllamaBaseURL = "http://127.0.0.1:11434"
         public static let defaultMicActivityNotificationsEnabled = true
         public static let defaultKnownSpeakerSuggestionsEnabled = false
         public static let defaultOutputLanguage = OutputLanguage.defaultSelection
+        public static let defaultSummarizationProviderID = InferenceProvider.builtIn.rawValue
+        public static let defaultVisionProviderID = InferenceProvider.builtIn.rawValue
+        public static let defaultVisionBuiltInModelID = SummarizationModelCatalog.defaultModelID
         public static let defaultSummarizationContextWindowPreset = SummarizationContextWindowPreset.balanced
         public static let defaultTranscriptionBackendID = TranscriptionBackend.whisper.rawValue
         public static let defaultFluidAudioAsrModelID = FluidAudioASRModelCatalog.defaultModelID
@@ -69,6 +79,12 @@ public struct AppConfiguration: Sendable, Equatable {
     public var screenContextEnabled: Bool
     public var screenContextVideoImportEnabled: Bool
     public var screenContextCaptureIntervalSeconds: TimeInterval
+    public var summarizationProviderID: String
+    public var summarizationOllamaModelTag: String?
+    public var ollamaBaseURL: String
+    public var visionProviderID: String
+    public var visionBuiltInModelID: String
+    public var visionOllamaModelTag: String?
     public var micActivityNotificationsEnabled: Bool
     public var knownSpeakerSuggestionsEnabled: Bool
     public var vocabularyBoostingEnabled: Bool
@@ -101,6 +117,27 @@ public struct AppConfiguration: Sendable, Equatable {
         let fallback = Defaults.defaultScreenContextCaptureIntervalSeconds
         let resolved = interval ?? fallback
         screenContextCaptureIntervalSeconds = resolved > 0 ? resolved : fallback
+        let summarizationProviderRaw = defaults.string(forKey: Defaults.summarizationProviderIDKey)
+            ?? Defaults.defaultSummarizationProviderID
+        summarizationProviderID = InferenceProvider(rawValue: summarizationProviderRaw)?.rawValue
+            ?? Defaults.defaultSummarizationProviderID
+        summarizationOllamaModelTag = Self.normalizedOptionalString(
+            defaults.string(forKey: Defaults.summarizationOllamaModelTagKey)
+        )
+        ollamaBaseURL = Self.validatedOllamaBaseURL(
+            defaults.string(forKey: Defaults.ollamaBaseURLKey),
+            fallback: Defaults.defaultOllamaBaseURL
+        )
+        let visionProviderRaw = defaults.string(forKey: Defaults.visionProviderIDKey)
+            ?? Defaults.defaultVisionProviderID
+        visionProviderID = InferenceProvider(rawValue: visionProviderRaw)?.rawValue
+            ?? Defaults.defaultVisionProviderID
+        let visionModelID = defaults.string(forKey: Defaults.visionBuiltInModelIDKey)
+        visionBuiltInModelID = SummarizationModelCatalog.model(for: visionModelID)?.id
+            ?? Defaults.defaultVisionBuiltInModelID
+        visionOllamaModelTag = Self.normalizedOptionalString(
+            defaults.string(forKey: Defaults.visionOllamaModelTagKey)
+        )
 
         micActivityNotificationsEnabled = defaults.object(forKey: Defaults.micActivityNotificationsEnabledKey) as? Bool
             ?? Defaults.defaultMicActivityNotificationsEnabled
@@ -121,5 +158,27 @@ public struct AppConfiguration: Sendable, Equatable {
     public static func validatedRelativePath(_ value: String?, fallback: String) -> String {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    public static func validatedOllamaBaseURL(_ value: String?, fallback: String) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else {
+            return fallback
+        }
+
+        guard let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              let host = components.host,
+              !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return fallback
+        }
+
+        return components.string ?? trimmed
+    }
+
+    private static func normalizedOptionalString(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
