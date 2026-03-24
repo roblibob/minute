@@ -49,7 +49,6 @@ public struct OllamaAPIClient: Sendable {
 
     public func listLocalModels() async throws -> OllamaDiscoverySnapshot {
         do {
-            async let version = daemonVersion()
             let tagsResponse = try await decodeRequest(
                 path: "api/tags",
                 method: "GET",
@@ -84,7 +83,7 @@ public struct OllamaAPIClient: Sendable {
 
             return OllamaDiscoverySnapshot(
                 daemonReachable: true,
-                daemonVersion: try await version,
+                daemonVersion: try? await daemonVersion(),
                 models: models.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
             )
         } catch let error as MinuteError {

@@ -400,6 +400,7 @@ public actor MockSilenceAutoStopController: SilenceAutoStopControlling {
 public final class MockRecordingAlertNotifier: RecordingAlertNotifying {
     public private(set) var silenceWarnings: [RecordingAlert] = []
     public private(set) var sharedWindowAlerts: [RecordingAlert] = []
+    public private(set) var screenContextConfigurationAlerts: [RecordingAlert] = []
 
     public init() {}
 
@@ -413,11 +414,20 @@ public final class MockRecordingAlertNotifier: RecordingAlertNotifying {
         return true
     }
 
+    public func notifyScreenContextConfigurationFailure(alert: RecordingAlert) async -> Bool {
+        screenContextConfigurationAlerts.append(alert)
+        return true
+    }
+
     public func clearSilenceStopWarning() async {
         silenceWarnings.removeAll()
     }
 
     public func clearSharedWindowClosedWarning() async {
         sharedWindowAlerts.removeAll()
+    }
+
+    public func clearScreenContextConfigurationFailure() async {
+        screenContextConfigurationAlerts.removeAll()
     }
 }

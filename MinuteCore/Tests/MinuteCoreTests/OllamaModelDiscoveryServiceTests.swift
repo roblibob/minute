@@ -110,6 +110,63 @@ struct OllamaModelDiscoveryServiceTests {
     }
 
     @Test
+    func discoverModels_keepsTagsInventoryWhenVersionEndpointFails() async throws {
+        let session = makeSession { request in
+            switch request.url?.path {
+            case "/api/version":
+                return .status(500, #"{"error":"unsupported"}"#)
+            case "/api/tags":
+                return .json(
+                    #"""
+                    {
+                      "models": [
+                        {
+                          "name": "phi4-mini:latest",
+                          "modified_at": "2026-03-24T08:00:00Z",
+                          "size": 1234,
+                          "digest": "sha256:phi4"
+                        }
+                      ]
+                    }
+                    """#
+                )
+            case "/api/show":
+                return .json(
+                    #"""
+                    {
+                      "capabilities": ["completion"],
+                      "details": {
+                        "parameter_size": "4B",
+                        "quantization_level": "Q4_K_M"
+                      },
+                      "model_info": {
+                        "general.families": ["phi4"],
+                        "llama.context_length": 8192
+                      }
+                    }
+                    """#
+                )
+            default:
+                Issue.record("Unexpected request: \(String(describing: request.url))")
+                return .status(404, #"{"error":"not found"}"#)
+            }
+        }
+        let service = OllamaModelDiscoveryService(
+            client: OllamaAPIClient(
+                baseURL: URL(string: "http://127.0.0.1:11434")!,
+                session: session
+            )
+        )
+
+        let snapshot = try await service.discoverModels()
+
+        #expect(snapshot.daemonReachable)
+        #expect(snapshot.daemonVersion == nil)
+        #expect(snapshot.models.count == 1)
+        #expect(snapshot.models.first?.tag == "phi4-mini:latest")
+    }
+
+    @Test
     func validateModelTag_rejectsVisionCapabilityWhenModelLacksVisionSupport() async throws {
         let session = makeSession { request in
             switch request.url?.path {

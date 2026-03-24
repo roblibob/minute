@@ -55,7 +55,7 @@ How the app works (pipeline)
 Advanced inference configuration
 - Summarization and screen-context vision are configured independently.
 - Each capability can use `Built-in` or `Ollama`.
-- Ollama discovery is local-only and reflects models already downloaded to the local daemon.
+- Ollama discovery reflects models already downloaded to the configured Ollama daemon.
 - Vision validation checks whether the selected Ollama model advertises `vision` capability.
 - If a capability is unavailable, the app surfaces actionable readiness state instead of silently falling back.
 
@@ -67,7 +67,8 @@ idle -> recording -> recorded -> processing(transcribe) -> processing(summarize)
 Permissions and privacy
 - The app is sandboxed and uses security-scoped bookmarks for the vault.
 - All audio and inference runs locally.
-- The only network access is for downloading model weights or talking to a locally running Ollama daemon on the same machine.
+- The only network access is for downloading model weights and, when enabled by the user, talking to the configured Ollama daemon endpoint.
+- The default Ollama endpoint is loopback. Advanced users can point it at another user-managed Ollama host on their network.
 - No transcript content is logged by default.
 - Known-speaker profiles and diarization embeddings (when enabled) are stored in app support, not in the vault.
 - The vault output contract remains exactly three files per meeting.

@@ -559,6 +559,12 @@ final class MeetingPipelineViewModel: ObservableObject {
         let transcriptionSelectionStore = TranscriptionModelSelectionStore(defaults: defaults)
         let transcriptionBackendStore = TranscriptionBackendSelectionStore(defaults: defaults)
         let fluidAudioModelStore = FluidAudioASRModelSelectionStore(defaults: defaults)
+        let ollamaModelDiscovererProvider: @Sendable () -> (any OllamaModelDiscovering)? = {
+            guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+                return nil
+            }
+            return OllamaModelDiscoveryService(client: OllamaAPIClient(baseURL: baseURL))
+        }
         let runtimeFactory = InferenceRuntimeFactory(
             providerStore: providerStore,
             summarizationModelStore: selectionStore,
@@ -606,7 +612,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                     client: OllamaAPIClient(baseURL: baseURL)
                 )
             },
-            ollamaModelDiscoverer: nil
+            ollamaModelDiscoverer: ollamaModelDiscovererProvider()
         )
         let activeVisionBindingStore = ActiveVisionBindingStore()
         let liveScreenContextInferencerProvider = makeLiveScreenContextInferencerProvider(
@@ -706,7 +712,14 @@ final class MeetingPipelineViewModel: ObservableObject {
                 try await modelManager.validateModels()
             },
             visionAvailabilityProvider: {
-                try await runtimeFactory.availability(for: .vision)
+                if let ollamaModelDiscoverer = ollamaModelDiscovererProvider(),
+                   providerStore.selectedProvider(for: .vision) == .ollama,
+                   let tag = providerStore.selectedOllamaModelTag(for: .vision)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !tag.isEmpty {
+                    return try await ollamaModelDiscoverer.validateModelTag(tag, for: .vision)
+                }
+                return try await runtimeFactory.availability(for: .vision)
             },
             resolveSummarizationBinding: {
                 try runtimeFactory.resolveBinding(for: .summarization)
@@ -1463,7 +1476,9 @@ final class MeetingPipelineViewModel: ObservableObject {
         screenContextAutoStopTask?.cancel()
         screenContextAutoStopTask = nil
 
-        if logKeepSelection, let alert = activeScreenContextAlert {
+        let alertToClear = activeScreenContextAlert
+
+        if logKeepSelection, let alert = alertToClear {
             appendRecordingSessionEvent(
                 .keepRecordingSelected,
                 metadata: ["source": "screen_window_closed"],
@@ -1472,7 +1487,14 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
 
         activeScreenContextAlert = nil
-        await recordingAlertNotifier.clearSharedWindowClosedWarning()
+        switch alertToClear?.type {
+        case .screenContextConfigurationFailure:
+            await recordingAlertNotifier.clearScreenContextConfigurationFailure()
+        case .screenWindowClosed, .screenWindowClosedStopWarning:
+            await recordingAlertNotifier.clearSharedWindowClosedWarning()
+        case nil, .silenceStopWarning:
+            break
+        }
     }
 
     private func clearActiveRecordingWarnings() async {
@@ -1483,13 +1505,14 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private func presentScreenContextConfigurationAlert(sessionID: UUID, message: String) async {
         let alert = RecordingAlert(
-            type: .screenWindowClosed,
+            type: .screenContextConfigurationFailure,
             sessionID: sessionID,
             message: message,
             actions: [.acknowledge]
         )
         activeScreenContextAlert = alert
-        _ = await recordingAlertNotifier.notifySharedWindowClosed(alert: alert)
+        appendRecordingSessionEvent(.screenContextConfigurationNotified, sessionID: sessionID)
+        _ = await recordingAlertNotifier.notifyScreenContextConfigurationFailure(alert: alert)
     }
 
     private func beginScreenContextAutoStopWarning(session: RecordingSession, windowTitle: String) {

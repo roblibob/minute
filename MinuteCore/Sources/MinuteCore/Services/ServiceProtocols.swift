@@ -374,8 +374,10 @@ public protocol SilenceAutoStopControlling: Sendable {
 public protocol RecordingAlertNotifying: AnyObject {
     func notifySilenceStopWarning(alert: RecordingAlert) async -> Bool
     func notifySharedWindowClosed(alert: RecordingAlert) async -> Bool
+    func notifyScreenContextConfigurationFailure(alert: RecordingAlert) async -> Bool
     func clearSilenceStopWarning() async
     func clearSharedWindowClosedWarning() async
+    func clearScreenContextConfigurationFailure() async
 }
 
 // MARK: - Models

@@ -1,7 +1,7 @@
 # Tasks: Advanced Inference Provider Options
 
-**Input**: Design documents from `/Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/`
-**Prerequisites**: `/Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/plan.md`, `/Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/spec.md`, `/Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/research.md`, `/Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/data-model.md`, `/Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/contracts/openapi.yaml`
+**Input**: Design documents from `specs/017-ollama-summarization-option/`
+**Prerequisites**: `specs/017-ollama-summarization-option/plan.md`, `specs/017-ollama-summarization-option/spec.md`, `specs/017-ollama-summarization-option/research.md`, `specs/017-ollama-summarization-option/data-model.md`, `specs/017-ollama-summarization-option/contracts/openapi.yaml`
 
 **Tests**: Tests are REQUIRED for this feature because it adds new MinuteCore behavior, new runtime-selection contracts, and new UI flows.
 
@@ -11,10 +11,10 @@
 
 **Purpose**: Wire the package and app targets for the new provider-specific runtime surface.
 
-- [x] T001 Update local package products and targets in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Package.swift
-- [x] T002 Update app target package references for the new runtime module in /Users/roblibob/Projects/FLX/Minute/Minute/Minute.xcodeproj/project.pbxproj
-- [x] T003 [P] Create capability/provider domain scaffolding in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Domain/InferenceCapability.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Domain/InferenceProvider.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Domain/OllamaModelDescriptor.swift, and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Domain/CapabilityAvailabilityState.swift
-- [x] T004 [P] Create runtime/store scaffolding in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaAPIClient.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaSummarizationService.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaVisionInferenceService.swift, and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaModelDiscoveryService.swift
+- [x] T001 Update local package products and targets in MinuteCore/Package.swift
+- [x] T002 Update app target package references for the new runtime module in Minute.xcodeproj/project.pbxproj
+- [x] T003 [P] Create capability/provider domain scaffolding in MinuteCore/Sources/MinuteCore/Domain/InferenceCapability.swift, MinuteCore/Sources/MinuteCore/Domain/InferenceProvider.swift, MinuteCore/Sources/MinuteCore/Domain/OllamaModelDescriptor.swift, and MinuteCore/Sources/MinuteCore/Domain/CapabilityAvailabilityState.swift
+- [x] T004 [P] Create runtime/store scaffolding in MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift, MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift, MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift, MinuteCore/Sources/MinuteOllama/Services/OllamaAPIClient.swift, MinuteCore/Sources/MinuteOllama/Services/OllamaSummarizationService.swift, MinuteCore/Sources/MinuteOllama/Services/OllamaVisionInferenceService.swift, and MinuteCore/Sources/MinuteOllama/Services/OllamaModelDiscoveryService.swift
 
 ---
 
@@ -24,12 +24,12 @@
 
 **⚠️ CRITICAL**: No user story work should begin until this phase is complete.
 
-- [x] T005 [P] Add failing preference and migration coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/AppConfigurationTests.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/InferenceProviderSelectionStoreTests.swift
-- [x] T006 [P] Add failing runtime-factory coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift
-- [x] T007 Update defaults and migration keys for summarization and vision configuration in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Configuration/AppConfiguration.swift
-- [x] T008 [P] Implement provider and vision model selection stores in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift
-- [x] T009 [P] Extend shared runtime and availability protocols in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/ServiceProtocols.swift
-- [x] T010 Implement capability-aware runtime resolution in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift
+- [x] T005 [P] Add failing preference and migration coverage in MinuteCore/Tests/MinuteCoreTests/AppConfigurationTests.swift and MinuteCore/Tests/MinuteCoreTests/InferenceProviderSelectionStoreTests.swift
+- [x] T006 [P] Add failing runtime-factory coverage in MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift
+- [x] T007 Update defaults and migration keys for summarization and vision configuration in MinuteCore/Sources/MinuteCore/Configuration/AppConfiguration.swift
+- [x] T008 [P] Implement provider and vision model selection stores in MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift and MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift
+- [x] T009 [P] Extend shared runtime and availability protocols in MinuteCore/Sources/MinuteCore/Services/ServiceProtocols.swift
+- [x] T010 Implement capability-aware runtime resolution in MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift
 
 **Checkpoint**: Foundation ready - user story implementation can now begin.
 
@@ -43,15 +43,15 @@
 
 ### Tests for User Story 1 (REQUIRED) ⚠️
 
-- [x] T011 [P] [US1] Add failing onboarding summarization-selection coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/OnboardingInferenceProviderTests.swift
-- [x] T012 [P] [US1] Add failing summarization runtime-binding coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/MeetingPipelineCoordinatorTests.swift
+- [x] T011 [P] [US1] Add failing onboarding summarization-selection coverage in MinuteTests/OnboardingInferenceProviderTests.swift
+- [x] T012 [P] [US1] Add failing summarization runtime-binding coverage in MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and MinuteCore/Tests/MinuteCoreTests/MeetingPipelineCoordinatorTests.swift
 
 ### Implementation for User Story 1
 
-- [x] T013 [P] [US1] Implement Ollama-backed summarization runtime in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaSummarizationService.swift
-- [x] T014 [P] [US1] Implement onboarding summarization configuration state in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Onboarding/OnboardingViewModel.swift
-- [x] T015 [P] [US1] Add onboarding summarization provider/model controls in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Onboarding/OnboardingView.swift and /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/SummarizationProviderPicker.swift
-- [x] T016 [US1] Integrate summarization runtime selection into live processing flows in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/ViewModels/MeetingPipelineViewModel.swift and /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/MeetingNotes/MeetingNotesBrowserViewModel.swift
+- [x] T013 [P] [US1] Implement Ollama-backed summarization runtime in MinuteCore/Sources/MinuteOllama/Services/OllamaSummarizationService.swift
+- [x] T014 [P] [US1] Implement onboarding summarization configuration state in Minute/Sources/Views/Onboarding/OnboardingViewModel.swift
+- [x] T015 [P] [US1] Add onboarding summarization provider/model controls in Minute/Sources/Views/Onboarding/OnboardingView.swift and Minute/Sources/Views/Settings/SummarizationProviderPicker.swift
+- [x] T016 [US1] Integrate summarization runtime selection into live processing flows in Minute/Sources/ViewModels/MeetingPipelineViewModel.swift and Minute/Sources/Views/MeetingNotes/MeetingNotesBrowserViewModel.swift
 
 **Checkpoint**: User Story 1 is independently functional when onboarding can save a summarization provider/model and later summarization uses it.
 
@@ -65,16 +65,16 @@
 
 ### Tests for User Story 2 (REQUIRED) ⚠️
 
-- [x] T017 [P] [US2] Add failing independent capability-selection coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/ModelsSettingsInferenceProviderTests.swift
-- [x] T018 [P] [US2] Add failing vision runtime-binding coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/ScreenContextCaptureServiceWindowLifecycleTests.swift
+- [x] T017 [P] [US2] Add failing independent capability-selection coverage in MinuteTests/ModelsSettingsInferenceProviderTests.swift
+- [x] T018 [P] [US2] Add failing vision runtime-binding coverage in MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and MinuteCore/Tests/MinuteCoreTests/ScreenContextCaptureServiceWindowLifecycleTests.swift
 
 ### Implementation for User Story 2
 
-- [x] T019 [P] [US2] Implement separate vision configuration persistence in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift
-- [x] T020 [P] [US2] Implement Ollama-backed vision inference runtime in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaVisionInferenceService.swift
-- [x] T021 [P] [US2] Add separate vision configuration controls in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/ModelsSettingsViewModel.swift, /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/ModelsSettingsSection.swift, and /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/VisionProviderPicker.swift
-- [x] T022 [US2] Integrate capability-specific vision runtime selection into screen-context processing in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/ViewModels/MeetingPipelineViewModel.swift, /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/ScreenContextCaptureService.swift, and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/ScreenContextVideoFrameExtractor.swift
-- [x] T023 [US2] Extend onboarding for separate vision configuration in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Onboarding/OnboardingViewModel.swift and /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Onboarding/OnboardingView.swift
+- [x] T019 [P] [US2] Implement separate vision configuration persistence in MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift and MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift
+- [x] T020 [P] [US2] Implement Ollama-backed vision inference runtime in MinuteCore/Sources/MinuteOllama/Services/OllamaVisionInferenceService.swift
+- [x] T021 [P] [US2] Add separate vision configuration controls in Minute/Sources/Views/Settings/ModelsSettingsViewModel.swift, Minute/Sources/Views/Settings/ModelsSettingsSection.swift, and Minute/Sources/Views/Settings/VisionProviderPicker.swift
+- [x] T022 [US2] Integrate capability-specific vision runtime selection into screen-context processing in Minute/Sources/ViewModels/MeetingPipelineViewModel.swift, MinuteCore/Sources/MinuteCore/Services/ScreenContextCaptureService.swift, and MinuteCore/Sources/MinuteCore/Services/ScreenContextVideoFrameExtractor.swift
+- [x] T023 [US2] Extend onboarding for separate vision configuration in Minute/Sources/Views/Onboarding/OnboardingViewModel.swift and Minute/Sources/Views/Onboarding/OnboardingView.swift
 
 **Checkpoint**: User Story 2 is independently functional when summarization and vision can use different saved provider/model selections.
 
@@ -88,16 +88,16 @@
 
 ### Tests for User Story 3 (REQUIRED) ⚠️
 
-- [x] T024 [P] [US3] Add failing Ollama discovery and validation coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/OllamaModelDiscoveryServiceTests.swift
-- [x] T025 [P] [US3] Add failing settings validation coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/ModelsSettingsInferenceProviderTests.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/MeetingPipelineViewModelScreenContextAlertsTests.swift
+- [x] T024 [P] [US3] Add failing Ollama discovery and validation coverage in MinuteCore/Tests/MinuteCoreTests/OllamaModelDiscoveryServiceTests.swift
+- [x] T025 [P] [US3] Add failing settings validation coverage in MinuteTests/ModelsSettingsInferenceProviderTests.swift and MinuteTests/MeetingPipelineViewModelScreenContextAlertsTests.swift
 
 ### Implementation for User Story 3
 
-- [x] T026 [P] [US3] Implement local Ollama discovery and details lookup in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaAPIClient.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaModelDiscoveryService.swift
-- [x] T027 [P] [US3] Implement capability availability evaluation and vision-capability rejection in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Domain/CapabilityAvailabilityState.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift
-- [x] T028 [US3] Surface capability-specific readiness, validation, and refresh actions in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/ModelsSettingsViewModel.swift, /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/ModelsSettingsSection.swift, and /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/InferenceCapabilityStatusView.swift
-- [x] T029 [US3] Surface onboarding validation and preserved-selection feedback in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Onboarding/OnboardingViewModel.swift and /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Onboarding/OnboardingView.swift
-- [x] T030 [US3] Freeze immutable provider/model bindings for active summarization and vision tasks in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/ViewModels/MeetingPipelineViewModel.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Pipeline/MeetingPipelineCoordinator.swift
+- [x] T026 [P] [US3] Implement local Ollama discovery and details lookup in MinuteCore/Sources/MinuteOllama/Services/OllamaAPIClient.swift and MinuteCore/Sources/MinuteOllama/Services/OllamaModelDiscoveryService.swift
+- [x] T027 [P] [US3] Implement capability availability evaluation and vision-capability rejection in MinuteCore/Sources/MinuteCore/Domain/CapabilityAvailabilityState.swift and MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift
+- [x] T028 [US3] Surface capability-specific readiness, validation, and refresh actions in Minute/Sources/Views/Settings/ModelsSettingsViewModel.swift, Minute/Sources/Views/Settings/ModelsSettingsSection.swift, and Minute/Sources/Views/Settings/InferenceCapabilityStatusView.swift
+- [x] T029 [US3] Surface onboarding validation and preserved-selection feedback in Minute/Sources/Views/Onboarding/OnboardingViewModel.swift and Minute/Sources/Views/Onboarding/OnboardingView.swift
+- [x] T030 [US3] Freeze immutable provider/model bindings for active summarization and vision tasks in Minute/Sources/ViewModels/MeetingPipelineViewModel.swift and MinuteCore/Sources/MinuteCore/Pipeline/MeetingPipelineCoordinator.swift
 
 **Checkpoint**: User Story 3 is independently functional when settings can validate and explain invalid or unavailable advanced AI configurations without breaking saved independent selections.
 
@@ -107,9 +107,9 @@
 
 **Purpose**: Final cleanup, documentation, and full-feature validation across stories.
 
-- [x] T031 [P] Update feature validation guidance in /Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/quickstart.md
-- [x] T032 [P] Update high-level product documentation for advanced inference configuration in /Users/roblibob/Projects/FLX/Minute/Minute/docs/overview.md
-- [x] T033 Record final validation results and coverage notes in /Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/quickstart.md after running `swift test --package-path /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore` and `xcodebuild -project /Users/roblibob/Projects/FLX/Minute/Minute/Minute.xcodeproj -scheme Minute -configuration Debug test`
+- [x] T031 [P] Update feature validation guidance in specs/017-ollama-summarization-option/quickstart.md
+- [x] T032 [P] Update high-level product documentation for advanced inference configuration in docs/overview.md
+- [x] T033 Record final validation results and coverage notes in specs/017-ollama-summarization-option/quickstart.md after running `swift test --package-path MinuteCore` and `xcodebuild -project Minute.xcodeproj -scheme Minute -configuration Debug test`
 
 ---
 
@@ -152,32 +152,32 @@
 ## Parallel Example: User Story 1
 
 ```bash
-Task: "Add failing onboarding summarization-selection coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/OnboardingInferenceProviderTests.swift"
-Task: "Add failing summarization runtime-binding coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/MeetingPipelineCoordinatorTests.swift"
+Task: "Add failing onboarding summarization-selection coverage in MinuteTests/OnboardingInferenceProviderTests.swift"
+Task: "Add failing summarization runtime-binding coverage in MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and MinuteCore/Tests/MinuteCoreTests/MeetingPipelineCoordinatorTests.swift"
 
-Task: "Implement Ollama-backed summarization runtime in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaSummarizationService.swift"
-Task: "Implement onboarding summarization configuration state in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Onboarding/OnboardingViewModel.swift"
+Task: "Implement Ollama-backed summarization runtime in MinuteCore/Sources/MinuteOllama/Services/OllamaSummarizationService.swift"
+Task: "Implement onboarding summarization configuration state in Minute/Sources/Views/Onboarding/OnboardingViewModel.swift"
 ```
 
 ## Parallel Example: User Story 2
 
 ```bash
-Task: "Add failing independent capability-selection coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/ModelsSettingsInferenceProviderTests.swift"
-Task: "Add failing vision runtime-binding coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/ScreenContextCaptureServiceWindowLifecycleTests.swift"
+Task: "Add failing independent capability-selection coverage in MinuteTests/ModelsSettingsInferenceProviderTests.swift"
+Task: "Add failing vision runtime-binding coverage in MinuteCore/Tests/MinuteCoreTests/InferenceRuntimeFactoryTests.swift and MinuteCore/Tests/MinuteCoreTests/ScreenContextCaptureServiceWindowLifecycleTests.swift"
 
-Task: "Implement separate vision configuration persistence in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift"
-Task: "Implement Ollama-backed vision inference runtime in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaVisionInferenceService.swift"
-Task: "Add separate vision configuration controls in /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/ModelsSettingsViewModel.swift, /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/ModelsSettingsSection.swift, and /Users/roblibob/Projects/FLX/Minute/Minute/Minute/Sources/Views/Settings/VisionProviderPicker.swift"
+Task: "Implement separate vision configuration persistence in MinuteCore/Sources/MinuteCore/Services/VisionModelSelectionStore.swift and MinuteCore/Sources/MinuteCore/Services/InferenceProviderSelectionStore.swift"
+Task: "Implement Ollama-backed vision inference runtime in MinuteCore/Sources/MinuteOllama/Services/OllamaVisionInferenceService.swift"
+Task: "Add separate vision configuration controls in Minute/Sources/Views/Settings/ModelsSettingsViewModel.swift, Minute/Sources/Views/Settings/ModelsSettingsSection.swift, and Minute/Sources/Views/Settings/VisionProviderPicker.swift"
 ```
 
 ## Parallel Example: User Story 3
 
 ```bash
-Task: "Add failing Ollama discovery and validation coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Tests/MinuteCoreTests/OllamaModelDiscoveryServiceTests.swift"
-Task: "Add failing settings validation coverage in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/ModelsSettingsInferenceProviderTests.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteTests/MeetingPipelineViewModelScreenContextAlertsTests.swift"
+Task: "Add failing Ollama discovery and validation coverage in MinuteCore/Tests/MinuteCoreTests/OllamaModelDiscoveryServiceTests.swift"
+Task: "Add failing settings validation coverage in MinuteTests/ModelsSettingsInferenceProviderTests.swift and MinuteTests/MeetingPipelineViewModelScreenContextAlertsTests.swift"
 
-Task: "Implement local Ollama discovery and details lookup in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaAPIClient.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteOllama/Services/OllamaModelDiscoveryService.swift"
-Task: "Implement capability availability evaluation and vision-capability rejection in /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Domain/CapabilityAvailabilityState.swift and /Users/roblibob/Projects/FLX/Minute/Minute/MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift"
+Task: "Implement local Ollama discovery and details lookup in MinuteCore/Sources/MinuteOllama/Services/OllamaAPIClient.swift and MinuteCore/Sources/MinuteOllama/Services/OllamaModelDiscoveryService.swift"
+Task: "Implement capability availability evaluation and vision-capability rejection in MinuteCore/Sources/MinuteCore/Domain/CapabilityAvailabilityState.swift and MinuteCore/Sources/MinuteCore/Services/InferenceRuntimeFactory.swift"
 ```
 
 ---

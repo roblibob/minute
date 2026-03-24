@@ -162,7 +162,19 @@ public struct AppConfiguration: Sendable, Equatable {
 
     public static func validatedOllamaBaseURL(_ value: String?, fallback: String) -> String {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? fallback : trimmed
+        guard !trimmed.isEmpty else {
+            return fallback
+        }
+
+        guard let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              let host = components.host,
+              !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return fallback
+        }
+
+        return components.string ?? trimmed
     }
 
     private static func normalizedOptionalString(_ value: String?) -> String? {

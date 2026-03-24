@@ -80,6 +80,28 @@ struct RecordingAlertModelsTests {
     }
 
     @Test
+    func screenContextConfigurationFailure_forbidsExpiry() {
+        let sessionID = UUID()
+
+        let valid = RecordingAlert(
+            type: .screenContextConfigurationFailure,
+            sessionID: sessionID,
+            message: "Selected Ollama model does not advertise vision support.",
+            actions: [.acknowledge]
+        )
+        #expect(valid.isValid)
+
+        let invalid = RecordingAlert(
+            type: .screenContextConfigurationFailure,
+            sessionID: sessionID,
+            message: "Selected Ollama model does not advertise vision support.",
+            expiresAt: Date(),
+            actions: [.acknowledge]
+        )
+        #expect(!invalid.isValid)
+    }
+
+    @Test
     func silenceSnapshot_warningRemainingSeconds_returnsZeroOrMore() {
         let snapshot = SilenceStatusSnapshot(
             sessionID: UUID(),

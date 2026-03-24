@@ -66,6 +66,40 @@ public final class RecordingAlertNotificationCoordinator: RecordingAlertNotifyin
         }
     }
 
+    public func notifyScreenContextConfigurationFailure(alert: RecordingAlert) async -> Bool {
+        guard await ensureAuthorized() else { return false }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Screen context unavailable"
+        content.body = alert.message
+        content.categoryIdentifier = RecordingAlertNotification.screenContextConfigurationCategoryIdentifier
+        content.threadIdentifier = RecordingAlertNotification.screenContextConfigurationCategoryIdentifier
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: RecordingAlertNotification.screenContextConfigurationNotificationIdentifier,
+            content: content,
+            trigger: nil
+        )
+
+        notificationCenter.removePendingNotificationRequests(
+            withIdentifiers: [RecordingAlertNotification.screenContextConfigurationNotificationIdentifier]
+        )
+        notificationCenter.removeDeliveredNotifications(
+            withIdentifiers: [RecordingAlertNotification.screenContextConfigurationNotificationIdentifier]
+        )
+
+        do {
+            try await notificationCenter.add(request)
+            return true
+        } catch {
+            logger.error(
+                "Failed to schedule screen-context-configuration notification: \(error.localizedDescription, privacy: .public)"
+            )
+            return false
+        }
+    }
+
     public func clearSilenceStopWarning() async {
         notificationCenter.removePendingNotificationRequests(withIdentifiers: [RecordingAlertNotification.silenceWarningNotificationIdentifier])
         notificationCenter.removeDeliveredNotifications(withIdentifiers: [RecordingAlertNotification.silenceWarningNotificationIdentifier])
@@ -74,6 +108,15 @@ public final class RecordingAlertNotificationCoordinator: RecordingAlertNotifyin
     public func clearSharedWindowClosedWarning() async {
         notificationCenter.removePendingNotificationRequests(withIdentifiers: [RecordingAlertNotification.sharedWindowClosedNotificationIdentifier])
         notificationCenter.removeDeliveredNotifications(withIdentifiers: [RecordingAlertNotification.sharedWindowClosedNotificationIdentifier])
+    }
+
+    public func clearScreenContextConfigurationFailure() async {
+        notificationCenter.removePendingNotificationRequests(
+            withIdentifiers: [RecordingAlertNotification.screenContextConfigurationNotificationIdentifier]
+        )
+        notificationCenter.removeDeliveredNotifications(
+            withIdentifiers: [RecordingAlertNotification.screenContextConfigurationNotificationIdentifier]
+        )
     }
 
     private func ensureAuthorized() async -> Bool {

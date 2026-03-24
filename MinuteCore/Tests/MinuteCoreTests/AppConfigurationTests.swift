@@ -112,6 +112,7 @@ struct AppConfigurationTests {
         defaults.set("   llama3.2-vision   ", forKey: AppConfiguration.Defaults.visionOllamaModelTagKey)
         defaults.set("   ", forKey: AppConfiguration.Defaults.summarizationOllamaModelTagKey)
         defaults.set("missing-model", forKey: AppConfiguration.Defaults.visionBuiltInModelIDKey)
+        defaults.set("  http://192.168.1.20:11434  ", forKey: AppConfiguration.Defaults.ollamaBaseURLKey)
 
         let configuration = AppConfiguration(defaults: defaults)
 
@@ -120,6 +121,17 @@ struct AppConfigurationTests {
         expectEqual(configuration.summarizationOllamaModelTag, nil)
         expectEqual(configuration.visionOllamaModelTag, "llama3.2-vision")
         expectEqual(configuration.visionBuiltInModelID, AppConfiguration.Defaults.defaultVisionBuiltInModelID)
+        expectEqual(configuration.ollamaBaseURL, "http://192.168.1.20:11434")
+    }
+
+    @Test
+    func defaults_fallsBackForInvalidOllamaBaseURL() {
+        let defaults = makeDefaults()
+        defaults.set("not a url", forKey: AppConfiguration.Defaults.ollamaBaseURLKey)
+
+        let configuration = AppConfiguration(defaults: defaults)
+
+        expectEqual(configuration.ollamaBaseURL, AppConfiguration.Defaults.defaultOllamaBaseURL)
     }
 
     private func makeDefaults() -> UserDefaults {

@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-03-24
-**Feature**: [spec.md](/Users/roblibob/Projects/FLX/Minute/Minute/specs/017-ollama-summarization-option/spec.md)
+**Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 

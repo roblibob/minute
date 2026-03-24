@@ -4,6 +4,7 @@ public enum RecordingAlertType: String, Sendable, Codable, Equatable {
     case silenceStopWarning = "silence_stop_warning"
     case screenWindowClosed = "screen_window_closed"
     case screenWindowClosedStopWarning = "screen_window_closed_stop_warning"
+    case screenContextConfigurationFailure = "screen_context_configuration_failure"
 }
 
 public enum RecordingAlertAction: String, Sendable, Codable, Equatable {
@@ -51,7 +52,7 @@ public struct RecordingAlert: Sendable, Equatable, Identifiable, Codable {
         switch type {
         case .silenceStopWarning:
             return expiresAt != nil
-        case .screenWindowClosed:
+        case .screenWindowClosed, .screenContextConfigurationFailure:
             return expiresAt == nil
         case .screenWindowClosedStopWarning:
             return expiresAt != nil
@@ -67,6 +68,7 @@ public enum RecordingSessionEventType: String, Sendable, Codable, Equatable {
     case manualStop = "manual_stop"
     case recordingCanceled = "recording_canceled"
     case screenWindowClosedNotified = "screen_window_closed_notified"
+    case screenContextConfigurationNotified = "screen_context_configuration_notified"
 }
 
 public struct RecordingSessionEvent: Sendable, Equatable, Identifiable, Codable {

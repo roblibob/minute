@@ -35,6 +35,17 @@ struct OllamaEndpointSettingsStoreTests {
         #expect(defaults.string(forKey: AppConfiguration.Defaults.ollamaBaseURLKey) == nil)
     }
 
+    @Test
+    func invalidEndpointFallsBackToDefault() {
+        let defaults = makeDefaults()
+        let store = OllamaEndpointSettingsStore(defaults: defaults)
+
+        store.setSelectedBaseURLString("not a url")
+
+        #expect(store.selectedBaseURLString() == AppConfiguration.Defaults.defaultOllamaBaseURL)
+        #expect(defaults.string(forKey: AppConfiguration.Defaults.ollamaBaseURLKey) == nil)
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "OllamaEndpointSettingsStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
