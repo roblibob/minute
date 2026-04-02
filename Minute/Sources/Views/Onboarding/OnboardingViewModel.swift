@@ -842,7 +842,7 @@ final class OnboardingViewModel: ObservableObject {
             message = "LM Studio is unavailable. Start the local server and refresh."
             status = .serverUnavailable
         }
-        CapabilityAvailabilityState(
+        return CapabilityAvailabilityState(
             capabilityID: capability,
             providerID: provider,
             isReady: false,
@@ -869,7 +869,7 @@ final class OnboardingViewModel: ObservableObject {
             message = "Enter a valid LM Studio base URL such as \(AppConfiguration.Defaults.defaultLMStudioBaseURL)."
             selectedReference = selectedLMStudioBaseURLString
         }
-        CapabilityAvailabilityState(
+        return CapabilityAvailabilityState(
             capabilityID: capability,
             providerID: provider,
             isReady: false,

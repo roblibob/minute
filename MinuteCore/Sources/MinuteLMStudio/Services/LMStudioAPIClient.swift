@@ -440,7 +440,7 @@ private extension LMStudioAPIClient {
             let explicitSupportsVision = try container.decodeIfPresent(Bool.self, forKey: DynamicCodingKey("supports_vision"))
             let capabilities = try container.decodeIfPresent([String].self, forKey: DynamicCodingKey("capabilities")) ?? []
             supportsVision = explicitSupportsVision
-                ?? modelType.caseInsensitiveCompare("vlm") == .orderedSame
+                ?? (modelType.caseInsensitiveCompare("vlm") == .orderedSame)
                 || capabilities.contains(where: { $0.caseInsensitiveCompare("vision") == .orderedSame })
         }
     }

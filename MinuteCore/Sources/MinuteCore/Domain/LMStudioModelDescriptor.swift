@@ -54,6 +54,6 @@ public struct LMStudioModelDescriptor: Sendable, Equatable, Codable, Identifiabl
         self.quantizationLabel = quantizationLabel
         self.state = state
         self.maxContextLength = maxContextLength
-        self.supportsVision = supportsVision ?? modelType.caseInsensitiveCompare("vlm") == .orderedSame
+        self.supportsVision = supportsVision ?? (modelType.caseInsensitiveCompare("vlm") == .orderedSame)
     }
 }
