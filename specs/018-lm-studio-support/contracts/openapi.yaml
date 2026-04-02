@@ -1,0 +1,304 @@
+openapi: 3.0.3
+info:
+  title: Minute Inference Provider Contract
+  version: 0.1.0
+  description: |
+    Internal local-only contract for selecting and validating inference providers
+    separately for summarization and vision.
+    These endpoints describe behavior boundaries and do not imply any public or remote API.
+servers:
+  - url: local://minute-core
+paths:
+  /inference/capabilities:
+    get:
+      summary: List configurable inference capabilities and their current selections
+      operationId: listInferenceCapabilities
+      responses:
+        '200':
+          description: Capability catalog and current selections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceCapabilityCatalogResponse'
+  /inference/capabilities/{capabilityId}/selection:
+    put:
+      summary: Update the active provider and model for one inference capability
+      operationId: updateInferenceCapabilitySelection
+      parameters:
+        - $ref: '#/components/parameters/CapabilityId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InferenceSelectionRequest'
+      responses:
+        '200':
+          description: Selection persisted and current readiness returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceSelectionResponse'
+        '409':
+          description: Selection accepted for future tasks but current provider/model is not ready
+  /inference/providers/lm-studio/connection:
+    get:
+      summary: Read the saved local LM Studio connection settings
+      operationId: getLMStudioConnection
+      responses:
+        '200':
+          description: Saved LM Studio connection settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderConnectionSettings'
+    put:
+      summary: Save the local LM Studio connection settings
+      operationId: updateLMStudioConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderConnectionSettingsRequest'
+      responses:
+        '200':
+          description: Connection settings persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderConnectionSettings'
+  /inference/providers/lm-studio/discovery:
+    get:
+      summary: Discover locally available LM Studio models and local server state
+      operationId: discoverLMStudioModels
+      responses:
+        '200':
+          description: Local LM Studio server was contacted and inventory returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LMStudioDiscoverySnapshot'
+        '503':
+          description: LM Studio local server is unavailable
+  /inference/providers/lm-studio/validate:
+    post:
+      summary: Validate the selected LM Studio model for one capability
+      operationId: validateLMStudioSelection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LMStudioValidationRequest'
+      responses:
+        '200':
+          description: Selected model is available and valid for the capability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CapabilityAvailabilityState'
+        '404':
+          description: Selected model is not available from the local LM Studio server
+        '409':
+          description: Selected model exists but cannot satisfy the requested capability
+        '503':
+          description: LM Studio local server is unavailable
+components:
+  schemas:
+    InferenceCapabilityCatalogResponse:
+      type: object
+      required:
+        - capabilities
+      properties:
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/InferenceCapabilityState'
+    InferenceCapabilityState:
+      type: object
+      required:
+        - capabilityId
+        - selectedProviderId
+        - availability
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        selectedProviderId:
+          type: string
+          enum: [builtIn, ollama, lmStudio]
+        selectedReference:
+          type: string
+        availableProviders:
+          type: array
+          items:
+            $ref: '#/components/schemas/InferenceProvider'
+        availability:
+          $ref: '#/components/schemas/CapabilityAvailabilityState'
+    InferenceSelectionRequest:
+      type: object
+      required:
+        - selectedProviderId
+      properties:
+        selectedProviderId:
+          type: string
+          enum: [builtIn, ollama, lmStudio]
+        builtInModelId:
+          type: string
+        ollamaModelTag:
+          type: string
+        lmStudioModelIdentifier:
+          type: string
+    InferenceSelectionResponse:
+      type: object
+      required:
+        - capabilityId
+        - selectedProviderId
+        - availability
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        selectedProviderId:
+          type: string
+          enum: [builtIn, ollama, lmStudio]
+        availability:
+          $ref: '#/components/schemas/CapabilityAvailabilityState'
+        preservedSelections:
+          type: object
+          additionalProperties:
+            type: string
+    InferenceProvider:
+      type: object
+      required:
+        - id
+        - displayName
+        - description
+        - supportsManagedDownloads
+        - supportsLocalDiscovery
+      properties:
+        id:
+          type: string
+          enum: [builtIn, ollama, lmStudio]
+        displayName:
+          type: string
+        description:
+          type: string
+        supportsManagedDownloads:
+          type: boolean
+        supportsLocalDiscovery:
+          type: boolean
+    ProviderConnectionSettings:
+      type: object
+      required:
+        - providerId
+        - baseUrl
+      properties:
+        providerId:
+          type: string
+          enum: [ollama, lmStudio]
+        baseUrl:
+          type: string
+          format: uri
+        lastValidatedAt:
+          type: string
+          format: date-time
+    ProviderConnectionSettingsRequest:
+      type: object
+      required:
+        - baseUrl
+      properties:
+        baseUrl:
+          type: string
+          format: uri
+    CapabilityAvailabilityState:
+      type: object
+      required:
+        - capabilityId
+        - providerId
+        - isReady
+        - status
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        providerId:
+          type: string
+          enum: [builtIn, ollama, lmStudio]
+        isReady:
+          type: boolean
+        status:
+          type: string
+          enum: [ready, needs_configuration, daemon_unavailable, server_unavailable, model_missing, unsupported, vision_unsupported, unknown]
+        message:
+          type: string
+        selectedReference:
+          type: string
+    LMStudioValidationRequest:
+      type: object
+      required:
+        - capabilityId
+        - modelIdentifier
+      properties:
+        capabilityId:
+          type: string
+          enum: [summarization, vision]
+        modelIdentifier:
+          type: string
+          minLength: 1
+    LMStudioDiscoverySnapshot:
+      type: object
+      required:
+        - serverReachable
+        - discoveredAt
+        - models
+      properties:
+        serverReachable:
+          type: boolean
+        discoveredAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/LMStudioModelDescriptor'
+    LMStudioModelDescriptor:
+      type: object
+      required:
+        - identifier
+        - modelType
+        - supportsVision
+      properties:
+        identifier:
+          type: string
+        displayName:
+          type: string
+        modelType:
+          type: string
+          enum: [llm, vlm, embeddings]
+        publisher:
+          type: string
+        architecture:
+          type: string
+        compatibilityType:
+          type: string
+        quantizationLabel:
+          type: string
+        state:
+          type: string
+        maxContextLength:
+          type: integer
+          minimum: 1
+        supportsVision:
+          type: boolean
+  parameters:
+    CapabilityId:
+      name: capabilityId
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [summarization, vision]

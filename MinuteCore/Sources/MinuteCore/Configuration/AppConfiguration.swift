@@ -17,11 +17,14 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let summarizationModelIDKey = "summarizationModelID"
         public static let summarizationProviderIDKey = "summarizationProviderID"
         public static let summarizationOllamaModelTagKey = "summarizationOllamaModelTag"
+        public static let summarizationLMStudioModelIdentifierKey = "summarizationLMStudioModelIdentifier"
         public static let ollamaBaseURLKey = "ollamaBaseURL"
+        public static let lmStudioBaseURLKey = "lmStudioBaseURL"
         public static let summarizationContextWindowPresetKey = "summarizationContextWindowPreset"
         public static let visionProviderIDKey = "visionProviderID"
         public static let visionBuiltInModelIDKey = "visionBuiltInModelID"
         public static let visionOllamaModelTagKey = "visionOllamaModelTag"
+        public static let visionLMStudioModelIdentifierKey = "visionLMStudioModelIdentifier"
         public static let transcriptionModelIDKey = "transcriptionModelID"
         public static let transcriptionBackendIDKey = "transcriptionBackendID"
         public static let fluidAudioAsrModelIDKey = "fluidAudioAsrModelID"
@@ -50,6 +53,7 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let defaultScreenContextVideoImportEnabled = false
         public static let defaultScreenContextCaptureIntervalSeconds: TimeInterval = 60
         public static let defaultOllamaBaseURL = "http://127.0.0.1:11434"
+        public static let defaultLMStudioBaseURL = "http://127.0.0.1:1234"
         public static let defaultMicActivityNotificationsEnabled = true
         public static let defaultKnownSpeakerSuggestionsEnabled = false
         public static let defaultOutputLanguage = OutputLanguage.defaultSelection
@@ -81,10 +85,13 @@ public struct AppConfiguration: Sendable, Equatable {
     public var screenContextCaptureIntervalSeconds: TimeInterval
     public var summarizationProviderID: String
     public var summarizationOllamaModelTag: String?
+    public var summarizationLMStudioModelIdentifier: String?
     public var ollamaBaseURL: String
+    public var lmStudioBaseURL: String
     public var visionProviderID: String
     public var visionBuiltInModelID: String
     public var visionOllamaModelTag: String?
+    public var visionLMStudioModelIdentifier: String?
     public var micActivityNotificationsEnabled: Bool
     public var knownSpeakerSuggestionsEnabled: Bool
     public var vocabularyBoostingEnabled: Bool
@@ -124,9 +131,16 @@ public struct AppConfiguration: Sendable, Equatable {
         summarizationOllamaModelTag = Self.normalizedOptionalString(
             defaults.string(forKey: Defaults.summarizationOllamaModelTagKey)
         )
-        ollamaBaseURL = Self.validatedOllamaBaseURL(
+        summarizationLMStudioModelIdentifier = Self.normalizedOptionalString(
+            defaults.string(forKey: Defaults.summarizationLMStudioModelIdentifierKey)
+        )
+        ollamaBaseURL = Self.validatedLocalServerBaseURL(
             defaults.string(forKey: Defaults.ollamaBaseURLKey),
             fallback: Defaults.defaultOllamaBaseURL
+        )
+        lmStudioBaseURL = Self.validatedLocalServerBaseURL(
+            defaults.string(forKey: Defaults.lmStudioBaseURLKey),
+            fallback: Defaults.defaultLMStudioBaseURL
         )
         let visionProviderRaw = defaults.string(forKey: Defaults.visionProviderIDKey)
             ?? Defaults.defaultVisionProviderID
@@ -137,6 +151,9 @@ public struct AppConfiguration: Sendable, Equatable {
             ?? Defaults.defaultVisionBuiltInModelID
         visionOllamaModelTag = Self.normalizedOptionalString(
             defaults.string(forKey: Defaults.visionOllamaModelTagKey)
+        )
+        visionLMStudioModelIdentifier = Self.normalizedOptionalString(
+            defaults.string(forKey: Defaults.visionLMStudioModelIdentifierKey)
         )
 
         micActivityNotificationsEnabled = defaults.object(forKey: Defaults.micActivityNotificationsEnabledKey) as? Bool
@@ -161,6 +178,10 @@ public struct AppConfiguration: Sendable, Equatable {
     }
 
     public static func validatedOllamaBaseURL(_ value: String?, fallback: String) -> String {
+        validatedLocalServerBaseURL(value, fallback: fallback)
+    }
+
+    public static func validatedLocalServerBaseURL(_ value: String?, fallback: String) -> String {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else {
             return fallback

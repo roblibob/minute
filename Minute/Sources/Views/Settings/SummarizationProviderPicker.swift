@@ -5,6 +5,7 @@ struct SummarizationProviderPicker: View {
     let providers: [InferenceProvider]
     @Binding var selection: String
     @Binding var ollamaModelTag: String
+    @Binding var lmStudioModelIdentifier: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -53,6 +54,18 @@ struct SummarizationProviderPicker: View {
                         .autocorrectionDisabled()
 
                     Text("Use a tag already available in your local Ollama daemon.")
+                        .minuteCaption()
+                }
+            } else if selectedProvider == .lmStudio {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("LM Studio model")
+                        .minuteRowTitle()
+
+                    TextField("e.g. qwen2.5-7b-instruct", text: $lmStudioModelIdentifier)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+
+                    Text("Use a model identifier already available in your local LM Studio server.")
                         .minuteCaption()
                 }
             }

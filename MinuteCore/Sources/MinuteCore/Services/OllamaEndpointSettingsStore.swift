@@ -16,7 +16,7 @@ public final class OllamaEndpointSettingsStore: @unchecked Sendable {
     }
 
     public func selectedBaseURLString() -> String {
-        AppConfiguration.validatedOllamaBaseURL(
+        AppConfiguration.validatedLocalServerBaseURL(
             defaults.string(forKey: key),
             fallback: defaultBaseURLString
         )
@@ -27,7 +27,7 @@ public final class OllamaEndpointSettingsStore: @unchecked Sendable {
     }
 
     public func setSelectedBaseURLString(_ value: String?) {
-        let normalized = AppConfiguration.validatedOllamaBaseURL(value, fallback: defaultBaseURLString)
+        let normalized = AppConfiguration.validatedLocalServerBaseURL(value, fallback: defaultBaseURLString)
         if normalized == defaultBaseURLString {
             defaults.removeObject(forKey: key)
         } else {

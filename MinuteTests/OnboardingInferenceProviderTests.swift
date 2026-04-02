@@ -75,6 +75,108 @@ struct OnboardingInferenceProviderTests {
     }
 
     @Test
+    func selectingLMStudioSummarizationProvider_persistsIdentifierAndKeepsBuiltInModel() throws {
+        let suite = "OnboardingInferenceProviderTests.lmstudio.persist.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        let summarizationStore = SummarizationModelSelectionStore(defaults: defaults, key: "sum")
+        let contextStore = SummarizationContextWindowSelectionStore(defaults: defaults, key: "ctx")
+        let visionStore = VisionModelSelectionStore(defaults: defaults, key: "vision")
+        let transcriptionStore = TranscriptionModelSelectionStore(defaults: defaults, key: "trans")
+        let backendStore = TranscriptionBackendSelectionStore(defaults: defaults, key: "backend")
+        let fluidStore = FluidAudioASRModelSelectionStore(defaults: defaults, key: "fluid")
+
+        let model = OnboardingViewModel(
+            modelManager: StubOnboardingModelManager(validation: ModelValidationResult(missingModelIDs: [], invalidModelIDs: [])),
+            defaults: defaults,
+            inferenceProviderStore: providerStore,
+            summarizationModelStore: summarizationStore,
+            summarizationContextWindowStore: contextStore,
+            visionModelStore: visionStore,
+            transcriptionModelStore: transcriptionStore,
+            transcriptionBackendStore: backendStore,
+            fluidAudioModelStore: fluidStore
+        )
+
+        model.selectedSummarizationProviderID = InferenceProvider.lmStudio.rawValue
+        model.selectedSummarizationLMStudioModelIdentifier = "  qwen2.5-7b-instruct  "
+
+        #expect(providerStore.selectedProvider(for: .summarization) == .lmStudio)
+        #expect(providerStore.selectedLMStudioModelIdentifier(for: .summarization) == "qwen2.5-7b-instruct")
+        #expect(model.isBuiltInSummarizationProviderSelected == false)
+        #expect(summarizationStore.selectedModelID() == SummarizationModelCatalog.defaultModel.id)
+    }
+
+    @Test
+    func restoringPersistedLMStudioSelection_updatesOnboardingState() throws {
+        let suite = "OnboardingInferenceProviderTests.lmstudio.restore.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        providerStore.setSelectedProvider(.lmStudio, for: .summarization)
+        providerStore.setSelectedLMStudioModelIdentifier("qwen2.5-7b-instruct", for: .summarization)
+        providerStore.setSelectedProvider(.lmStudio, for: .vision)
+        providerStore.setSelectedLMStudioModelIdentifier("qwen2.5-vl-7b", for: .vision)
+        let visionStore = VisionModelSelectionStore(defaults: defaults, key: "vision")
+
+        let model = OnboardingViewModel(
+            modelManager: StubOnboardingModelManager(validation: ModelValidationResult(missingModelIDs: [], invalidModelIDs: [])),
+            defaults: defaults,
+            inferenceProviderStore: providerStore,
+            summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults, key: "sum"),
+            summarizationContextWindowStore: SummarizationContextWindowSelectionStore(defaults: defaults, key: "ctx"),
+            visionModelStore: visionStore,
+            transcriptionModelStore: TranscriptionModelSelectionStore(defaults: defaults, key: "trans"),
+            transcriptionBackendStore: TranscriptionBackendSelectionStore(defaults: defaults, key: "backend"),
+            fluidAudioModelStore: FluidAudioASRModelSelectionStore(defaults: defaults, key: "fluid")
+        )
+
+        #expect(model.selectedSummarizationProviderID == InferenceProvider.lmStudio.rawValue)
+        #expect(model.selectedSummarizationLMStudioModelIdentifier == "qwen2.5-7b-instruct")
+        #expect(model.selectedVisionProviderID == InferenceProvider.lmStudio.rawValue)
+        #expect(model.selectedVisionLMStudioModelIdentifier == "qwen2.5-vl-7b")
+        #expect(model.selectedVisionModelID == visionStore.selectedModel().id)
+    }
+
+    @Test
+    func selectingLMStudioProviders_persistsIdentifiersAndConnection() throws {
+        let suite = "OnboardingInferenceProviderTests.lmstudio.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        let connectionStore = ProviderConnectionSettingsStore(defaults: defaults)
+
+        let model = OnboardingViewModel(
+            modelManager: StubOnboardingModelManager(validation: ModelValidationResult(missingModelIDs: [], invalidModelIDs: [])),
+            defaults: defaults,
+            inferenceProviderStore: providerStore,
+            connectionStore: connectionStore,
+            summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults, key: "sum"),
+            summarizationContextWindowStore: SummarizationContextWindowSelectionStore(defaults: defaults, key: "ctx"),
+            visionModelStore: VisionModelSelectionStore(defaults: defaults, key: "vision"),
+            transcriptionModelStore: TranscriptionModelSelectionStore(defaults: defaults, key: "trans"),
+            transcriptionBackendStore: TranscriptionBackendSelectionStore(defaults: defaults, key: "backend"),
+            fluidAudioModelStore: FluidAudioASRModelSelectionStore(defaults: defaults, key: "fluid")
+        )
+
+        model.selectedSummarizationProviderID = InferenceProvider.lmStudio.rawValue
+        model.selectedSummarizationLMStudioModelIdentifier = "  qwen2.5-7b-instruct  "
+        model.selectedVisionProviderID = InferenceProvider.lmStudio.rawValue
+        model.selectedVisionLMStudioModelIdentifier = "  qwen2.5-vl-7b  "
+        model.selectedLMStudioBaseURLString = " http://127.0.0.1:1234 "
+
+        #expect(providerStore.selectedProvider(for: .summarization) == .lmStudio)
+        #expect(providerStore.selectedLMStudioModelIdentifier(for: .summarization) == "qwen2.5-7b-instruct")
+        #expect(providerStore.selectedProvider(for: .vision) == .lmStudio)
+        #expect(providerStore.selectedLMStudioModelIdentifier(for: .vision) == "qwen2.5-vl-7b")
+        #expect(connectionStore.selectedBaseURLString(for: .lmStudio) == "http://127.0.0.1:1234")
+    }
+
+    @Test
     func invalidOllamaSelections_keepWizardBlockedUntilValidationPasses() async throws {
         let suite = "OnboardingInferenceProviderTests.validation.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -169,6 +271,54 @@ struct OnboardingInferenceProviderTests {
         #expect(model.screenContextStageReady)
         #expect(model.modelsReady)
     }
+
+    @Test
+    func invalidLMStudioVisionSelection_keepsWizardBlockedUntilValidationPasses() async throws {
+        let suite = "OnboardingInferenceProviderTests.lmstudio.validation.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: AppConfiguration.Defaults.screenContextEnabledKey)
+
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        providerStore.setSelectedProvider(.lmStudio, for: .summarization)
+        providerStore.setSelectedLMStudioModelIdentifier("qwen2.5-7b-instruct", for: .summarization)
+        providerStore.setSelectedProvider(.lmStudio, for: .vision)
+        providerStore.setSelectedLMStudioModelIdentifier("qwen2.5-7b-instruct", for: .vision)
+
+        let model = OnboardingViewModel(
+            modelManager: StubOnboardingModelManager(validation: ModelValidationResult(missingModelIDs: [], invalidModelIDs: [])),
+            defaults: defaults,
+            inferenceProviderStore: providerStore,
+            summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults, key: "sum"),
+            summarizationContextWindowStore: SummarizationContextWindowSelectionStore(defaults: defaults, key: "ctx"),
+            visionModelStore: VisionModelSelectionStore(defaults: defaults, key: "vision"),
+            transcriptionModelStore: TranscriptionModelSelectionStore(defaults: defaults, key: "trans"),
+            transcriptionBackendStore: TranscriptionBackendSelectionStore(defaults: defaults, key: "backend"),
+            fluidAudioModelStore: FluidAudioASRModelSelectionStore(defaults: defaults, key: "fluid"),
+            availabilityProvider: StubOnboardingAvailabilityProvider(
+                summarizationState: .ready(.summarization, reference: "qwen2.5-7b-instruct", provider: .lmStudio),
+                visionState: CapabilityAvailabilityState(
+                    capabilityID: .vision,
+                    providerID: .lmStudio,
+                    isReady: false,
+                    status: .visionUnsupported,
+                    message: "Selected LM Studio model does not advertise vision support.",
+                    selectedReference: "qwen2.5-7b-instruct"
+                )
+            ),
+            lmStudioModelDiscoverer: StubOnboardingLMStudioDiscoverer(snapshot: LMStudioDiscoverySnapshot(serverReachable: true))
+        )
+
+        try await eventually(timeoutNanoseconds: 1_000_000_000) {
+            await MainActor.run {
+                model.visionAvailabilityState.status == .visionUnsupported
+            }
+        }
+
+        #expect(model.selectedVisionLMStudioModelIdentifier == "qwen2.5-7b-instruct")
+        #expect(model.visionAvailabilityState.status == .visionUnsupported)
+        #expect(model.modelsReady == false)
+    }
 }
 
 private struct StubOnboardingModelManager: ModelManaging {
@@ -210,6 +360,18 @@ private struct StubOnboardingOllamaDiscoverer: OllamaModelDiscovering {
 
     func validateModelTag(_ tag: String, for capability: InferenceCapability) async throws -> CapabilityAvailabilityState {
         .ready(capability, reference: tag, provider: .ollama)
+    }
+}
+
+private struct StubOnboardingLMStudioDiscoverer: LMStudioModelDiscovering {
+    var snapshot: LMStudioDiscoverySnapshot
+
+    func discoverModels() async throws -> LMStudioDiscoverySnapshot {
+        snapshot
+    }
+
+    func validateModelIdentifier(_ identifier: String, for capability: InferenceCapability) async throws -> CapabilityAvailabilityState {
+        .ready(capability, reference: identifier, provider: .lmStudio)
     }
 }
 

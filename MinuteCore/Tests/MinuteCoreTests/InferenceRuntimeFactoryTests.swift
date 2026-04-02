@@ -31,13 +31,16 @@ struct InferenceRuntimeFactoryTests {
     func resolvesOllamaBindingsPerCapability() throws {
         let defaults = makeDefaults()
         let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        let connectionStore = ProviderConnectionSettingsStore(defaults: defaults)
         providerStore.setSelectedProvider(.ollama, for: .summarization)
         providerStore.setSelectedOllamaModelTag("phi4", for: .summarization)
         providerStore.setSelectedProvider(.ollama, for: .vision)
         providerStore.setSelectedOllamaModelTag("llava", for: .vision)
+        connectionStore.setSelectedBaseURLString("http://127.0.0.1:11434", for: .ollama)
 
         let factory = InferenceRuntimeFactory(
             providerStore: providerStore,
+            connectionStore: connectionStore,
             summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults),
             visionModelStore: VisionModelSelectionStore(defaults: defaults)
         )
@@ -47,9 +50,42 @@ struct InferenceRuntimeFactoryTests {
 
         #expect(summarization.providerID == .ollama)
         #expect(summarization.providerReference == "phi4")
+        #expect(summarization.connectionBaseURLString == "http://127.0.0.1:11434")
         #expect(summarization.supportsVisionInputs == false)
         #expect(vision.providerID == .ollama)
         #expect(vision.providerReference == "llava")
+        #expect(vision.connectionBaseURLString == "http://127.0.0.1:11434")
+        #expect(vision.supportsVisionInputs == true)
+    }
+
+    @Test
+    func resolvesLMStudioBindingsPerCapability() throws {
+        let defaults = makeDefaults()
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        let connectionStore = ProviderConnectionSettingsStore(defaults: defaults)
+        providerStore.setSelectedProvider(.lmStudio, for: .summarization)
+        providerStore.setSelectedLMStudioModelIdentifier("qwen2.5-7b-instruct", for: .summarization)
+        providerStore.setSelectedProvider(.lmStudio, for: .vision)
+        providerStore.setSelectedLMStudioModelIdentifier("qwen2.5-vl-7b", for: .vision)
+        connectionStore.setSelectedBaseURLString("http://127.0.0.1:1234", for: .lmStudio)
+
+        let factory = InferenceRuntimeFactory(
+            providerStore: providerStore,
+            connectionStore: connectionStore,
+            summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults),
+            visionModelStore: VisionModelSelectionStore(defaults: defaults)
+        )
+
+        let summarization = try factory.resolveBinding(for: .summarization)
+        let vision = try factory.resolveBinding(for: .vision)
+
+        #expect(summarization.providerID == .lmStudio)
+        #expect(summarization.providerReference == "qwen2.5-7b-instruct")
+        #expect(summarization.connectionBaseURLString == "http://127.0.0.1:1234")
+        #expect(summarization.supportsVisionInputs == false)
+        #expect(vision.providerID == .lmStudio)
+        #expect(vision.providerReference == "qwen2.5-vl-7b")
+        #expect(vision.connectionBaseURLString == "http://127.0.0.1:1234")
         #expect(vision.supportsVisionInputs == true)
     }
 
@@ -68,12 +104,13 @@ struct InferenceRuntimeFactoryTests {
             summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults),
             visionModelStore: VisionModelSelectionStore(defaults: defaults),
             builtInSummarizationBuilder: { _, _, _ in MissingSummarizationService() },
-            ollamaSummarizationBuilder: { tag in
+            ollamaSummarizationBuilder: { tag, baseURL in
                 #expect(tag == "phi4")
+                #expect(baseURL?.absoluteString == AppConfiguration.Defaults.defaultOllamaBaseURL)
                 return summarizationService
             },
             builtInVisionBuilder: { _ in visionService },
-            ollamaVisionBuilder: { _ in MissingScreenContextInferenceService() }
+            ollamaVisionBuilder: { _, _ in MissingScreenContextInferenceService() }
         )
 
         let resolvedSummarization = try factory.makeSummarizationService()
@@ -101,8 +138,9 @@ struct InferenceRuntimeFactoryTests {
                 #expect(store.selectedModel().id == summarizationStore.selectedModel().id)
                 return builtInService
             },
-            ollamaSummarizationBuilder: { tag in
+            ollamaSummarizationBuilder: { tag, baseURL in
                 #expect(tag == "phi4-mini")
+                #expect(baseURL?.absoluteString == AppConfiguration.Defaults.defaultOllamaBaseURL)
                 return ollamaService
             }
         )
@@ -141,8 +179,9 @@ struct InferenceRuntimeFactoryTests {
                 #expect(store.selectedModel().id == builtInVision.id)
                 return MissingScreenContextInferenceService()
             },
-            ollamaVisionBuilder: { tag in
+            ollamaVisionBuilder: { tag, baseURL in
                 #expect(tag == "llava:latest")
+                #expect(baseURL?.absoluteString == AppConfiguration.Defaults.defaultOllamaBaseURL)
                 return ollamaVisionService
             }
         )
@@ -205,6 +244,37 @@ struct InferenceRuntimeFactoryTests {
         #expect(discoverer.validatedTags.first?.1 == "phi4-mini")
     }
 
+    @Test
+    func availability_usesLMStudioValidatorForVisionCapability() async throws {
+        let defaults = makeDefaults()
+        let providerStore = InferenceProviderSelectionStore(defaults: defaults)
+        providerStore.setSelectedProvider(.lmStudio, for: .vision)
+        providerStore.setSelectedLMStudioModelIdentifier("qwen2.5-vl", for: .vision)
+        let discoverer = StubLMStudioModelDiscoverer(
+            validationState: CapabilityAvailabilityState(
+                capabilityID: .vision,
+                providerID: .lmStudio,
+                isReady: true,
+                status: .ready,
+                message: "Ready",
+                selectedReference: "qwen2.5-vl"
+            )
+        )
+        let factory = InferenceRuntimeFactory(
+            providerStore: providerStore,
+            summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults),
+            visionModelStore: VisionModelSelectionStore(defaults: defaults),
+            lmStudioModelDiscoverer: discoverer
+        )
+
+        let state = try await factory.availability(for: .vision)
+
+        #expect(state.status == .ready)
+        #expect(discoverer.validatedIdentifiers.count == 1)
+        #expect(discoverer.validatedIdentifiers.first?.0 == .vision)
+        #expect(discoverer.validatedIdentifiers.first?.1 == "qwen2.5-vl")
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "InferenceRuntimeFactoryTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -227,6 +297,24 @@ private final class StubOllamaModelDiscoverer: OllamaModelDiscovering, @unchecke
 
     func validateModelTag(_ tag: String, for capability: InferenceCapability) async throws -> CapabilityAvailabilityState {
         validatedTags.append((capability, tag))
+        return validationState
+    }
+}
+
+private final class StubLMStudioModelDiscoverer: LMStudioModelDiscovering, @unchecked Sendable {
+    let validationState: CapabilityAvailabilityState
+    private(set) var validatedIdentifiers: [(InferenceCapability, String)] = []
+
+    init(validationState: CapabilityAvailabilityState) {
+        self.validationState = validationState
+    }
+
+    func discoverModels() async throws -> LMStudioDiscoverySnapshot {
+        LMStudioDiscoverySnapshot(serverReachable: true)
+    }
+
+    func validateModelIdentifier(_ identifier: String, for capability: InferenceCapability) async throws -> CapabilityAvailabilityState {
+        validatedIdentifiers.append((capability, identifier))
         return validationState
     }
 }

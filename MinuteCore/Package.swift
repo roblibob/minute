@@ -26,6 +26,10 @@ let package = Package(
             name: "MinuteOllama",
             targets: ["MinuteOllama"]
         ),
+        .library(
+            name: "MinuteLMStudio",
+            targets: ["MinuteLMStudio"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/FluidInference/FluidAudio.git", revision: "d19ce5a81af0a55d43892df53012e4a2b07c69b1"),
@@ -61,11 +65,16 @@ let package = Package(
             name: "MinuteOllama",
             dependencies: ["MinuteCore"]
         ),
+        .target(
+            name: "MinuteLMStudio",
+            dependencies: ["MinuteCore"]
+        ),
         .testTarget(
             name: "MinuteCoreTests",
             dependencies: [
                 "MinuteCore",
                 "MinuteOllama",
+                "MinuteLMStudio",
             ],
             resources: [
                 .process("Fixtures/Transcript"),

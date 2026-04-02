@@ -10,6 +10,7 @@ struct ModelsSettingsSection: View {
         Group {
             transcriptionSection
             ollamaSection
+            lmStudioSection
             summarizationSection
             screenContextSection
         }
@@ -72,14 +73,25 @@ struct ModelsSettingsSection: View {
                 SummarizationProviderPicker(
                     providers: model.inferenceProviders,
                     selection: $model.selectedSummarizationProviderID,
-                    ollamaModelTag: $model.selectedSummarizationOllamaModelTag
+                    ollamaModelTag: $model.selectedSummarizationOllamaModelTag,
+                    lmStudioModelIdentifier: $model.selectedSummarizationLMStudioModelIdentifier
                 )
 
                 if model.selectedSummarizationProviderID == InferenceProvider.ollama.rawValue {
                     InferenceCapabilityStatusView(
                         title: "Summarization validation",
                         state: model.summarizationAvailabilityState,
-                        discoveredModelTags: model.ollamaDiscoveredModelTags,
+                        discoveredModelReferences: model.ollamaDiscoveredModelTags,
+                        discoveredModelsTitle: "Downloaded in Ollama",
+                        isRefreshing: model.isRefreshingAvailability,
+                        onRefresh: { model.refreshAvailability() }
+                    )
+                } else if model.selectedSummarizationProviderID == InferenceProvider.lmStudio.rawValue {
+                    InferenceCapabilityStatusView(
+                        title: "Summarization validation",
+                        state: model.summarizationAvailabilityState,
+                        discoveredModelReferences: model.lmStudioDiscoveredModelIdentifiers,
+                        discoveredModelsTitle: "Available in LM Studio",
                         isRefreshing: model.isRefreshingAvailability,
                         onRefresh: { model.refreshAvailability() }
                     )
@@ -137,6 +149,23 @@ struct ModelsSettingsSection: View {
         }
     }
 
+    @ViewBuilder
+    private var lmStudioSection: some View {
+        if model.showsLMStudioEndpointConfiguration {
+            Section("LM Studio") {
+                SettingsFieldBlock(
+                    title: "LM Studio base URL",
+                    subtitle: "Use the full LM Studio endpoint, including protocol and port."
+                ) {
+                    SettingsSingleLineInput(
+                        text: $model.selectedLMStudioBaseURLString,
+                        placeholder: AppConfiguration.Defaults.defaultLMStudioBaseURL
+                    )
+                }
+            }
+        }
+    }
+
     private var screenContextSection: some View {
         Section("Screen Context") {
             VStack(alignment: .leading, spacing: 12) {
@@ -154,14 +183,25 @@ struct ModelsSettingsSection: View {
                     builtInModels: model.visionModels,
                     selection: $model.selectedVisionProviderID,
                     builtInModelSelection: $model.selectedVisionModelID,
-                    ollamaModelTag: $model.selectedVisionOllamaModelTag
+                    ollamaModelTag: $model.selectedVisionOllamaModelTag,
+                    lmStudioModelIdentifier: $model.selectedVisionLMStudioModelIdentifier
                 )
 
                 if model.selectedVisionProviderID == InferenceProvider.ollama.rawValue {
                     InferenceCapabilityStatusView(
                         title: "Screen context validation",
                         state: model.visionAvailabilityState,
-                        discoveredModelTags: model.ollamaDiscoveredModelTags,
+                        discoveredModelReferences: model.ollamaDiscoveredModelTags,
+                        discoveredModelsTitle: "Downloaded in Ollama",
+                        isRefreshing: model.isRefreshingAvailability,
+                        onRefresh: { model.refreshAvailability() }
+                    )
+                } else if model.selectedVisionProviderID == InferenceProvider.lmStudio.rawValue {
+                    InferenceCapabilityStatusView(
+                        title: "Screen context validation",
+                        state: model.visionAvailabilityState,
+                        discoveredModelReferences: model.lmStudioDiscoveredModelIdentifiers,
+                        discoveredModelsTitle: "Available in LM Studio",
                         isRefreshing: model.isRefreshingAvailability,
                         onRefresh: { model.refreshAvailability() }
                     )

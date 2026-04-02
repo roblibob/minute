@@ -7,6 +7,7 @@ struct VisionProviderPicker: View {
     @Binding var selection: String
     @Binding var builtInModelSelection: String
     @Binding var ollamaModelTag: String
+    @Binding var lmStudioModelIdentifier: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -61,6 +62,18 @@ struct VisionProviderPicker: View {
                         .autocorrectionDisabled()
 
                     Text("Use an installed Ollama model that supports screen-context or vision inference.")
+                        .minuteCaption()
+                }
+            } else if selectedProvider == .lmStudio {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("LM Studio screen context model")
+                        .minuteRowTitle()
+
+                    TextField("e.g. qwen2.5-vl-7b", text: $lmStudioModelIdentifier)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+
+                    Text("Use a local LM Studio model that supports vision or screen-context input.")
                         .minuteCaption()
                 }
             }

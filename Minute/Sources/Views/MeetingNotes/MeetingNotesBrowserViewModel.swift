@@ -3,6 +3,7 @@ import Combine
 import Foundation
 import MinuteCore
 import MinuteLlama
+import MinuteLMStudio
 import MinuteOllama
 import MinuteWhisper
 
@@ -987,7 +988,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     nonisolated private static func defaultReprocessRunner() -> @Sendable (ReprocessMeetingRequest) async throws -> PipelineResult {
         let defaults = UserDefaults.standard
         let providerStore = InferenceProviderSelectionStore(defaults: defaults)
-        let ollamaEndpointStore = OllamaEndpointSettingsStore(defaults: defaults)
+        let connectionStore = ProviderConnectionSettingsStore(defaults: defaults)
         let selectionStore = SummarizationModelSelectionStore(defaults: defaults)
         let contextWindowStore = SummarizationContextWindowSelectionStore(defaults: defaults)
         let visionModelStore = VisionModelSelectionStore(defaults: defaults)
@@ -997,6 +998,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         let fluidAudioModelStore = FluidAudioASRModelSelectionStore(defaults: defaults)
         let runtimeFactory = InferenceRuntimeFactory(
             providerStore: providerStore,
+            connectionStore: connectionStore,
             summarizationModelStore: selectionStore,
             summarizationContextWindowStore: contextWindowStore,
             visionModelStore: visionModelStore,
@@ -1008,8 +1010,8 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                     hardwareProfile: profile
                 )
             },
-            ollamaSummarizationBuilder: { tag in
-                guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+            ollamaSummarizationBuilder: { tag, baseURL in
+                guard let baseURL else {
                     return ErrorSummarizationService(
                         error: .llamaFailed(exitCode: -1, output: "Invalid Ollama base URL")
                     )
@@ -1017,6 +1019,17 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                 return OllamaSummarizationService(
                     modelTag: tag,
                     client: OllamaAPIClient(baseURL: baseURL)
+                )
+            },
+            lmStudioSummarizationBuilder: { identifier, baseURL in
+                guard let baseURL else {
+                    return ErrorSummarizationService(
+                        error: .llamaFailed(exitCode: -1, output: "Invalid LM Studio base URL")
+                    )
+                }
+                return LMStudioSummarizationService(
+                    modelIdentifier: identifier,
+                    client: LMStudioAPIClient(baseURL: baseURL)
                 )
             }
         )
@@ -1087,7 +1100,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
                         ),
                         reservedOutputTokens: 1_024
                     )
-                case .ollama:
+                case .ollama, .lmStudio:
                     return .default
                 }
             }
