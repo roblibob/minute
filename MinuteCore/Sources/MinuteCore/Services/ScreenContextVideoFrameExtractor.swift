@@ -95,7 +95,10 @@ public final class ScreenContextVideoFrameExtractor: @unchecked Sendable {
                 processedCount += 1
             } catch {
                 if let terminalFailureMessage = ScreenContextInferenceFailurePolicy.terminalMessage(for: error) {
-                    logger.error("Video screen inference disabled after terminal failure: \(terminalFailureMessage, privacy: .public)")
+                    let clippedMessage = String(terminalFailureMessage.prefix(240))
+                    logger.error(
+                        "Video screen inference disabled after terminal failure: \(clippedMessage, privacy: .private(mask: .hash))"
+                    )
                     events.sort { $0.timestampSeconds < $1.timestampSeconds }
                     return ScreenContextVideoInferenceResult(
                         events: events,

@@ -57,6 +57,7 @@ struct KnownSpeakersSettingsSection: View {
             }
         }
         .task {
+            guard knownSpeakerSuggestionsEnabled else { return }
             await refresh()
         }
         .onChange(of: knownSpeakerSuggestionsEnabled) { _, newValue in

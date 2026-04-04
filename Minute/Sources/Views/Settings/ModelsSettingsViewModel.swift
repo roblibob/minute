@@ -429,6 +429,11 @@ final class ModelsSettingsViewModel: ObservableObject {
         "Use for names, acronyms, product terms."
     }
 
+    var vocabularyBoostingSupportMessage: String? {
+        guard isFluidAudioSelected else { return nil }
+        return "Vocabulary boosting is currently unavailable for the selected FluidAudio backend."
+    }
+
     var vocabularyBoostingTerms: [String] {
         VocabularyTermEntry.parseFromEditorInput(vocabularyBoostingTermsInput, source: .global)
             .map(\.displayText)

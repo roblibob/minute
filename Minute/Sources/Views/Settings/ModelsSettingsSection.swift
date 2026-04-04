@@ -30,7 +30,9 @@ struct ModelsSettingsSection: View {
                         selection: $model.selectedFluidAudioModelID
                     )
 
-                    VocabularyBoostingSection(model: model)
+                    if let message = model.vocabularyBoostingSupportMessage {
+                        SettingsInlineMessage(text: message, tone: .warning)
+                    }
                 } else {
                     TranscriptionModelPicker(
                         models: model.transcriptionModels,

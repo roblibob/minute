@@ -347,7 +347,10 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                     } catch {
                         if let message = ScreenContextInferenceFailurePolicy.terminalMessage(for: error) {
                             if reportTerminalInferenceFailureIfNeeded() {
-                                logger.error("Screen inference disabled after terminal failure: \(message, privacy: .public)")
+                                let clippedMessage = String(message.prefix(240))
+                                logger.error(
+                                    "Screen inference disabled after terminal failure: \(clippedMessage, privacy: .private(mask: .hash))"
+                                )
                                 lifecycleEventHandler?(
                                     ScreenContextLifecycleEvent(
                                         type: .inferenceUnavailable,
