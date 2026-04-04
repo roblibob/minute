@@ -108,6 +108,36 @@ struct ScreenContextCaptureServiceWindowLifecycleTests {
         }
         #expect(resolvedTitles == [["Slides"], ["Browser"]])
     }
+
+    @Test
+    func terminalInferenceFailure_emitsLifecycleEventOnceAndStopsRetrying() async throws {
+        let inferencer = TerminalFailureInferencer()
+        let service = ScreenContextCaptureService(inferencer: inferencer)
+        let recorder = LifecycleEventRecorder()
+
+        try await service._testStartCapture(
+            sources: [
+                ScreenContextCaptureSource(
+                    windowTitle: "Slides",
+                    captureImageData: { Data([0x01, 0x02, 0x03]) }
+                )
+            ],
+            minimumFrameInterval: 1.0,
+            lifecycleEventHandler: { event in
+                Task { await recorder.append(event) }
+            }
+        )
+
+        try await Task.sleep(nanoseconds: 1_350_000_000)
+        _ = await service.stopCapture()
+
+        let events = await recorder.events
+        let calls = await inferencer.callCount
+        #expect(calls == 1)
+        #expect(events.count == 1)
+        #expect(events.first?.type == .inferenceUnavailable)
+        #expect(events.first?.message?.contains("could not process image input") == true)
+    }
 }
 
 private actor LifecycleEventRecorder {
@@ -125,6 +155,20 @@ private actor VisionInferencerSpy: ScreenContextInferencing {
         _ = imageData
         calls.append(windowTitle)
         return ScreenContextInference(text: "Vision context for \(windowTitle)")
+    }
+}
+
+private actor TerminalFailureInferencer: ScreenContextInferencing {
+    private(set) var callCount: Int = 0
+
+    func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference {
+        _ = imageData
+        _ = windowTitle
+        callCount += 1
+        throw MinuteError.llamaMTMDFailed(
+            exitCode: 400,
+            output: "Error in iterating prediction stream: ValueError: Number of image token positions (1450) does not match number of image features (448) for batch 0"
+        )
     }
 }
 

@@ -1,5 +1,8 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import MinuteCore
+import UniformTypeIdentifiers
 
 public struct LMStudioAPIClient: Sendable {
     public struct ChatMessage: Sendable, Encodable {
@@ -196,6 +199,20 @@ public struct LMStudioAPIClient: Sendable {
                     selectedReference: trimmedIdentifier
                 )
             }
+            if capability == .vision {
+                do {
+                    try await probeVisionInputSupport(modelIdentifier: trimmedIdentifier)
+                } catch let error as LMStudioRequestError {
+                    return CapabilityAvailabilityState(
+                        capabilityID: capability,
+                        providerID: .lmStudio,
+                        isReady: false,
+                        status: .visionUnsupported,
+                        message: visionProbeFailureMessage(from: error.message),
+                        selectedReference: trimmedIdentifier
+                    )
+                }
+            }
 
             return CapabilityAvailabilityState(
                 capabilityID: capability,
@@ -281,6 +298,44 @@ private extension LMStudioAPIClient {
         }
     }
 
+    struct ErrorResponse: Decodable {
+        enum ErrorValue: Decodable {
+            case string(String)
+            case object(Detail)
+
+            struct Detail: Decodable {
+                var message: String?
+                var code: String?
+                var type: String?
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                if let value = try? container.decode(String.self) {
+                    self = .string(value)
+                } else {
+                    self = .object(try container.decode(Detail.self))
+                }
+            }
+
+            var resolvedMessage: String? {
+                switch self {
+                case .string(let value):
+                    return value
+                case .object(let detail):
+                    return detail.message ?? detail.code ?? detail.type
+                }
+            }
+        }
+
+        var error: ErrorValue?
+        var message: String?
+
+        var resolvedMessage: String? {
+            error?.resolvedMessage ?? message
+        }
+    }
+
     func performChatCompletion(
         modelIdentifier: String,
         messages: [ChatMessage],
@@ -311,6 +366,29 @@ private extension LMStudioAPIClient {
             throw LMStudioRequestError.requestFailed(statusCode: -1, message: "LM Studio returned an empty response")
         }
         return output
+    }
+
+    func probeVisionInputSupport(modelIdentifier: String) async throws {
+        let response = try await performChatCompletion(
+            modelIdentifier: modelIdentifier,
+            messages: [
+                ChatMessage(
+                    role: "user",
+                    content: [
+                        .text("Reply with OK."),
+                        .imageDataURL(Self.visionProbeImageDataURL)
+                    ]
+                )
+            ],
+            maxTokens: 8
+        )
+
+        guard !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw LMStudioRequestError.requestFailed(
+                statusCode: -1,
+                message: "LM Studio returned an empty response for image input."
+            )
+        }
     }
 
     struct ChatCompletionResponse: Decodable {
@@ -494,7 +572,7 @@ private extension LMStudioAPIClient {
             }
 
             guard (200..<300).contains(httpResponse.statusCode) else {
-                let message = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+                let message = decodedErrorMessage(from: data) ?? String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
                 if httpResponse.statusCode == 404 {
                     throw LMStudioRequestError.notFound
                 }
@@ -520,6 +598,71 @@ private extension LMStudioAPIClient {
         components.percentEncodedPath = "/" + joinedPath
         return components.url ?? baseURL.appendingPathComponent(normalizedPath)
     }
+
+    func decodedErrorMessage(from data: Data) -> String? {
+        guard !data.isEmpty else { return nil }
+        let decoded = try? JSONDecoder().decode(ErrorResponse.self, from: data)
+        return decoded?.resolvedMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func visionProbeFailureMessage(from backendMessage: String) -> String {
+        let trimmedMessage = backendMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMessage.isEmpty else {
+            return "Selected LM Studio model could not process image input. Load the model in LM Studio or choose another vision-capable model."
+        }
+
+        return "Selected LM Studio model could not process image input. Load the model in LM Studio or choose another vision-capable model. LM Studio reported: \(trimmedMessage)"
+    }
+
+    static var visionProbeImageDataURL: String {
+        "data:image/png;base64,\(visionProbeImageBase64)"
+    }
+
+    private static let visionProbeImageBase64: String = {
+        let size = CGSize(width: 800, height: 600)
+        let bytesPerRow = Int(size.width) * 4
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: nil,
+                width: Int(size.width),
+                height: Int(size.height),
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            return ""
+        }
+
+        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        context.fill(CGRect(origin: .zero, size: size))
+        context.setFillColor(red: 0.85, green: 0.9, blue: 0.95, alpha: 1)
+        context.fill(CGRect(x: 48, y: 56, width: 704, height: 120))
+        context.fill(CGRect(x: 48, y: 216, width: 520, height: 36))
+        context.fill(CGRect(x: 48, y: 276, width: 612, height: 36))
+        context.fill(CGRect(x: 48, y: 336, width: 468, height: 36))
+
+        guard let image = context.makeImage() else {
+            return ""
+        }
+
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return ""
+        }
+
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            return ""
+        }
+
+        return Data(referencing: data).base64EncodedString()
+    }()
 }
 
 private extension CharacterSet {

@@ -18,42 +18,15 @@ struct SummarizationModelPicker: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .minuteRowTitle()
-
-            Menu {
-                ForEach(models) { model in
-                    Button {
-                        selection = model.id
-                    } label: {
-                        if model.id == selection {
-                            Label(menuLabel(for: model), systemImage: "checkmark")
-                        } else {
-                            Text(menuLabel(for: model))
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Text(selectedMenuLabel)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .minuteDropdownStyle()
-            }
-            .menuStyle(.borderlessButton)
-
-            if let selectedModel {
-                Text(selectedModel.summary)
-                    .minuteCaption()
-            }
-        }
+        SettingsMenuField(
+            title: title,
+            subtitle: selectedModel?.summary,
+            options: models,
+            selectionLabel: selectedMenuLabel,
+            optionLabel: menuLabel(for:),
+            isSelected: { $0.id == selection },
+            onSelect: { selection = $0.id }
+        )
     }
 
     private var selectedModel: SummarizationModel? {

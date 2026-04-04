@@ -9,30 +9,26 @@ struct ModelsSettingsSection: View {
     var body: some View {
         Group {
             transcriptionSection
-            ollamaSection
-            lmStudioSection
             summarizationSection
             screenContextSection
+            localProvidersSection
+            modelReadinessSection
         }
     }
 
     private var transcriptionSection: some View {
-        Section("Transcription") {
-            VStack(alignment: .leading, spacing: 12) {
+        Section("Transcription Setup") {
+            VStack(alignment: .leading, spacing: 14) {
                 TranscriptionBackendPicker(
                     backends: model.transcriptionBackends,
                     selection: $model.selectedTranscriptionBackendID
                 )
-
-                Divider()
 
                 if model.isFluidAudioSelected {
                     FluidAudioASRModelPicker(
                         models: model.fluidAudioModels,
                         selection: $model.selectedFluidAudioModelID
                     )
-
-                    Divider()
 
                     VocabularyBoostingSection(model: model)
                 } else {
@@ -41,35 +37,18 @@ struct ModelsSettingsSection: View {
                         selection: $model.selectedTranscriptionModelID
                     )
 
-                    Divider()
-
                     TranscriptionLanguagePicker(
                         languages: model.transcriptionLanguages,
                         selection: $model.selectedTranscriptionLanguage
                     )
                 }
-
-                Divider()
-
-                ModelDownloadStatusView(
-                    title: "\(model.selectedTranscriptionBackendDisplayName) models",
-                    detail: "Downloads the local transcription models required by the current transcription setup.",
-                    status: model.transcriptionDownloadStatusState,
-                    progress: model.activeDownloadProgress,
-                    showsSpinner: model.isCheckingModels,
-                    message: model.transcriptionDownloadMessage,
-                    buttonTitle: downloadButtonTitle,
-                    buttonEnabled: model.canStartModelDownload,
-                    style: .plain,
-                    action: { model.startDownload() }
-                )
             }
         }
     }
 
     private var summarizationSection: some View {
-        Section("Summarization") {
-            VStack(alignment: .leading, spacing: 12) {
+        Section("Summarization Setup") {
+            VStack(alignment: .leading, spacing: 14) {
                 SummarizationProviderPicker(
                     providers: model.inferenceProviders,
                     selection: $model.selectedSummarizationProviderID,
@@ -98,15 +77,118 @@ struct ModelsSettingsSection: View {
                 }
 
                 if model.isBuiltInSummarizationProviderSelected {
-                    Divider()
-
                     SummarizationModelPicker(
                         models: model.summarizationModels,
                         selection: $model.selectedSummarizationModelID
                     )
+                }
 
-                    Divider()
+                SummarizationContextWindowPicker(
+                    presets: model.summarizationContextWindowPresets,
+                    recommendedPreset: model.recommendedSummarizationContextWindowPreset,
+                    selection: $model.selectedSummarizationContextWindowPreset
+                )
+            }
+        }
+    }
 
+    private var screenContextSection: some View {
+        Section("Screen Context Setup") {
+            VStack(alignment: .leading, spacing: 14) {
+                SettingsToggleRow(
+                    "Enhance notes with selected screen context",
+                    detail: "Choose a window each time you start recording. No video is stored.",
+                    isOn: $screenContextEnabled
+                )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    VisionProviderPicker(
+                        providers: model.inferenceProviders,
+                        builtInModels: model.visionModels,
+                        selection: $model.selectedVisionProviderID,
+                        builtInModelSelection: $model.selectedVisionModelID,
+                        ollamaModelTag: $model.selectedVisionOllamaModelTag,
+                        lmStudioModelIdentifier: $model.selectedVisionLMStudioModelIdentifier
+                    )
+
+                    if model.selectedVisionProviderID == InferenceProvider.ollama.rawValue {
+                        InferenceCapabilityStatusView(
+                            title: "Screen context validation",
+                            state: model.visionAvailabilityState,
+                            discoveredModelReferences: model.ollamaDiscoveredModelTags,
+                            discoveredModelsTitle: "Downloaded in Ollama",
+                            isRefreshing: model.isRefreshingAvailability,
+                            onRefresh: { model.refreshAvailability() }
+                        )
+                    } else if model.selectedVisionProviderID == InferenceProvider.lmStudio.rawValue {
+                        InferenceCapabilityStatusView(
+                            title: "Screen context validation",
+                            state: model.visionAvailabilityState,
+                            discoveredModelReferences: model.lmStudioDiscoveredModelIdentifiers,
+                            discoveredModelsTitle: "Available in LM Studio",
+                            isRefreshing: model.isRefreshingAvailability,
+                            onRefresh: { model.refreshAvailability() }
+                        )
+                    }
+
+                    ScreenContextSettingsSection(title: nil, showsMasterToggle: false)
+                }
+                .disabled(!screenContextEnabled)
+                .opacity(screenContextEnabled ? 1 : 0.55)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var localProvidersSection: some View {
+        if model.showsOllamaEndpointConfiguration || model.showsLMStudioEndpointConfiguration {
+            Section("Local Provider Connections") {
+                VStack(alignment: .leading, spacing: 14) {
+                    if model.showsOllamaEndpointConfiguration {
+                        SettingsFieldBlock(
+                            title: "Ollama base URL",
+                            subtitle: "Use the full Ollama endpoint, including protocol and port."
+                        ) {
+                            SettingsSingleLineInput(
+                                text: $model.selectedOllamaBaseURLString,
+                                placeholder: AppConfiguration.Defaults.defaultOllamaBaseURL
+                            )
+                        }
+                    }
+
+                    if model.showsLMStudioEndpointConfiguration {
+                        SettingsFieldBlock(
+                            title: "LM Studio base URL",
+                            subtitle: "Use the full LM Studio endpoint, including protocol and port."
+                        ) {
+                            SettingsSingleLineInput(
+                                text: $model.selectedLMStudioBaseURLString,
+                                placeholder: AppConfiguration.Defaults.defaultLMStudioBaseURL
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var modelReadinessSection: some View {
+        Section("Model Readiness & Downloads") {
+            VStack(alignment: .leading, spacing: 14) {
+                ModelDownloadStatusView(
+                    title: "\(model.selectedTranscriptionBackendDisplayName) models",
+                    detail: "Downloads the local transcription models required by the current transcription setup.",
+                    status: model.transcriptionDownloadStatusState,
+                    progress: model.activeDownloadProgress,
+                    showsSpinner: model.isCheckingModels,
+                    message: model.transcriptionDownloadMessage,
+                    buttonTitle: downloadButtonTitle,
+                    buttonEnabled: model.canStartModelDownload,
+                    style: .plain,
+                    action: { model.startDownload() }
+                )
+
+                if model.isBuiltInSummarizationProviderSelected {
                     ModelDownloadStatusView(
                         title: "Built-in summarization model",
                         detail: "Downloads the selected local summarization model when you use the built-in provider.",
@@ -121,95 +203,7 @@ struct ModelsSettingsSection: View {
                     )
                 }
 
-                Divider()
-
-                SummarizationContextWindowPicker(
-                    presets: model.summarizationContextWindowPresets,
-                    recommendedPreset: model.recommendedSummarizationContextWindowPreset,
-                    selection: $model.selectedSummarizationContextWindowPreset
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var ollamaSection: some View {
-        if model.showsOllamaEndpointConfiguration {
-            Section("Ollama") {
-                SettingsFieldBlock(
-                    title: "Ollama base URL",
-                    subtitle: "Use the full Ollama endpoint, including protocol and port."
-                ) {
-                    SettingsSingleLineInput(
-                        text: $model.selectedOllamaBaseURLString,
-                        placeholder: AppConfiguration.Defaults.defaultOllamaBaseURL
-                    )
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var lmStudioSection: some View {
-        if model.showsLMStudioEndpointConfiguration {
-            Section("LM Studio") {
-                SettingsFieldBlock(
-                    title: "LM Studio base URL",
-                    subtitle: "Use the full LM Studio endpoint, including protocol and port."
-                ) {
-                    SettingsSingleLineInput(
-                        text: $model.selectedLMStudioBaseURLString,
-                        placeholder: AppConfiguration.Defaults.defaultLMStudioBaseURL
-                    )
-                }
-            }
-        }
-    }
-
-    private var screenContextSection: some View {
-        Section("Screen Context") {
-            VStack(alignment: .leading, spacing: 12) {
-                SettingsToggleRow(
-                    "Enhance notes with selected screen context",
-                    detail: "Choose a window each time you start recording. No video is stored.",
-                    isOn: $screenContextEnabled
-                )
-
-                Divider()
-
-                VStack(alignment: .leading, spacing: 12) {
-                VisionProviderPicker(
-                    providers: model.inferenceProviders,
-                    builtInModels: model.visionModels,
-                    selection: $model.selectedVisionProviderID,
-                    builtInModelSelection: $model.selectedVisionModelID,
-                    ollamaModelTag: $model.selectedVisionOllamaModelTag,
-                    lmStudioModelIdentifier: $model.selectedVisionLMStudioModelIdentifier
-                )
-
-                if model.selectedVisionProviderID == InferenceProvider.ollama.rawValue {
-                    InferenceCapabilityStatusView(
-                        title: "Screen context validation",
-                        state: model.visionAvailabilityState,
-                        discoveredModelReferences: model.ollamaDiscoveredModelTags,
-                        discoveredModelsTitle: "Downloaded in Ollama",
-                        isRefreshing: model.isRefreshingAvailability,
-                        onRefresh: { model.refreshAvailability() }
-                    )
-                } else if model.selectedVisionProviderID == InferenceProvider.lmStudio.rawValue {
-                    InferenceCapabilityStatusView(
-                        title: "Screen context validation",
-                        state: model.visionAvailabilityState,
-                        discoveredModelReferences: model.lmStudioDiscoveredModelIdentifiers,
-                        discoveredModelsTitle: "Available in LM Studio",
-                        isRefreshing: model.isRefreshingAvailability,
-                        onRefresh: { model.refreshAvailability() }
-                    )
-                }
-
                 if model.isBuiltInVisionProviderSelected {
-                    Divider()
-
                     ModelDownloadStatusView(
                         title: "Built-in screen context model",
                         detail: "Downloads the selected local screen-context model when you use the built-in provider.",
@@ -223,13 +217,6 @@ struct ModelsSettingsSection: View {
                         action: { model.startDownload() }
                     )
                 }
-
-                Divider()
-
-                ScreenContextSettingsSection(title: nil, showsMasterToggle: false)
-                }
-                .disabled(!screenContextEnabled)
-                .opacity(screenContextEnabled ? 1 : 0.55)
             }
         }
     }

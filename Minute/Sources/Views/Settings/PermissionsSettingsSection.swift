@@ -26,8 +26,7 @@ struct PermissionsSettingsSection: View {
                 action: requestScreenRecordingPermission
             )
 
-            Text("You can also grant permissions in System Settings > Privacy & Security.")
-                .minuteFootnote()
+            SettingsInlineMessage(text: "You can also grant permissions in System Settings > Privacy & Security.")
         }
         .onAppear {
             refreshPermissions()

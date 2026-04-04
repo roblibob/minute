@@ -375,11 +375,10 @@ private struct OnboardingHeader: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(stepTitle)
-                    .font(.title2.bold())
+                    .minuteSettingsHeaderTitle()
                 if let stepSubtitle {
                     Text(stepSubtitle)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .minuteSettingsHeaderSubtitle()
                 }
             }
         }
@@ -428,7 +427,7 @@ private struct OnboardingProviderChoicePicker: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(title)
-                        .font(.headline)
+                        .minuteRowTitle()
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
@@ -437,22 +436,20 @@ private struct OnboardingProviderChoicePicker: View {
                 }
 
                 Text(subtitle)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .minuteCaption()
 
                 Text(provider.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .minuteFootnote()
                     .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isSelected ? Color.accentColor.opacity(0.7) : Color.secondary.opacity(0.12), lineWidth: 1)
             )
         }

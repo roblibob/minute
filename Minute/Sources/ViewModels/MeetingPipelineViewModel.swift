@@ -892,6 +892,15 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
     }
 
+    func dismissCloseableStatus() {
+        switch state {
+        case .done, .failed:
+            send(.reset)
+        default:
+            break
+        }
+    }
+
     func cancelBackgroundProcessing(clearPending: Bool) {
         Task { [processingOrchestrator] in
             await processingOrchestrator.cancelActiveProcessing(clearPending: clearPending)
@@ -1711,8 +1720,17 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private func handleScreenContextLifecycleEvent(_ event: ScreenContextLifecycleEvent) {
         guard case .recording(let session) = state else { return }
-        guard event.type == .sharedWindowClosed else { return }
-        beginScreenContextAutoStopWarning(session: session, windowTitle: event.windowTitle)
+        switch event.type {
+        case .sharedWindowClosed:
+            beginScreenContextAutoStopWarning(session: session, windowTitle: event.windowTitle)
+        case .inferenceUnavailable:
+            Task { @MainActor [weak self] in
+                await self?.handleScreenContextInferenceUnavailable(
+                    session: session,
+                    message: event.message
+                )
+            }
+        }
     }
 
     func _testHandleScreenContextLifecycleEvent(_ event: ScreenContextLifecycleEvent) {
@@ -1834,11 +1852,32 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
 
         do {
-            return try await screenContextVideoExtractor.inferEvents(from: sourceURL)
+            let result = try await screenContextVideoExtractor.inferEvents(from: sourceURL)
+            if let terminalFailureMessage = result?.terminalFailureMessage {
+                logger.info(
+                    "Video screen context stopped after terminal failure: \(terminalFailureMessage, privacy: .private(mask: .hash))"
+                )
+            }
+            return result
         } catch {
             logger.error("Video screen context failed: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
             return nil
         }
+    }
+
+    private func handleScreenContextInferenceUnavailable(
+        session: RecordingSession,
+        message: String?
+    ) async {
+        _ = await stopScreenContextCaptureAndAppend()
+        screenCaptureEnabled = false
+        latestScreenCaptureImage = nil
+        activeVisionBindingStore.set(nil)
+        await clearScreenContextAutoStopWarning()
+        await presentScreenContextConfigurationAlert(
+            sessionID: session.id,
+            message: message ?? "Screen context is unavailable for the selected vision configuration."
+        )
     }
 
     private func isVideoImportURL(_ url: URL) -> Bool {

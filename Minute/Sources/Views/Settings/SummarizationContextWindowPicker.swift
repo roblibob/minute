@@ -7,31 +7,26 @@ struct SummarizationContextWindowPicker: View {
     @Binding var selection: SummarizationContextWindowPreset
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Summarization context window")
-                .minuteRowTitle()
-
+        SettingsFieldBlock(
+            title: "Summarization context window",
+            subtitle: selection.detailText
+        ) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(selection.displayName)
-                        .font(.callout.weight(.semibold))
+                        .minuteControlValue()
                     Spacer()
                     Text(tokenCountLabel)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .minuteCaption()
                 }
 
                 SettingsSteppedControl(
                     stepLabels: presets.map(\.shortDisplayName),
                     selectedIndex: selectedIndexBinding
                 )
+
+                SettingsInlineMessage(text: recommendationText)
             }
-
-            Text(selection.detailText)
-                .minuteCaption()
-
-            Text(recommendationText)
-                .minuteCaption()
         }
         .gridCellColumns(2)
     }

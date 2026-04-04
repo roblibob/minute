@@ -80,7 +80,7 @@ struct MeetingTypesSettingsSection: View {
                     title: "Objective",
                     subtitle: "What should this meeting summary optimize for?"
                 ) {
-                    MultilineInput(
+                    SettingsMultilineInput(
                         text: $model.draftObjective,
                         placeholder: "Summarize daily standup progress accurately.",
                         minHeight: 84
@@ -91,7 +91,7 @@ struct MeetingTypesSettingsSection: View {
                     title: "Summary Focus",
                     subtitle: "Which outcomes should be prioritized in this type of meeting?"
                 ) {
-                    MultilineInput(
+                    SettingsMultilineInput(
                         text: $model.draftSummaryFocus,
                         placeholder: "Highlight updates, blockers, decisions, and owners.",
                         minHeight: 96
@@ -187,7 +187,7 @@ struct MeetingTypesSettingsSection: View {
                             title: "Strong Signals",
                             subtitle: "Comma or newline separated cues. \(model.parsedClassifierSignalCount) signal(s)."
                         ) {
-                            MultilineInput(
+                            SettingsMultilineInput(
                                 text: $model.draftClassifierSignalsInput,
                                 placeholder: "daily update, blocker, sprint board",
                                 minHeight: 80
@@ -265,14 +265,11 @@ struct MeetingTypesSettingsSection: View {
                 }
 
                 if model.hasUnsavedChanges {
-                    Label("Unsaved changes", systemImage: "pencil")
-                        .minuteFootnote()
+                    SettingsInlineMessage(text: "Unsaved changes")
                 }
 
                 if let message = model.errorMessage, !message.isEmpty {
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.red)
+                    SettingsInlineMessage(text: message, tone: .error)
                 }
             }
         }
@@ -320,78 +317,36 @@ private struct PromptRuleBlock: View {
     let isToggleable: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .minuteRowTitle()
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .minuteRowTitle()
 
-                    Text(subtitle)
-                        .minuteCaption()
-                        .fixedSize(horizontal: false, vertical: true)
+                        Text(subtitle)
+                            .minuteCaption()
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if isToggleable {
+                        Toggle("", isOn: $isEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .accessibilityLabel(Text("\(title) enabled"))
+                    }
                 }
 
-                Spacer(minLength: 0)
-
-                if isToggleable {
-                    Toggle("", isOn: $isEnabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .accessibilityLabel(Text("\(title) enabled"))
+                if !isToggleable || isEnabled {
+                    SettingsMultilineInput(
+                        text: $text,
+                        placeholder: "Optional",
+                        minHeight: 74
+                    )
                 }
             }
-
-            if !isToggleable || isEnabled {
-                MultilineInput(
-                    text: $text,
-                    placeholder: "Optional",
-                    minHeight: 74
-                )
-            }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.minuteSurface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.minuteOutline, lineWidth: 1)
-        )
-    }
-}
-
-private struct MultilineInput: View {
-    @Binding var text: String
-    let placeholder: String
-    let minHeight: CGFloat
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            TextEditor(text: $text)
-                .font(.system(size: 13, weight: .medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: minHeight)
-
-            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(placeholder)
-                    .minuteCaption()
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 14)
-                    .allowsHitTesting(false)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.minuteOutline, lineWidth: 1)
-        )
     }
 }

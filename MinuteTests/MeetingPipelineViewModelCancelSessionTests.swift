@@ -215,6 +215,70 @@ struct MeetingPipelineViewModelCancelSessionTests {
     }
 
     @Test
+    func dismissCloseableStatus_afterFailure_resetsToIdle_andAllowsNewRecording() async throws {
+        let suiteName = "MeetingPipelineViewModelCancelSessionTests.failureReset.\(UUID().uuidString)"
+        let dependencies = try PipelineViewModelFixtureBuilder.makeDependencies(suiteName: suiteName)
+        let audioService = TestAudioService()
+        let importService = FailingMediaImportService()
+
+        let model = await MainActor.run {
+            MeetingPipelineViewModel(
+                audioService: audioService,
+                mediaImportService: importService,
+                recoveryService: MockRecordingRecoveryService(),
+                pipelineCoordinator: dependencies.coordinator,
+                screenContextCaptureService: ScreenContextCaptureService(inferencer: MockScreenContextInferenceService()),
+                screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: MockScreenContextInferenceService()),
+                screenContextSettingsStore: ScreenContextSettingsStore(),
+                vaultAccess: dependencies.viewModelVaultAccess,
+                recordingPermissions: .alwaysGranted(),
+                stagePreferencesStore: dependencies.stagePreferencesStore
+            )
+        }
+
+        await MainActor.run {
+            model.send(.importFile(URL(fileURLWithPath: "/tmp/failure.wav")))
+        }
+
+        try await eventually(timeoutNanoseconds: 1_000_000_000) {
+            await MainActor.run {
+                if case .failed = model.state { return true }
+                return false
+            }
+        }
+
+        await MainActor.run {
+            model.dismissCloseableStatus()
+        }
+
+        let isIdleAfterDismiss = await MainActor.run {
+            if case .idle = model.state {
+                return model.captureState == .ready
+            }
+            return false
+        }
+        #expect(isIdleAfterDismiss)
+
+        await MainActor.run {
+            model.send(.startRecording)
+        }
+
+        try await eventually(timeoutNanoseconds: 1_000_000_000) {
+            await MainActor.run {
+                if case .recording = model.state { return true }
+                return false
+            }
+        }
+
+        let observed = await audioService.observed
+        #expect(observed.startRecordingCalls == 1)
+
+        await MainActor.run {
+            model.send(.cancelRecording)
+        }
+    }
+
+    @Test
     func changingScreenContextSelectionWhileRecording_restartsCaptureSession() async throws {
         let captureService = ScreenContextCaptureService(inferencer: MockScreenContextInferenceService())
         let seededSource = ScreenContextCaptureSource(
@@ -563,6 +627,12 @@ private actor BlockingMediaImportService: MediaImporting {
             duration: 0,
             suggestedStartDate: Date()
         ))
+    }
+}
+
+private struct FailingMediaImportService: MediaImporting {
+    func importMedia(from _: URL) async throws -> MediaImportResult {
+        throw MinuteError.audioExportFailed
     }
 }
 

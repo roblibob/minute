@@ -6,42 +6,15 @@ struct FluidAudioASRModelPicker: View {
     @Binding var selection: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("FluidAudio model")
-                .minuteRowTitle()
-
-            Menu {
-                ForEach(models) { model in
-                    Button {
-                        selection = model.id
-                    } label: {
-                        if model.id == selection {
-                            Label(model.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(model.displayName)
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Text(selectedLabel)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .minuteDropdownStyle()
-            }
-            .menuStyle(.borderlessButton)
-
-            if let selectedModel {
-                Text(selectedModel.summary)
-                    .minuteCaption()
-            }
-        }
+        SettingsMenuField(
+            title: "FluidAudio model",
+            subtitle: selectedModel?.summary,
+            options: models,
+            selectionLabel: selectedLabel,
+            optionLabel: { $0.displayName },
+            isSelected: { $0.id == selection },
+            onSelect: { selection = $0.id }
+        )
     }
 
     private var selectedModel: FluidAudioASRModel? {

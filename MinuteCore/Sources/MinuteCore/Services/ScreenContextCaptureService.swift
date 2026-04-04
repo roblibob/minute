@@ -176,6 +176,8 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
     private var captureTask: Task<Void, Never>?
     private var firstTimestampSeconds: Double?
     private var closedWindowTitlesNotified: Set<String> = []
+    private let terminalInferenceFailureLock = NSLock()
+    private var hasTerminalInferenceFailure = false
 
     private init(
         sources: [ScreenContextCaptureSource],
@@ -277,8 +279,11 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
     }
 
     private func captureOnce() async {
+        guard !didEncounterTerminalInferenceFailure() else { return }
+
         for source in sources {
             if Task.isCancelled { return }
+            if didEncounterTerminalInferenceFailure() { return }
             if statusReporter.snapshot().isInferenceRunning {
                 statusReporter.markSkipped()
                 continue
@@ -340,6 +345,19 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                         )
                         await collector.append(event)
                     } catch {
+                        if let message = ScreenContextInferenceFailurePolicy.terminalMessage(for: error) {
+                            if reportTerminalInferenceFailureIfNeeded() {
+                                logger.error("Screen inference disabled after terminal failure: \(message, privacy: .public)")
+                                lifecycleEventHandler?(
+                                    ScreenContextLifecycleEvent(
+                                        type: .inferenceUnavailable,
+                                        windowTitle: windowTitle,
+                                        message: message
+                                    )
+                                )
+                            }
+                            return
+                        }
                         logger.error("Screen inference failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
                     }
                 }
@@ -365,6 +383,22 @@ private final class ScreenContextCaptureSession: @unchecked Sendable {
                 windowTitle: windowTitle
             )
         )
+    }
+
+    private func didEncounterTerminalInferenceFailure() -> Bool {
+        terminalInferenceFailureLock.lock()
+        defer { terminalInferenceFailureLock.unlock() }
+        return hasTerminalInferenceFailure
+    }
+
+    private func reportTerminalInferenceFailureIfNeeded() -> Bool {
+        terminalInferenceFailureLock.lock()
+        defer { terminalInferenceFailureLock.unlock() }
+
+        guard !hasTerminalInferenceFailure else { return false }
+        hasTerminalInferenceFailure = true
+        captureTask?.cancel()
+        return true
     }
 
     fileprivate static func captureImageData(for window: SCWindow) async throws -> Data {

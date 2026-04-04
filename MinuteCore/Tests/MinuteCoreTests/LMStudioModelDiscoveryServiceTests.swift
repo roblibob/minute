@@ -136,6 +136,107 @@ struct LMStudioModelDiscoveryServiceTests {
         #expect(state.status == .modelMissing)
         #expect(state.selectedReference == "missing-model")
     }
+
+    @Test
+    func validateModelIdentifier_rejectsVisionModelWhenImageProbeFails() async throws {
+        let session = makeLMStudioDiscoverySession { request in
+            switch request.url?.path {
+            case "/api/v0/models/qwen2.5-vl-7b-instruct":
+                return .json(
+                    #"""
+                    {
+                      "id": "qwen2.5-vl-7b-instruct",
+                      "object": "model",
+                      "type": "vlm",
+                      "publisher": "lmstudio-community",
+                      "arch": "qwen2_vl",
+                      "compatibility_type": "gguf",
+                      "quantization": "Q4_K_M",
+                      "state": "loaded",
+                      "max_context_length": 32768
+                    }
+                    """#
+                )
+            case "/v1/chat/completions":
+                return .status(
+                    400,
+                    #"""
+                    {
+                      "error": "Error in iterating prediction stream: ValueError: Number of image token positions (1450) does not match number of image features (448) for batch 0"
+                    }
+                    """#
+                )
+            default:
+                return .status(404, #"{"error":"not found"}"#)
+            }
+        }
+
+        let service = LMStudioModelDiscoveryService(
+            client: LMStudioAPIClient(
+                baseURL: URL(string: "http://127.0.0.1:1234")!,
+                session: session
+            )
+        )
+
+        let state = try await service.validateModelIdentifier("qwen2.5-vl-7b-instruct", for: .vision)
+
+        #expect(state.status == .visionUnsupported)
+        #expect(state.isReady == false)
+        #expect(state.message?.contains("could not process image input") == true)
+        #expect(state.message?.contains("Number of image token positions") == true)
+    }
+
+    @Test
+    func validateModelIdentifier_acceptsVisionModelWhenImageProbeSucceeds() async throws {
+        let session = makeLMStudioDiscoverySession { request in
+            switch request.url?.path {
+            case "/api/v0/models/qwen2.5-vl-7b-instruct":
+                return .json(
+                    #"""
+                    {
+                      "id": "qwen2.5-vl-7b-instruct",
+                      "object": "model",
+                      "type": "vlm",
+                      "publisher": "lmstudio-community",
+                      "arch": "qwen2_vl",
+                      "compatibility_type": "gguf",
+                      "quantization": "Q4_K_M",
+                      "state": "loaded",
+                      "max_context_length": 32768
+                    }
+                    """#
+                )
+            case "/v1/chat/completions":
+                return .json(
+                    #"""
+                    {
+                      "choices": [
+                        {
+                          "message": {
+                            "content": "OK"
+                          }
+                        }
+                      ]
+                    }
+                    """#
+                )
+            default:
+                return .status(404, #"{"error":"not found"}"#)
+            }
+        }
+
+        let service = LMStudioModelDiscoveryService(
+            client: LMStudioAPIClient(
+                baseURL: URL(string: "http://127.0.0.1:1234")!,
+                session: session
+            )
+        )
+
+        let state = try await service.validateModelIdentifier("qwen2.5-vl-7b-instruct", for: .vision)
+
+        #expect(state.status == .ready)
+        #expect(state.isReady)
+    }
 }
 
 private func makeLMStudioDiscoverySession(
