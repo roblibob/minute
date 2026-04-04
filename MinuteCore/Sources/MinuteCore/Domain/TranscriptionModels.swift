@@ -75,8 +75,40 @@ public enum TranscriptionModelCatalog {
         encoderCoreMLExpectedFileSizeBytes: 1_173_393_014
     )
 
+    // MARK: - NB-Whisper (Norwegian)
+
+    private static let nbWhisperSmall = TranscriptionModel(
+        id: "nb-whisper/small",
+        displayName: "NB-Whisper Small (Norwegian)",
+        summary: "Norwegian-tuned model by NB AI-Lab. Fast with good accuracy for Norwegian.",
+        fileName: "nb-whisper-small.bin",
+        sourceURL: URL(string: "https://huggingface.co/NbAiLab/nb-whisper-small/resolve/main/ggml-model.bin")!,
+        expectedSHA256Hex: "a0fc1555f5bd51044b0ea88bb9b7891e1ee331a8087eddb0afc3a05839db48ab",
+        expectedFileSizeBytes: 487_601_984
+    )
+
+    private static let nbWhisperMedium = TranscriptionModel(
+        id: "nb-whisper/medium",
+        displayName: "NB-Whisper Medium (Norwegian)",
+        summary: "Norwegian-tuned model by NB AI-Lab. Better accuracy, larger download.",
+        fileName: "nb-whisper-medium.bin",
+        sourceURL: URL(string: "https://huggingface.co/NbAiLab/nb-whisper-medium/resolve/main/ggml-model.bin")!,
+        expectedSHA256Hex: "f73141401d203ee77fc7ddf7bf97926a8a85fe85faa6066a6920e4815f48a73d",
+        expectedFileSizeBytes: 1_533_763_076
+    )
+
+    private static let nbWhisperLarge = TranscriptionModel(
+        id: "nb-whisper/large",
+        displayName: "NB-Whisper Large (Norwegian)",
+        summary: "Norwegian-tuned model by NB AI-Lab. Best accuracy for Norwegian speech.",
+        fileName: "nb-whisper-large.bin",
+        sourceURL: URL(string: "https://huggingface.co/NbAiLab/nb-whisper-large/resolve/main/ggml-model.bin")!,
+        expectedSHA256Hex: "0f2f66f22e11a7c7da3c582d8e5c89cb2c0011753ba9c7c9731e320a4ba33e76",
+        expectedFileSizeBytes: 3_095_033_483
+    )
+
     public static var all: [TranscriptionModel] {
-        var models = [baseModel]
+        var models = [baseModel, nbWhisperSmall, nbWhisperMedium, nbWhisperLarge]
         if isLargeModelEnabled {
             models.append(largeV3Turbo)
         }
