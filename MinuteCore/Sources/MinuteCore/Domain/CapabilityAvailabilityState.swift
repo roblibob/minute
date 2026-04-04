@@ -4,6 +4,7 @@ public enum CapabilityAvailabilityStatus: String, Sendable, Codable {
     case ready
     case needsConfiguration
     case daemonUnavailable
+    case serverUnavailable
     case modelMissing
     case unsupported
     case visionUnsupported
@@ -39,6 +40,7 @@ public struct InferenceTaskBinding: Sendable, Equatable, Codable {
     public var capabilityID: InferenceCapability
     public var providerID: InferenceProvider
     public var providerReference: String
+    public var connectionBaseURLString: String?
     public var capturedAt: Date
     public var supportsVisionInputs: Bool
 
@@ -46,12 +48,14 @@ public struct InferenceTaskBinding: Sendable, Equatable, Codable {
         capabilityID: InferenceCapability,
         providerID: InferenceProvider,
         providerReference: String,
+        connectionBaseURLString: String? = nil,
         capturedAt: Date = Date(),
         supportsVisionInputs: Bool
     ) {
         self.capabilityID = capabilityID
         self.providerID = providerID
         self.providerReference = providerReference
+        self.connectionBaseURLString = connectionBaseURLString
         self.capturedAt = capturedAt
         self.supportsVisionInputs = supportsVisionInputs
     }

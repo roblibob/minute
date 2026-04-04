@@ -6,40 +6,15 @@ struct TranscriptionLanguagePicker: View {
     @Binding var selection: TranscriptionLanguage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Transcription language")
-                .minuteRowTitle()
-
-            Menu {
-                ForEach(languages) { language in
-                    Button {
-                        selection = language
-                    } label: {
-                        if language == selection {
-                            Label(language.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(language.displayName)
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Text(selection.displayName)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .minuteDropdownStyle()
-            }
-            .menuStyle(.borderlessButton)
-
-            Text(captionText)
-                .minuteCaption()
-        }
+        SettingsMenuField(
+            title: "Transcription language",
+            subtitle: captionText,
+            options: languages,
+            selectionLabel: selection.displayName,
+            optionLabel: { $0.displayName },
+            isSelected: { $0 == selection },
+            onSelect: { selection = $0 }
+        )
     }
 
     private var captionText: String {

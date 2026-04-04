@@ -18,6 +18,7 @@ struct MainSettingsView: View {
             Divider()
             detail
         }
+        .background(MinuteTheme.windowBackground)
         .onAppear {
             selection = resolvedSelection(candidate: SettingsCategoryDefinition.ID(rawValue: lastCategoryIDRaw))
         }
@@ -47,7 +48,7 @@ struct MainSettingsView: View {
                         }
                     case .speakers:
                         Form {
-                            KnownSpeakersSettingsSection(mode: .manage)
+                            KnownSpeakersSettingsSection()
                         }
                     case .privacy:
                         Form {
@@ -77,11 +78,12 @@ struct MainSettingsView: View {
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(.top, 8)
+        .padding(.top, 12)
+        .background(MinuteTheme.windowBackground)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -95,17 +97,18 @@ struct MainSettingsView: View {
         .accessibilityLabel("Settings categories")
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
-        .frame(width: 230)
+        .frame(width: 246)
+        .background(MinuteTheme.sidebarBackground)
     }
 
     private var settingsHeader: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(currentCategoryDefinition?.title ?? "Settings")
-                    .font(.title3.bold())
+                    .minuteSettingsHeaderTitle()
 
                 Text(currentCategoryDefinition?.description ?? "Adjust app preferences and behavior.")
-                    .minuteCaption()
+                    .minuteSettingsHeaderSubtitle()
             }
 
             Spacer()
@@ -121,8 +124,9 @@ struct MainSettingsView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Close Settings")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 6)
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
     }
 
     private var availableCategories: [SettingsCategoryDefinition] {

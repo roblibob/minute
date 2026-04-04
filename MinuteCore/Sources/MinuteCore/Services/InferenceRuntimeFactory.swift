@@ -1,18 +1,16 @@
 import Foundation
 
-public protocol OllamaModelDiscovering: Sendable {
-    func discoverModels() async throws -> OllamaDiscoverySnapshot
-    func validateModelTag(_ tag: String, for capability: InferenceCapability) async throws -> CapabilityAvailabilityState
-}
-
 public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding {
     public typealias BuiltInSummarizationBuilder =
         @Sendable (SummarizationModelSelectionStore, SummarizationContextWindowSelectionStore, SummarizationHardwareProfile) -> any SummarizationServicing
-    public typealias OllamaSummarizationBuilder = @Sendable (String) -> any SummarizationServicing
+    public typealias OllamaSummarizationBuilder = @Sendable (String, URL?) -> any SummarizationServicing
+    public typealias LMStudioSummarizationBuilder = @Sendable (String, URL?) -> any SummarizationServicing
     public typealias BuiltInVisionBuilder = @Sendable (VisionModelSelectionStore) -> any ScreenContextInferencing
-    public typealias OllamaVisionBuilder = @Sendable (String) -> any ScreenContextInferencing
+    public typealias OllamaVisionBuilder = @Sendable (String, URL?) -> any ScreenContextInferencing
+    public typealias LMStudioVisionBuilder = @Sendable (String, URL?) -> any ScreenContextInferencing
 
     private let providerStore: InferenceProviderSelectionStore
+    private let connectionStore: ProviderConnectionSettingsStore
     private let summarizationModelStore: SummarizationModelSelectionStore
     private let summarizationContextWindowStore: SummarizationContextWindowSelectionStore
     private let visionModelStore: VisionModelSelectionStore
@@ -20,24 +18,32 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
     private let dateProvider: @Sendable () -> Date
     private let builtInSummarizationBuilder: BuiltInSummarizationBuilder
     private let ollamaSummarizationBuilder: OllamaSummarizationBuilder
+    private let lmStudioSummarizationBuilder: LMStudioSummarizationBuilder
     private let builtInVisionBuilder: BuiltInVisionBuilder
     private let ollamaVisionBuilder: OllamaVisionBuilder
+    private let lmStudioVisionBuilder: LMStudioVisionBuilder
     private let ollamaModelDiscoverer: (any OllamaModelDiscovering)?
+    private let lmStudioModelDiscoverer: (any LMStudioModelDiscovering)?
 
     public init(
         providerStore: InferenceProviderSelectionStore = InferenceProviderSelectionStore(),
+        connectionStore: ProviderConnectionSettingsStore = ProviderConnectionSettingsStore(),
         summarizationModelStore: SummarizationModelSelectionStore = SummarizationModelSelectionStore(),
         summarizationContextWindowStore: SummarizationContextWindowSelectionStore = SummarizationContextWindowSelectionStore(),
         visionModelStore: VisionModelSelectionStore = VisionModelSelectionStore(),
         hardwareProfileProvider: @escaping @Sendable () -> SummarizationHardwareProfile = { .current() },
         dateProvider: @escaping @Sendable () -> Date = Date.init,
         builtInSummarizationBuilder: @escaping BuiltInSummarizationBuilder = { _, _, _ in MissingSummarizationService() },
-        ollamaSummarizationBuilder: @escaping OllamaSummarizationBuilder = { _ in MissingSummarizationService() },
+        ollamaSummarizationBuilder: @escaping OllamaSummarizationBuilder = { _, _ in MissingSummarizationService() },
+        lmStudioSummarizationBuilder: @escaping LMStudioSummarizationBuilder = { _, _ in MissingSummarizationService() },
         builtInVisionBuilder: @escaping BuiltInVisionBuilder = { _ in MissingScreenContextInferenceService() },
-        ollamaVisionBuilder: @escaping OllamaVisionBuilder = { _ in MissingScreenContextInferenceService() },
-        ollamaModelDiscoverer: (any OllamaModelDiscovering)? = nil
+        ollamaVisionBuilder: @escaping OllamaVisionBuilder = { _, _ in MissingScreenContextInferenceService() },
+        lmStudioVisionBuilder: @escaping LMStudioVisionBuilder = { _, _ in MissingScreenContextInferenceService() },
+        ollamaModelDiscoverer: (any OllamaModelDiscovering)? = nil,
+        lmStudioModelDiscoverer: (any LMStudioModelDiscovering)? = nil
     ) {
         self.providerStore = providerStore
+        self.connectionStore = connectionStore
         self.summarizationModelStore = summarizationModelStore
         self.summarizationContextWindowStore = summarizationContextWindowStore
         self.visionModelStore = visionModelStore
@@ -45,9 +51,12 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
         self.dateProvider = dateProvider
         self.builtInSummarizationBuilder = builtInSummarizationBuilder
         self.ollamaSummarizationBuilder = ollamaSummarizationBuilder
+        self.lmStudioSummarizationBuilder = lmStudioSummarizationBuilder
         self.builtInVisionBuilder = builtInVisionBuilder
         self.ollamaVisionBuilder = ollamaVisionBuilder
+        self.lmStudioVisionBuilder = lmStudioVisionBuilder
         self.ollamaModelDiscoverer = ollamaModelDiscoverer
+        self.lmStudioModelDiscoverer = lmStudioModelDiscoverer
     }
 
     public func resolveBinding(for capability: InferenceCapability) throws -> InferenceTaskBinding {
@@ -59,6 +68,7 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
                 capabilityID: capability,
                 providerID: provider,
                 providerReference: model.id,
+                connectionBaseURLString: nil,
                 capturedAt: dateProvider(),
                 supportsVisionInputs: false
             )
@@ -71,6 +81,7 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
                 capabilityID: capability,
                 providerID: provider,
                 providerReference: model.id,
+                connectionBaseURLString: nil,
                 capturedAt: dateProvider(),
                 supportsVisionInputs: true
             )
@@ -82,6 +93,19 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
                 capabilityID: capability,
                 providerID: provider,
                 providerReference: tag,
+                connectionBaseURLString: connectionStore.selectedBaseURLString(for: .ollama),
+                capturedAt: dateProvider(),
+                supportsVisionInputs: capability == .vision
+            )
+        case (_, .lmStudio):
+            guard let identifier = providerStore.selectedLMStudioModelIdentifier(for: capability), !identifier.isEmpty else {
+                throw MinuteError.modelMissing
+            }
+            return InferenceTaskBinding(
+                capabilityID: capability,
+                providerID: provider,
+                providerReference: identifier,
+                connectionBaseURLString: connectionStore.selectedBaseURLString(for: .lmStudio),
                 capturedAt: dateProvider(),
                 supportsVisionInputs: capability == .vision
             )
@@ -105,7 +129,9 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
                 hardwareProfileProvider()
             )
         case .ollama:
-            return ollamaSummarizationBuilder(binding.providerReference)
+            return ollamaSummarizationBuilder(binding.providerReference, resolvedConnectionURL(for: binding))
+        case .lmStudio:
+            return lmStudioSummarizationBuilder(binding.providerReference, resolvedConnectionURL(for: binding))
         }
     }
 
@@ -122,7 +148,9 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
         case .builtIn:
             return builtInVisionBuilder(visionModelStore)
         case .ollama:
-            return ollamaVisionBuilder(binding.providerReference)
+            return ollamaVisionBuilder(binding.providerReference, resolvedConnectionURL(for: binding))
+        case .lmStudio:
+            return lmStudioVisionBuilder(binding.providerReference, resolvedConnectionURL(for: binding))
         }
     }
 
@@ -135,7 +163,7 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
                 ),
                 reservedOutputTokens: 1_024
             )
-        case .ollama:
+        case .ollama, .lmStudio:
             return .default
         }
     }
@@ -197,6 +225,44 @@ public struct InferenceRuntimeFactory: Sendable, CapabilityAvailabilityProviding
                 )
             }
             return try await ollamaModelDiscoverer.validateModelTag(trimmedTag, for: capability)
+        case (_, .lmStudio):
+            let trimmedIdentifier = providerStore.selectedLMStudioModelIdentifier(for: capability)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !trimmedIdentifier.isEmpty else {
+                return CapabilityAvailabilityState(
+                    capabilityID: capability,
+                    providerID: provider,
+                    isReady: false,
+                    status: .needsConfiguration,
+                    message: "Choose an LM Studio model for \(capability.displayName.lowercased()).",
+                    selectedReference: nil
+                )
+            }
+            guard let lmStudioModelDiscoverer else {
+                return CapabilityAvailabilityState(
+                    capabilityID: capability,
+                    providerID: provider,
+                    isReady: false,
+                    status: .unknown,
+                    message: "LM Studio validation is unavailable.",
+                    selectedReference: trimmedIdentifier
+                )
+            }
+            return try await lmStudioModelDiscoverer.validateModelIdentifier(trimmedIdentifier, for: capability)
+        }
+    }
+
+    private func resolvedConnectionURL(for binding: InferenceTaskBinding) -> URL? {
+        if let connectionBaseURLString = binding.connectionBaseURLString,
+           let url = URL(string: connectionBaseURLString) {
+            return url
+        }
+
+        switch binding.providerID {
+        case .builtIn:
+            return nil
+        case .ollama, .lmStudio:
+            return connectionStore.selectedBaseURL(for: binding.providerID)
         }
     }
 }

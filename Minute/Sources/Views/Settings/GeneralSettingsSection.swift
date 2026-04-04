@@ -47,18 +47,16 @@ struct GeneralSettingsSection: View {
             }
 
             Section("Language & Translation") {
-                Picker("Output language", selection: outputLanguageBinding) {
-                    ForEach(OutputLanguage.allCases, id: \.self) { language in
-                        Text(language.displayName).tag(language)
-                    }
-                }
-                .pickerStyle(.menu)
-
-                Text("Used when session language processing is set to Auto -> Picked language.")
-                    .minuteCaption()
+                SettingsMenuField(
+                    title: "Output language",
+                    subtitle: "Used when session language processing is set to Auto -> Picked language.",
+                    options: OutputLanguage.allCases,
+                    selectionLabel: outputLanguageBinding.wrappedValue.displayName,
+                    optionLabel: { $0.displayName },
+                    isSelected: { $0 == outputLanguageBinding.wrappedValue },
+                    onSelect: { outputLanguageBinding.wrappedValue = $0 }
+                )
             }
-
-            KnownSpeakersSettingsSection(mode: .toggleOnly)
         }
     }
 }

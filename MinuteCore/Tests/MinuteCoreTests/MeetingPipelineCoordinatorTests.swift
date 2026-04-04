@@ -284,8 +284,9 @@ struct MeetingPipelineCoordinatorTests {
             summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults),
             summarizationContextWindowStore: SummarizationContextWindowSelectionStore(defaults: defaults),
             visionModelStore: VisionModelSelectionStore(defaults: defaults),
-            ollamaSummarizationBuilder: { tag in
+            ollamaSummarizationBuilder: { tag, baseURL in
                 #expect(tag == "phi4-mini")
+                #expect(baseURL?.absoluteString == AppConfiguration.Defaults.defaultOllamaBaseURL)
                 return TestSummarizationService(
                     summarizationJSON: validExtractionJSON(title: "Ollama", date: "2025-01-12"),
                     repairJSON: validExtractionJSON(title: "Ollama", date: "2025-01-12")

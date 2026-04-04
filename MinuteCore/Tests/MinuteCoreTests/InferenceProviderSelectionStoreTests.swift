@@ -12,6 +12,8 @@ struct InferenceProviderSelectionStoreTests {
         #expect(store.selectedProvider(for: .vision) == .builtIn)
         #expect(store.selectedOllamaModelTag(for: .summarization) == nil)
         #expect(store.selectedOllamaModelTag(for: .vision) == nil)
+        #expect(store.selectedLMStudioModelIdentifier(for: .summarization) == nil)
+        #expect(store.selectedLMStudioModelIdentifier(for: .vision) == nil)
     }
 
     @Test
@@ -40,6 +42,22 @@ struct InferenceProviderSelectionStoreTests {
         store.setSelectedOllamaModelTag("   ", for: .vision)
         #expect(store.selectedOllamaModelTag(for: .vision) == nil)
         #expect(store.selectedOllamaModelTag(for: .summarization) == "llama3.2")
+    }
+
+    @Test
+    func persistsAndNormalizesLMStudioIdentifiersIndependently() {
+        let defaults = makeDefaults()
+        let store = InferenceProviderSelectionStore(defaults: defaults)
+
+        store.setSelectedLMStudioModelIdentifier("  qwen2.5-7b-instruct  ", for: .summarization)
+        store.setSelectedLMStudioModelIdentifier(" qwen2.5-vl ", for: .vision)
+
+        #expect(store.selectedLMStudioModelIdentifier(for: .summarization) == "qwen2.5-7b-instruct")
+        #expect(store.selectedLMStudioModelIdentifier(for: .vision) == "qwen2.5-vl")
+
+        store.setSelectedLMStudioModelIdentifier("  ", for: .vision)
+        #expect(store.selectedLMStudioModelIdentifier(for: .vision) == nil)
+        #expect(store.selectedLMStudioModelIdentifier(for: .summarization) == "qwen2.5-7b-instruct")
     }
 
     private func makeDefaults() -> UserDefaults {

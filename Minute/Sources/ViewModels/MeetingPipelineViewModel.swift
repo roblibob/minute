@@ -6,6 +6,7 @@ import Combine
 import Foundation
 import MinuteCore
 import MinuteLlama
+import MinuteLMStudio
 import MinuteOllama
 import MinuteWhisper
 import os
@@ -551,7 +552,7 @@ final class MeetingPipelineViewModel: ObservableObject {
     static func live() -> MeetingPipelineViewModel {
         let defaults = UserDefaults.standard
         let providerStore = InferenceProviderSelectionStore(defaults: defaults)
-        let ollamaEndpointStore = OllamaEndpointSettingsStore(defaults: defaults)
+        let connectionStore = ProviderConnectionSettingsStore(defaults: defaults)
         let selectionStore = SummarizationModelSelectionStore(defaults: defaults)
         let contextWindowStore = SummarizationContextWindowSelectionStore(defaults: defaults)
         let visionModelStore = VisionModelSelectionStore(defaults: defaults)
@@ -560,13 +561,20 @@ final class MeetingPipelineViewModel: ObservableObject {
         let transcriptionBackendStore = TranscriptionBackendSelectionStore(defaults: defaults)
         let fluidAudioModelStore = FluidAudioASRModelSelectionStore(defaults: defaults)
         let ollamaModelDiscovererProvider: @Sendable () -> (any OllamaModelDiscovering)? = {
-            guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+            guard let baseURL = connectionStore.selectedBaseURL(for: .ollama) else {
                 return nil
             }
             return OllamaModelDiscoveryService(client: OllamaAPIClient(baseURL: baseURL))
         }
+        let lmStudioModelDiscovererProvider: @Sendable () -> (any LMStudioModelDiscovering)? = {
+            guard let baseURL = connectionStore.selectedBaseURL(for: .lmStudio) else {
+                return nil
+            }
+            return LMStudioModelDiscoveryService(client: LMStudioAPIClient(baseURL: baseURL))
+        }
         let runtimeFactory = InferenceRuntimeFactory(
             providerStore: providerStore,
+            connectionStore: connectionStore,
             summarizationModelStore: selectionStore,
             summarizationContextWindowStore: contextWindowStore,
             visionModelStore: visionModelStore,
@@ -578,8 +586,8 @@ final class MeetingPipelineViewModel: ObservableObject {
                     hardwareProfile: profile
                 )
             },
-            ollamaSummarizationBuilder: { tag in
-                guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+            ollamaSummarizationBuilder: { tag, baseURL in
+                guard let baseURL else {
                     return ErrorSummarizationService(
                         error: .llamaFailed(exitCode: -1, output: "Invalid Ollama base URL")
                     )
@@ -587,6 +595,17 @@ final class MeetingPipelineViewModel: ObservableObject {
                 return OllamaSummarizationService(
                     modelTag: tag,
                     client: OllamaAPIClient(baseURL: baseURL)
+                )
+            },
+            lmStudioSummarizationBuilder: { identifier, baseURL in
+                guard let baseURL else {
+                    return ErrorSummarizationService(
+                        error: .llamaFailed(exitCode: -1, output: "Invalid LM Studio base URL")
+                    )
+                }
+                return LMStudioSummarizationService(
+                    modelIdentifier: identifier,
+                    client: LMStudioAPIClient(baseURL: baseURL)
                 )
             },
             builtInVisionBuilder: { store in
@@ -601,8 +620,8 @@ final class MeetingPipelineViewModel: ObservableObject {
                     )
                 )
             },
-            ollamaVisionBuilder: { tag in
-                guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+            ollamaVisionBuilder: { tag, baseURL in
+                guard let baseURL else {
                     return ErrorScreenContextInferenceService(
                         error: .llamaMTMDFailed(exitCode: -1, output: "Invalid Ollama base URL")
                     )
@@ -612,7 +631,19 @@ final class MeetingPipelineViewModel: ObservableObject {
                     client: OllamaAPIClient(baseURL: baseURL)
                 )
             },
-            ollamaModelDiscoverer: ollamaModelDiscovererProvider()
+            lmStudioVisionBuilder: { identifier, baseURL in
+                guard let baseURL else {
+                    return ErrorScreenContextInferenceService(
+                        error: .llamaMTMDFailed(exitCode: -1, output: "Invalid LM Studio base URL")
+                    )
+                }
+                return LMStudioVisionInferenceService(
+                    modelIdentifier: identifier,
+                    client: LMStudioAPIClient(baseURL: baseURL)
+                )
+            },
+            ollamaModelDiscoverer: ollamaModelDiscovererProvider(),
+            lmStudioModelDiscoverer: lmStudioModelDiscovererProvider()
         )
         let activeVisionBindingStore = ActiveVisionBindingStore()
         let liveScreenContextInferencerProvider = makeLiveScreenContextInferencerProvider(
@@ -686,7 +717,7 @@ final class MeetingPipelineViewModel: ObservableObject {
                         ),
                         reservedOutputTokens: 1_024
                     )
-                case .ollama:
+                case .ollama, .lmStudio:
                     return .default
                 }
             }
@@ -718,6 +749,13 @@ final class MeetingPipelineViewModel: ObservableObject {
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                    !tag.isEmpty {
                     return try await ollamaModelDiscoverer.validateModelTag(tag, for: .vision)
+                }
+                if let lmStudioModelDiscoverer = lmStudioModelDiscovererProvider(),
+                   providerStore.selectedProvider(for: .vision) == .lmStudio,
+                   let identifier = providerStore.selectedLMStudioModelIdentifier(for: .vision)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !identifier.isEmpty {
+                    return try await lmStudioModelDiscoverer.validateModelIdentifier(identifier, for: .vision)
                 }
                 return try await runtimeFactory.availability(for: .vision)
             },
@@ -851,6 +889,15 @@ final class MeetingPipelineViewModel: ObservableObject {
             cancelProcessingIfAllowed()
         case .reset:
             resetIfAllowed()
+        }
+    }
+
+    func dismissCloseableStatus() {
+        switch state {
+        case .done, .failed:
+            send(.reset)
+        default:
+            break
         }
     }
 
@@ -1673,8 +1720,17 @@ final class MeetingPipelineViewModel: ObservableObject {
 
     private func handleScreenContextLifecycleEvent(_ event: ScreenContextLifecycleEvent) {
         guard case .recording(let session) = state else { return }
-        guard event.type == .sharedWindowClosed else { return }
-        beginScreenContextAutoStopWarning(session: session, windowTitle: event.windowTitle)
+        switch event.type {
+        case .sharedWindowClosed:
+            beginScreenContextAutoStopWarning(session: session, windowTitle: event.windowTitle)
+        case .inferenceUnavailable:
+            Task { @MainActor [weak self] in
+                await self?.handleScreenContextInferenceUnavailable(
+                    session: session,
+                    message: event.message
+                )
+            }
+        }
     }
 
     func _testHandleScreenContextLifecycleEvent(_ event: ScreenContextLifecycleEvent) {
@@ -1796,11 +1852,32 @@ final class MeetingPipelineViewModel: ObservableObject {
         }
 
         do {
-            return try await screenContextVideoExtractor.inferEvents(from: sourceURL)
+            let result = try await screenContextVideoExtractor.inferEvents(from: sourceURL)
+            if let terminalFailureMessage = result?.terminalFailureMessage {
+                logger.info(
+                    "Video screen context stopped after terminal failure: \(terminalFailureMessage, privacy: .private(mask: .hash))"
+                )
+            }
+            return result
         } catch {
             logger.error("Video screen context failed: \(ErrorHandler.debugMessage(for: error), privacy: .private(mask: .hash))")
             return nil
         }
+    }
+
+    private func handleScreenContextInferenceUnavailable(
+        session: RecordingSession,
+        message: String?
+    ) async {
+        _ = await stopScreenContextCaptureAndAppend()
+        screenCaptureEnabled = false
+        latestScreenCaptureImage = nil
+        activeVisionBindingStore.set(nil)
+        await clearScreenContextAutoStopWarning()
+        await presentScreenContextConfigurationAlert(
+            sessionID: session.id,
+            message: message ?? "Screen context is unavailable for the selected vision configuration."
+        )
     }
 
     private func isVideoImportURL(_ url: URL) -> Bool {

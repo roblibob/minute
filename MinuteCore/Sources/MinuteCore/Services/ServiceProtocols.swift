@@ -350,6 +350,16 @@ public protocol ScreenContextInferencing: Sendable {
     func inferScreenContext(from imageData: Data, windowTitle: String) async throws -> ScreenContextInference
 }
 
+public protocol OllamaModelDiscovering: Sendable {
+    func discoverModels() async throws -> OllamaDiscoverySnapshot
+    func validateModelTag(_ tag: String, for capability: InferenceCapability) async throws -> CapabilityAvailabilityState
+}
+
+public protocol LMStudioModelDiscovering: Sendable {
+    func discoverModels() async throws -> LMStudioDiscoverySnapshot
+    func validateModelIdentifier(_ identifier: String, for capability: InferenceCapability) async throws -> CapabilityAvailabilityState
+}
+
 public protocol CapabilityAvailabilityProviding: Sendable {
     func availability(for capability: InferenceCapability) async throws -> CapabilityAvailabilityState
 }

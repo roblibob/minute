@@ -6,10 +6,16 @@ import os
 public struct ScreenContextVideoInferenceResult: Sendable, Equatable {
     public var events: [ScreenContextEvent]
     public var processedCount: Int
+    public var terminalFailureMessage: String?
 
-    public init(events: [ScreenContextEvent], processedCount: Int) {
+    public init(
+        events: [ScreenContextEvent],
+        processedCount: Int,
+        terminalFailureMessage: String? = nil
+    ) {
         self.events = events
         self.processedCount = processedCount
+        self.terminalFailureMessage = terminalFailureMessage
     }
 }
 
@@ -88,6 +94,18 @@ public final class ScreenContextVideoFrameExtractor: @unchecked Sendable {
                 }
                 processedCount += 1
             } catch {
+                if let terminalFailureMessage = ScreenContextInferenceFailurePolicy.terminalMessage(for: error) {
+                    let clippedMessage = String(terminalFailureMessage.prefix(240))
+                    logger.error(
+                        "Video screen inference disabled after terminal failure: \(clippedMessage, privacy: .private(mask: .hash))"
+                    )
+                    events.sort { $0.timestampSeconds < $1.timestampSeconds }
+                    return ScreenContextVideoInferenceResult(
+                        events: events,
+                        processedCount: processedCount,
+                        terminalFailureMessage: terminalFailureMessage
+                    )
+                }
                 logger.error("Video frame inference failed: \(ErrorHandler.debugMessage(for: error), privacy: .public)")
             }
 

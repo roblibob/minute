@@ -3,6 +3,7 @@ import Combine
 import CoreGraphics
 import Foundation
 import MinuteCore
+import MinuteLMStudio
 import MinuteOllama
 
 @MainActor
@@ -57,6 +58,7 @@ final class OnboardingViewModel: ObservableObject {
         status: .ready
     )
     @Published private(set) var ollamaDiscoverySnapshot: OllamaDiscoverySnapshot? = nil
+    @Published private(set) var lmStudioDiscoverySnapshot: LMStudioDiscoverySnapshot? = nil
     @Published private(set) var isRefreshingAvailability = false
     @Published var selectedSummarizationProviderID: String {
         didSet {
@@ -82,10 +84,27 @@ final class OnboardingViewModel: ObservableObject {
             refreshAvailability()
         }
     }
+    @Published var selectedSummarizationLMStudioModelIdentifier: String {
+        didSet {
+            guard oldValue != selectedSummarizationLMStudioModelIdentifier else { return }
+            inferenceProviderStore.setSelectedLMStudioModelIdentifier(
+                selectedSummarizationLMStudioModelIdentifier,
+                for: .summarization
+            )
+            refreshAvailability()
+        }
+    }
     @Published var selectedOllamaBaseURLString: String {
         didSet {
             guard oldValue != selectedOllamaBaseURLString else { return }
-            ollamaEndpointStore.setSelectedBaseURLString(selectedOllamaBaseURLString)
+            connectionStore.setSelectedBaseURLString(selectedOllamaBaseURLString, for: .ollama)
+            refreshAvailability()
+        }
+    }
+    @Published var selectedLMStudioBaseURLString: String {
+        didSet {
+            guard oldValue != selectedLMStudioBaseURLString else { return }
+            connectionStore.setSelectedBaseURLString(selectedLMStudioBaseURLString, for: .lmStudio)
             refreshAvailability()
         }
     }
@@ -128,6 +147,16 @@ final class OnboardingViewModel: ObservableObject {
             refreshAvailability()
         }
     }
+    @Published var selectedVisionLMStudioModelIdentifier: String {
+        didSet {
+            guard oldValue != selectedVisionLMStudioModelIdentifier else { return }
+            inferenceProviderStore.setSelectedLMStudioModelIdentifier(
+                selectedVisionLMStudioModelIdentifier,
+                for: .vision
+            )
+            refreshAvailability()
+        }
+    }
     @Published var selectedTranscriptionBackendID: String {
         didSet {
             guard oldValue != selectedTranscriptionBackendID else { return }
@@ -152,7 +181,7 @@ final class OnboardingViewModel: ObservableObject {
 
     private let defaults: UserDefaults
     private let inferenceProviderStore: InferenceProviderSelectionStore
-    private let ollamaEndpointStore: OllamaEndpointSettingsStore
+    private let connectionStore: ProviderConnectionSettingsStore
     private let summarizationModelStore: SummarizationModelSelectionStore
     private let summarizationContextWindowStore: SummarizationContextWindowSelectionStore
     private let screenContextSettingsStore: ScreenContextSettingsStore
@@ -164,6 +193,7 @@ final class OnboardingViewModel: ObservableObject {
     private let availabilityProvider: any CapabilityAvailabilityProviding
     private let usesCustomAvailabilityProvider: Bool
     private let providedOllamaModelDiscoverer: (any OllamaModelDiscovering)?
+    private let providedLMStudioModelDiscoverer: (any LMStudioModelDiscovering)?
 
     private var defaultsObserver: AnyCancellable?
     private var observedVaultBookmark: Data?
@@ -180,7 +210,7 @@ final class OnboardingViewModel: ObservableObject {
         modelManager: (any ModelManaging)? = nil,
         defaults: UserDefaults = .standard,
         inferenceProviderStore: InferenceProviderSelectionStore? = nil,
-        ollamaEndpointStore: OllamaEndpointSettingsStore? = nil,
+        connectionStore: ProviderConnectionSettingsStore? = nil,
         summarizationModelStore: SummarizationModelSelectionStore? = nil,
         summarizationContextWindowStore: SummarizationContextWindowSelectionStore? = nil,
         screenContextSettingsStore: ScreenContextSettingsStore? = nil,
@@ -189,10 +219,11 @@ final class OnboardingViewModel: ObservableObject {
         transcriptionBackendStore: TranscriptionBackendSelectionStore? = nil,
         fluidAudioModelStore: FluidAudioASRModelSelectionStore? = nil,
         availabilityProvider: (any CapabilityAvailabilityProviding)? = nil,
-        ollamaModelDiscoverer: (any OllamaModelDiscovering)? = nil
+        ollamaModelDiscoverer: (any OllamaModelDiscovering)? = nil,
+        lmStudioModelDiscoverer: (any LMStudioModelDiscovering)? = nil
     ) {
         let providerStore = inferenceProviderStore ?? InferenceProviderSelectionStore(defaults: defaults)
-        let endpointStore = ollamaEndpointStore ?? OllamaEndpointSettingsStore(defaults: defaults)
+        let resolvedConnectionStore = connectionStore ?? ProviderConnectionSettingsStore(defaults: defaults)
         let store = summarizationModelStore ?? SummarizationModelSelectionStore(defaults: defaults)
         let contextStore = summarizationContextWindowStore ?? SummarizationContextWindowSelectionStore(defaults: defaults)
         let screenContextStore = screenContextSettingsStore ?? ScreenContextSettingsStore(defaults: defaults)
@@ -210,7 +241,7 @@ final class OnboardingViewModel: ObservableObject {
         )
         self.defaults = defaults
         self.inferenceProviderStore = providerStore
-        self.ollamaEndpointStore = endpointStore
+        self.connectionStore = resolvedConnectionStore
         self.summarizationModelStore = store
         self.summarizationContextWindowStore = contextStore
         self.screenContextSettingsStore = screenContextStore
@@ -219,9 +250,11 @@ final class OnboardingViewModel: ObservableObject {
         self.transcriptionBackendStore = backendStore
         self.fluidAudioModelStore = fluidStore
         self.providedOllamaModelDiscoverer = ollamaModelDiscoverer
+        self.providedLMStudioModelDiscoverer = lmStudioModelDiscoverer
         self.usesCustomAvailabilityProvider = availabilityProvider != nil
         self.availabilityProvider = availabilityProvider ?? InferenceRuntimeFactory(
             providerStore: providerStore,
+            connectionStore: resolvedConnectionStore,
             summarizationModelStore: store,
             summarizationContextWindowStore: contextStore,
             visionModelStore: visionStore
@@ -238,7 +271,9 @@ final class OnboardingViewModel: ObservableObject {
             store.setSelectedModelID(selectedModel.id)
         }
         self.selectedSummarizationOllamaModelTag = providerStore.selectedOllamaModelTag(for: .summarization) ?? ""
-        self.selectedOllamaBaseURLString = endpointStore.selectedBaseURLString()
+        self.selectedSummarizationLMStudioModelIdentifier = providerStore.selectedLMStudioModelIdentifier(for: .summarization) ?? ""
+        self.selectedOllamaBaseURLString = resolvedConnectionStore.selectedBaseURLString(for: .ollama)
+        self.selectedLMStudioBaseURLString = resolvedConnectionStore.selectedBaseURLString(for: .lmStudio)
         self.selectedSummarizationContextWindowPreset = contextStore.selectedPreset()
         self.screenContextEnabled = screenContextStore.isEnabled
         let selectedVisionProvider = providerStore.selectedProvider(for: .vision)
@@ -249,6 +284,7 @@ final class OnboardingViewModel: ObservableObject {
             visionStore.setSelectedModelID(selectedVisionModel.id)
         }
         self.selectedVisionOllamaModelTag = providerStore.selectedOllamaModelTag(for: .vision) ?? ""
+        self.selectedVisionLMStudioModelIdentifier = providerStore.selectedLMStudioModelIdentifier(for: .vision) ?? ""
         let selectedBackend = backendStore.selectedBackend()
         self.selectedTranscriptionBackendID = selectedBackend.id
         if backendStore.selectedBackendID() != selectedBackend.id {
@@ -347,12 +383,24 @@ final class OnboardingViewModel: ObservableObject {
         selectedSummarizationProviderID == InferenceProvider.ollama.rawValue
     }
 
+    var usesLMStudioForSummarization: Bool {
+        selectedSummarizationProviderID == InferenceProvider.lmStudio.rawValue
+    }
+
     var usesOllamaForScreenContext: Bool {
         selectedVisionProviderID == InferenceProvider.ollama.rawValue
     }
 
+    var usesLMStudioForScreenContext: Bool {
+        selectedVisionProviderID == InferenceProvider.lmStudio.rawValue
+    }
+
     var ollamaDiscoveredModelTags: [String] {
         ollamaDiscoverySnapshot?.models.map(\.tag) ?? []
+    }
+
+    var lmStudioDiscoveredModelIdentifiers: [String] {
+        lmStudioDiscoverySnapshot?.models.map(\.identifier) ?? []
     }
 
     var transcriptionSetupReady: Bool {
@@ -364,7 +412,7 @@ final class OnboardingViewModel: ObservableObject {
 
     var summarizationStageReady: Bool {
         guard summarizationConfigurationReady else { return false }
-        if usesOllamaForSummarization {
+        if usesOllamaForSummarization || usesLMStudioForSummarization {
             return summarizationAvailabilityState.isReady
         }
         return true
@@ -373,7 +421,7 @@ final class OnboardingViewModel: ObservableObject {
     var screenContextStageReady: Bool {
         guard screenContextEnabled else { return true }
         guard visionConfigurationReady else { return false }
-        if usesOllamaForScreenContext {
+        if usesOllamaForScreenContext || usesLMStudioForScreenContext {
             return visionAvailabilityState.isReady
         }
         return true
@@ -383,8 +431,16 @@ final class OnboardingViewModel: ObservableObject {
         usesOllamaForSummarization
     }
 
+    var showsLMStudioEndpointConfigurationForSummarization: Bool {
+        usesLMStudioForSummarization
+    }
+
     var showsOllamaEndpointConfigurationForScreenContext: Bool {
         usesOllamaForScreenContext
+    }
+
+    var showsLMStudioEndpointConfigurationForScreenContext: Bool {
+        usesLMStudioForScreenContext
     }
 
     var transcriptionBackends: [TranscriptionBackend] {
@@ -429,7 +485,7 @@ final class OnboardingViewModel: ObservableObject {
         case .transcription:
             return "Start by choosing your transcription backend and local transcription model."
         case .summarization:
-            return "Choose the summarization provider that fits your workflow: built-in for simplicity or Ollama for advanced control."
+            return "Choose the summarization provider that fits your workflow: built-in for simplicity, or Ollama and LM Studio for advanced local control."
         case .screenContext:
             return "Screen context is optional. Turn it on only if you want Minute to use selected window content while summarizing."
         default:
@@ -494,7 +550,10 @@ final class OnboardingViewModel: ObservableObject {
         availabilityTask?.cancel()
         let usesOllamaForSummarization = selectedSummarizationProviderID == InferenceProvider.ollama.rawValue
         let usesOllamaForVision = selectedVisionProviderID == InferenceProvider.ollama.rawValue
+        let usesLMStudioForSummarization = selectedSummarizationProviderID == InferenceProvider.lmStudio.rawValue
+        let usesLMStudioForVision = selectedVisionProviderID == InferenceProvider.lmStudio.rawValue
         let shouldDiscoverOllama = usesOllamaForSummarization || usesOllamaForVision
+        let shouldDiscoverLMStudio = usesLMStudioForSummarization || usesLMStudioForVision
         availabilityTask = Task { [weak self] in
             guard let self else { return }
             await MainActor.run {
@@ -510,6 +569,12 @@ final class OnboardingViewModel: ObservableObject {
             } else {
                 snapshot = nil
             }
+            let lmStudioSnapshot: LMStudioDiscoverySnapshot?
+            if shouldDiscoverLMStudio {
+                lmStudioSnapshot = try? await self.discoverLMStudioModels()
+            } else {
+                lmStudioSnapshot = nil
+            }
 
             do {
                 let summarizationState = try await summarization
@@ -519,6 +584,7 @@ final class OnboardingViewModel: ObservableObject {
                     self.summarizationAvailabilityState = summarizationState
                     self.visionAvailabilityState = visionState
                     self.ollamaDiscoverySnapshot = snapshot
+                    self.lmStudioDiscoverySnapshot = lmStudioSnapshot
                     self.isRefreshingAvailability = false
                     self.updateCurrentStepIfNeeded()
                 }
@@ -527,12 +593,19 @@ final class OnboardingViewModel: ObservableObject {
                 await MainActor.run {
                     self.isRefreshingAvailability = false
                     if usesOllamaForSummarization {
-                        self.summarizationAvailabilityState = Self.unavailableState(for: .summarization)
+                        self.summarizationAvailabilityState = Self.unavailableState(for: .summarization, provider: .ollama)
                     }
                     if usesOllamaForVision {
-                        self.visionAvailabilityState = Self.unavailableState(for: .vision)
+                        self.visionAvailabilityState = Self.unavailableState(for: .vision, provider: .ollama)
+                    }
+                    if usesLMStudioForSummarization {
+                        self.summarizationAvailabilityState = Self.unavailableState(for: .summarization, provider: .lmStudio)
+                    }
+                    if usesLMStudioForVision {
+                        self.visionAvailabilityState = Self.unavailableState(for: .vision, provider: .lmStudio)
                     }
                     self.ollamaDiscoverySnapshot = snapshot
+                    self.lmStudioDiscoverySnapshot = lmStudioSnapshot
                     self.updateCurrentStepIfNeeded()
                 }
             }
@@ -719,6 +792,8 @@ final class OnboardingViewModel: ObservableObject {
             return !selectedSummarizationModelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .ollama:
             return !selectedSummarizationOllamaModelTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .lmStudio:
+            return !selectedSummarizationLMStudioModelIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -730,6 +805,8 @@ final class OnboardingViewModel: ObservableObject {
             return !selectedVisionModelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .ollama:
             return !selectedVisionOllamaModelTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .lmStudio:
+            return !selectedVisionLMStudioModelIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -748,25 +825,57 @@ final class OnboardingViewModel: ObservableObject {
         defaults.set(true, forKey: DefaultsKey.didCompleteOnboarding)
     }
 
-    private static func unavailableState(for capability: InferenceCapability) -> CapabilityAvailabilityState {
-        CapabilityAvailabilityState(
+    private static func unavailableState(
+        for capability: InferenceCapability,
+        provider: InferenceProvider
+    ) -> CapabilityAvailabilityState {
+        let message: String
+        let status: CapabilityAvailabilityStatus
+        switch provider {
+        case .builtIn:
+            message = "Provider status is unavailable."
+            status = .unknown
+        case .ollama:
+            message = "Ollama is unavailable. Start the local daemon and refresh."
+            status = .daemonUnavailable
+        case .lmStudio:
+            message = "LM Studio is unavailable. Start the local server and refresh."
+            status = .serverUnavailable
+        }
+        return CapabilityAvailabilityState(
             capabilityID: capability,
-            providerID: .ollama,
+            providerID: provider,
             isReady: false,
-            status: .daemonUnavailable,
-            message: "Ollama is unavailable. Start the local daemon and refresh.",
+            status: status,
+            message: message,
             selectedReference: nil
         )
     }
 
-    private func invalidEndpointState(for capability: InferenceCapability) -> CapabilityAvailabilityState {
-        CapabilityAvailabilityState(
+    private func invalidEndpointState(
+        for capability: InferenceCapability,
+        provider: InferenceProvider
+    ) -> CapabilityAvailabilityState {
+        let message: String
+        let selectedReference: String
+        switch provider {
+        case .builtIn:
+            message = "Provider configuration is invalid."
+            selectedReference = ""
+        case .ollama:
+            message = "Enter a valid Ollama base URL such as \(AppConfiguration.Defaults.defaultOllamaBaseURL)."
+            selectedReference = selectedOllamaBaseURLString
+        case .lmStudio:
+            message = "Enter a valid LM Studio base URL such as \(AppConfiguration.Defaults.defaultLMStudioBaseURL)."
+            selectedReference = selectedLMStudioBaseURLString
+        }
+        return CapabilityAvailabilityState(
             capabilityID: capability,
-            providerID: .ollama,
+            providerID: provider,
             isReady: false,
             status: .needsConfiguration,
-            message: "Enter a valid Ollama base URL such as \(AppConfiguration.Defaults.defaultOllamaBaseURL).",
-            selectedReference: selectedOllamaBaseURLString
+            message: message,
+            selectedReference: selectedReference
         )
     }
 
@@ -780,10 +889,16 @@ final class OnboardingViewModel: ObservableObject {
             return try await availabilityProvider.availability(for: capability)
         case .ollama:
             guard let discoverer = makeOllamaModelDiscoverer() else {
-                return invalidEndpointState(for: capability)
+                return invalidEndpointState(for: capability, provider: .ollama)
             }
             let tag = inferenceProviderStore.selectedOllamaModelTag(for: capability) ?? ""
             return try await discoverer.validateModelTag(tag, for: capability)
+        case .lmStudio:
+            guard let discoverer = makeLMStudioModelDiscoverer() else {
+                return invalidEndpointState(for: capability, provider: .lmStudio)
+            }
+            let identifier = inferenceProviderStore.selectedLMStudioModelIdentifier(for: capability) ?? ""
+            return try await discoverer.validateModelIdentifier(identifier, for: capability)
         }
     }
 
@@ -801,9 +916,29 @@ final class OnboardingViewModel: ObservableObject {
         if let providedOllamaModelDiscoverer {
             return providedOllamaModelDiscoverer
         }
-        guard let baseURL = ollamaEndpointStore.selectedBaseURL() else {
+        guard let baseURL = connectionStore.selectedBaseURL(for: .ollama) else {
             return nil
         }
         return OllamaModelDiscoveryService(client: OllamaAPIClient(baseURL: baseURL))
+    }
+
+    private func discoverLMStudioModels() async throws -> LMStudioDiscoverySnapshot {
+        guard let discoverer = makeLMStudioModelDiscoverer() else {
+            return LMStudioDiscoverySnapshot(
+                serverReachable: false,
+                failureReason: "Enter a valid LM Studio base URL such as \(AppConfiguration.Defaults.defaultLMStudioBaseURL)."
+            )
+        }
+        return try await discoverer.discoverModels()
+    }
+
+    private func makeLMStudioModelDiscoverer() -> (any LMStudioModelDiscovering)? {
+        if let providedLMStudioModelDiscoverer {
+            return providedLMStudioModelDiscoverer
+        }
+        guard let baseURL = connectionStore.selectedBaseURL(for: .lmStudio) else {
+            return nil
+        }
+        return LMStudioModelDiscoveryService(client: LMStudioAPIClient(baseURL: baseURL))
     }
 }

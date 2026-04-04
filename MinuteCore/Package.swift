@@ -26,9 +26,13 @@ let package = Package(
             name: "MinuteOllama",
             targets: ["MinuteOllama"]
         ),
+        .library(
+            name: "MinuteLMStudio",
+            targets: ["MinuteLMStudio"]
+        ),
     ],
     dependencies: [
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", revision: "d19ce5a81af0a55d43892df53012e4a2b07c69b1"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", revision: "e5c6456dd9cbbd6bcdc3aeefbddfcd483c5d3ca6"),
     ],
     targets: [
         // Precompiled whisper.cpp XCFramework (downloaded from ggml-org/whisper.cpp releases).
@@ -61,11 +65,16 @@ let package = Package(
             name: "MinuteOllama",
             dependencies: ["MinuteCore"]
         ),
+        .target(
+            name: "MinuteLMStudio",
+            dependencies: ["MinuteCore"]
+        ),
         .testTarget(
             name: "MinuteCoreTests",
             dependencies: [
                 "MinuteCore",
                 "MinuteOllama",
+                "MinuteLMStudio",
             ],
             resources: [
                 .process("Fixtures/Transcript"),

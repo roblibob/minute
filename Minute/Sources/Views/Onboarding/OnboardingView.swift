@@ -184,6 +184,18 @@ struct OnboardingView: View {
                 }
             }
 
+            if model.showsLMStudioEndpointConfigurationForSummarization {
+                SettingsFieldBlock(
+                    title: "LM Studio base URL",
+                    subtitle: "Use the full LM Studio endpoint, including protocol and port."
+                ) {
+                    SettingsSingleLineInput(
+                        text: $model.selectedLMStudioBaseURLString,
+                        placeholder: AppConfiguration.Defaults.defaultLMStudioBaseURL
+                    )
+                }
+            }
+
             if model.usesOllamaForSummarization {
                 SettingsFieldBlock(
                     title: "Ollama model tag",
@@ -198,7 +210,27 @@ struct OnboardingView: View {
                 InferenceCapabilityStatusView(
                     title: "Summarization validation",
                     state: model.summarizationAvailabilityState,
-                    discoveredModelTags: model.ollamaDiscoveredModelTags,
+                    discoveredModelReferences: model.ollamaDiscoveredModelTags,
+                    discoveredModelsTitle: "Downloaded in Ollama",
+                    isRefreshing: model.isRefreshingAvailability,
+                    onRefresh: { model.refreshAvailability() }
+                )
+            } else if model.usesLMStudioForSummarization {
+                SettingsFieldBlock(
+                    title: "LM Studio model",
+                    subtitle: "Use a summarization model that is already available in your local LM Studio server."
+                ) {
+                    SettingsSingleLineInput(
+                        text: $model.selectedSummarizationLMStudioModelIdentifier,
+                        placeholder: "e.g. qwen2.5-7b-instruct"
+                    )
+                }
+
+                InferenceCapabilityStatusView(
+                    title: "Summarization validation",
+                    state: model.summarizationAvailabilityState,
+                    discoveredModelReferences: model.lmStudioDiscoveredModelIdentifiers,
+                    discoveredModelsTitle: "Available in LM Studio",
                     isRefreshing: model.isRefreshingAvailability,
                     onRefresh: { model.refreshAvailability() }
                 )
@@ -256,6 +288,18 @@ struct OnboardingView: View {
                     }
                 }
 
+                if model.showsLMStudioEndpointConfigurationForScreenContext {
+                    SettingsFieldBlock(
+                        title: "LM Studio base URL",
+                        subtitle: "Use the full LM Studio endpoint, including protocol and port."
+                    ) {
+                        SettingsSingleLineInput(
+                            text: $model.selectedLMStudioBaseURLString,
+                            placeholder: AppConfiguration.Defaults.defaultLMStudioBaseURL
+                        )
+                    }
+                }
+
                 if model.usesOllamaForScreenContext {
                     SettingsFieldBlock(
                         title: "Ollama model tag",
@@ -270,7 +314,27 @@ struct OnboardingView: View {
                     InferenceCapabilityStatusView(
                         title: "Screen context validation",
                         state: model.visionAvailabilityState,
-                        discoveredModelTags: model.ollamaDiscoveredModelTags,
+                        discoveredModelReferences: model.ollamaDiscoveredModelTags,
+                        discoveredModelsTitle: "Downloaded in Ollama",
+                        isRefreshing: model.isRefreshingAvailability,
+                        onRefresh: { model.refreshAvailability() }
+                    )
+                } else if model.usesLMStudioForScreenContext {
+                    SettingsFieldBlock(
+                        title: "LM Studio model",
+                        subtitle: "Use a local LM Studio model that supports vision or screen-context input."
+                    ) {
+                        SettingsSingleLineInput(
+                            text: $model.selectedVisionLMStudioModelIdentifier,
+                            placeholder: "e.g. qwen2.5-vl-7b"
+                        )
+                    }
+
+                    InferenceCapabilityStatusView(
+                        title: "Screen context validation",
+                        state: model.visionAvailabilityState,
+                        discoveredModelReferences: model.lmStudioDiscoveredModelIdentifiers,
+                        discoveredModelsTitle: "Available in LM Studio",
                         isRefreshing: model.isRefreshingAvailability,
                         onRefresh: { model.refreshAvailability() }
                     )
@@ -311,11 +375,10 @@ private struct OnboardingHeader: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(stepTitle)
-                    .font(.title2.bold())
+                    .minuteSettingsHeaderTitle()
                 if let stepSubtitle {
                     Text(stepSubtitle)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .minuteSettingsHeaderSubtitle()
                 }
             }
         }
@@ -342,6 +405,11 @@ private struct OnboardingProviderChoicePicker: View {
                     subtitle: "Advanced",
                     provider: .ollama
                 )
+                optionButton(
+                    title: "LM Studio",
+                    subtitle: "Advanced",
+                    provider: .lmStudio
+                )
             }
         }
     }
@@ -359,7 +427,7 @@ private struct OnboardingProviderChoicePicker: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(title)
-                        .font(.headline)
+                        .minuteRowTitle()
                     Spacer()
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
@@ -368,22 +436,20 @@ private struct OnboardingProviderChoicePicker: View {
                 }
 
                 Text(subtitle)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .minuteCaption()
 
                 Text(provider.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .minuteFootnote()
                     .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(isSelected ? Color.accentColor.opacity(0.7) : Color.secondary.opacity(0.12), lineWidth: 1)
             )
         }

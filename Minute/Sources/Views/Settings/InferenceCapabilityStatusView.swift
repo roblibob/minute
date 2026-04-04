@@ -4,7 +4,8 @@ import SwiftUI
 struct InferenceCapabilityStatusView: View {
     let title: String
     let state: CapabilityAvailabilityState
-    let discoveredModelTags: [String]
+    let discoveredModelReferences: [String]
+    let discoveredModelsTitle: String
     let isRefreshing: Bool
     let onRefresh: () -> Void
 
@@ -31,8 +32,8 @@ struct InferenceCapabilityStatusView: View {
                     .minuteCaption()
             }
 
-            if !discoveredModelTags.isEmpty {
-                Text("Downloaded in Ollama: \(discoveredModelTags.joined(separator: ", "))")
+            if !discoveredModelReferences.isEmpty {
+                Text("\(discoveredModelsTitle): \(discoveredModelReferences.joined(separator: ", "))")
                     .minuteCaption()
             }
         }
@@ -46,8 +47,10 @@ struct InferenceCapabilityStatusView: View {
             return "Needs configuration"
         case .daemonUnavailable:
             return "Daemon unavailable"
+        case .serverUnavailable:
+            return "Server unavailable"
         case .modelMissing:
-            return "Model not downloaded"
+            return "Model unavailable"
         case .unsupported:
             return "Unsupported"
         case .visionUnsupported:
@@ -63,7 +66,7 @@ struct InferenceCapabilityStatusView: View {
             return "checkmark.circle.fill"
         case .needsConfiguration, .modelMissing, .visionUnsupported:
             return "exclamationmark.circle"
-        case .daemonUnavailable, .unsupported, .unknown:
+        case .daemonUnavailable, .serverUnavailable, .unsupported, .unknown:
             return "xmark.circle"
         }
     }
@@ -74,7 +77,7 @@ struct InferenceCapabilityStatusView: View {
             return .green
         case .needsConfiguration, .modelMissing, .visionUnsupported:
             return .orange
-        case .daemonUnavailable, .unsupported, .unknown:
+        case .daemonUnavailable, .serverUnavailable, .unsupported, .unknown:
             return .red
         }
     }

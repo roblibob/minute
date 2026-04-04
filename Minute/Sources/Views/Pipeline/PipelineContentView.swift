@@ -412,7 +412,7 @@ struct PipelineContentView: View {
             action: statusAction(for: presentation.primaryAction),
             secondaryActionTitle: presentation.secondaryActionTitle,
             secondaryAction: statusAction(for: presentation.secondaryAction),
-            onClose: presentation.showsCloseButton ? { dismissCurrentStatusDrawer() } : nil
+            onClose: presentation.showsCloseButton ? { closeCurrentStatusDrawer() } : nil
         )
     }
 
@@ -468,6 +468,15 @@ struct PipelineContentView: View {
     private func dismissCurrentStatusDrawer() {
         guard let id = statusPresenter.dismissibleStatusDrawerID(for: model.state) else { return }
         dismissedStatusDrawerID = id
+    }
+
+    private func closeCurrentStatusDrawer() {
+        switch model.state {
+        case .done, .failed:
+            model.dismissCloseableStatus()
+        default:
+            dismissCurrentStatusDrawer()
+        }
     }
 
     private func syncDismissedStatusDrawer(with state: MeetingPipelineState) {

@@ -61,11 +61,8 @@ public struct FluidAudioTranscriptionService: VocabularyBoostingTranscriptionSer
         }
 
         let manager = AsrManager(config: .default)
-        try await manager.initialize(models: models)
-        await configureVocabularyBoostingIfAvailable(
-            manager: manager,
-            vocabulary: resolvedVocabulary
-        )
+        try await manager.loadModels(models)
+        await logUnavailableVocabularyBoostingIfNeeded(vocabulary: resolvedVocabulary)
 
         do {
             let converter = AudioConverter()
@@ -99,33 +96,16 @@ public struct FluidAudioTranscriptionService: VocabularyBoostingTranscriptionSer
 }
 
 private extension FluidAudioTranscriptionService {
-    func configureVocabularyBoostingIfAvailable(
-        manager: AsrManager,
+    func logUnavailableVocabularyBoostingIfNeeded(
         vocabulary: TranscriptionVocabularySettings?
     ) async {
         guard let vocabulary = vocabularyContext(from: vocabulary) else {
-            manager.disableVocabularyBoosting()
             return
         }
 
-        do {
-            let ctcModels = try await FluidAudioCTCModelCache.shared.models(
-                variant: Self.ctcVocabularyVariant
-            )
-            try await manager.configureVocabularyBoosting(
-                vocabulary: vocabulary.context,
-                ctcModels: ctcModels,
-                config: vocabulary.config
-            )
-            logger.debug(
-                "FluidAudio ASR vocabulary boosting configured: terms=\(vocabulary.context.terms.count, privacy: .public) strength=\(vocabulary.strengthLabel, privacy: .public)"
-            )
-        } catch {
-            manager.disableVocabularyBoosting()
-            logger.warning(
-                "FluidAudio ASR vocabulary boosting unavailable; proceeding without boost: \(ErrorHandler.debugMessage(for: error), privacy: .public)"
-            )
-        }
+        logger.warning(
+            "FluidAudio batch vocabulary boosting is unavailable with the current upstream API; proceeding without boost for \(vocabulary.context.terms.count, privacy: .public) terms at strength \(vocabulary.strengthLabel, privacy: .public)"
+        )
     }
 
     func vocabularyContext(
@@ -299,22 +279,6 @@ private actor FluidAudioASRModelCache {
     }
 }
 
-private actor FluidAudioCTCModelCache {
-    static let shared = FluidAudioCTCModelCache()
-    private var cached: [String: CtcModels] = [:]
-
-    func models(variant: CtcModelVariant) async throws -> CtcModels {
-        let key = variant.rawValue
-        if let cached = cached[key] {
-            return cached
-        }
-
-        let models = try await CtcModels.downloadAndLoad(variant: variant)
-        cached[key] = models
-        return models
-    }
-}
-
 private extension AsrModelVersion {
     var cacheKey: String {
         switch self {
@@ -322,6 +286,8 @@ private extension AsrModelVersion {
             return "v2"
         case .v3:
             return "v3"
+        case .tdtCtc110m:
+            return "tdtctc110m"
         }
     }
 }

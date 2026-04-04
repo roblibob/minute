@@ -79,6 +79,33 @@ struct ModelsSettingsViewModelVocabularyBoostingTests {
         }
         #expect(message?.contains("CTC") == true)
     }
+
+    @Test
+    func exposesUnsupportedMessage_whenFluidAudioBackendSelected() async throws {
+        let suite = "ModelsSettingsViewModelVocabularyBoostingTests.unsupported.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let backendStore = TranscriptionBackendSelectionStore(defaults: defaults, key: "backend")
+        backendStore.setSelectedBackendID(TranscriptionBackend.fluidAudio.rawValue)
+
+        let model = await MainActor.run {
+            ModelsSettingsViewModel(
+                modelManager: StubModelManager(validation: ModelValidationResult(missingModelIDs: [], invalidModelIDs: [])),
+                summarizationModelStore: SummarizationModelSelectionStore(defaults: defaults, key: "sum"),
+                transcriptionModelStore: TranscriptionModelSelectionStore(defaults: defaults, key: "trans"),
+                transcriptionBackendStore: backendStore,
+                fluidAudioModelStore: FluidAudioASRModelSelectionStore(defaults: defaults, key: "fluid")
+            )
+        }
+
+        let message = await MainActor.run {
+            model.vocabularyBoostingSupportMessage
+        }
+
+        #expect(message?.contains("currently unavailable") == true)
+        #expect(message?.contains("FluidAudio") == true)
+    }
 }
 
 private struct StubModelManager: ModelManaging {

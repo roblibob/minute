@@ -2,15 +2,15 @@ Minute Overview
 
 Minute is a native macOS app for capturing meetings locally and writing
 deterministic notes into a user-selected Obsidian vault. It records audio,
-transcribes with Fluidaudio, summarizes with local built-in or Ollama-backed
-inference, and writes a fixed set of artifacts to the vault.
+transcribes with Fluidaudio, summarizes with local built-in, Ollama-backed,
+or LM Studio-backed inference, and writes a fixed set of artifacts to the vault.
 
 What the app does
 - Record microphone + system audio locally.
 - Transcribe audio locally (Fluidaudio).
 - Optionally capture screen context locally for summaries.
 - Let advanced users configure summarization and screen-context vision separately,
-  with independent `Built-in` and `Ollama` provider/model choices.
+  with independent `Built-in`, `Ollama`, and `LM Studio` provider/model choices.
 - **Tailor summaries based on meeting type (built-in and custom).**
 - Summarize locally with a JSON-only LLM prompt using the configured local provider.
 - Render a deterministic Markdown note from JSON.
@@ -43,7 +43,7 @@ How the app works (pipeline)
    - Write transcript markdown to Meetings/_transcripts/.
 3) Summarize
    - Resolve the configured summarization provider/model for that run.
-   - Run the built-in local model or the local Ollama daemon with a JSON-only prompt.
+   - Run the built-in local model, local Ollama daemon, or local LM Studio server with a JSON-only prompt.
    - Validate JSON; if invalid, run a single repair pass.
    - If still invalid, emit a fallback note with empty sections.
    - Keep the resolved provider/model fixed for the lifetime of the in-flight task.
@@ -54,9 +54,11 @@ How the app works (pipeline)
 
 Advanced inference configuration
 - Summarization and screen-context vision are configured independently.
-- Each capability can use `Built-in` or `Ollama`.
+- Each capability can use `Built-in`, `Ollama`, or `LM Studio`.
 - Ollama discovery reflects models already downloaded to the configured Ollama daemon.
+- LM Studio discovery reflects models currently exposed by the configured local LM Studio server.
 - Vision validation checks whether the selected Ollama model advertises `vision` capability.
+- Vision validation also checks whether the selected LM Studio model advertises vision support.
 - If a capability is unavailable, the app surfaces actionable readiness state instead of silently falling back.
 
 State model
@@ -67,8 +69,9 @@ idle -> recording -> recorded -> processing(transcribe) -> processing(summarize)
 Permissions and privacy
 - The app is sandboxed and uses security-scoped bookmarks for the vault.
 - All audio and inference runs locally.
-- The only network access is for downloading model weights and, when enabled by the user, talking to the configured Ollama daemon endpoint.
+- The only network access is for downloading model weights and, when enabled by the user, talking to configured local-provider endpoints such as Ollama or LM Studio.
 - The default Ollama endpoint is loopback. Advanced users can point it at another user-managed Ollama host on their network.
+- The default LM Studio endpoint is loopback on port `1234`.
 - No transcript content is logged by default.
 - Known-speaker profiles and diarization embeddings (when enabled) are stored in app support, not in the vault.
 - The vault output contract remains exactly three files per meeting.
@@ -83,8 +86,8 @@ Technology snapshot
 - UI: SwiftUI (macOS 14+)
 - Audio: AVFoundation + ScreenCaptureKit
 - Transcription: Fluidaudio (library, XPC helper)
-- Summarization: built-in llama runtime or local Ollama daemon
-- Vision inference: built-in llama runtime or local Ollama daemon
+- Summarization: built-in llama runtime, local Ollama daemon, or local LM Studio server
+- Vision inference: built-in llama runtime, local Ollama daemon, or local LM Studio server
 - Markdown: deterministic renderer (model outputs JSON only)
 
 Code structure

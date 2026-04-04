@@ -160,6 +160,27 @@ struct DefaultModelManagerTests {
     }
 
     @Test
+    func defaultRequiredModels_skipsBuiltInInferenceArtifactsWhenLMStudioOwnsBothCapabilities() {
+        let visionModel = SummarizationModelCatalog.all.first { $0.mmprojDestinationURL != nil } ?? SummarizationModelCatalog.defaultModel
+        let summarizationModel = SummarizationModelCatalog.defaultModel
+
+        let models = DefaultModelManager.defaultRequiredModels(
+            selectedSummarizationModelID: summarizationModel.id,
+            summarizationProvider: .lmStudio,
+            selectedVisionModelID: visionModel.id,
+            visionProvider: .lmStudio,
+            screenContextEnabled: true,
+            selectedTranscriptionModelID: "whisper/base",
+            transcriptionBackend: .whisper
+        )
+
+        #expect(!models.contains { $0.id == summarizationModel.id })
+        #expect(!models.contains { $0.id == visionModel.id })
+        #expect(!models.contains { $0.id == "\(visionModel.id)/mmproj" })
+        #expect(models.contains { $0.id == "whisper/base" })
+    }
+
+    @Test
     func validateModels_mergesFluidAudioVocabularyReadinessWhenFluidBackendSelected() async throws {
         let suite = "DefaultModelManagerTests.validateModels.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

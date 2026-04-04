@@ -165,4 +165,142 @@ struct MeetingPipelineViewModelScreenContextAlertsTests {
             model.send(.cancelRecording)
         }
     }
+
+    @Test
+    func invalidLMStudioVisionConfiguration_showsActionableAlertWithoutBlockingRecording() async throws {
+        let suiteName = "MeetingPipelineViewModelScreenContextAlertsTests.lmstudio.invalid.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let stagePreferencesStore = StagePreferencesStore(defaults: defaults)
+        stagePreferencesStore.clear()
+
+        let coordinatorVaultAccess = VaultAccess(bookmarkStore: InMemoryVaultBookmarkStore(bookmark: nil))
+        let viewModelVaultAccess = VaultAccess(bookmarkStore: InMemoryVaultBookmarkStore(bookmark: nil))
+        let coordinator = MeetingPipelineCoordinator(
+            transcriptionService: MockTranscriptionService(),
+            diarizationService: MockDiarizationService(),
+            summarizationServiceProvider: { MockSummarizationService() },
+            modelManager: MockModelManager(),
+            vaultAccess: coordinatorVaultAccess,
+            vaultWriter: DefaultVaultWriter()
+        )
+        let selection = ScreenContextWindowSelection(
+            bundleIdentifier: "com.apple.Keynote",
+            applicationName: "Keynote",
+            windowTitle: "Slides"
+        )
+
+        let model = await MainActor.run {
+            MeetingPipelineViewModel(
+                audioService: MockAudioService(),
+                mediaImportService: MockMediaImportService(),
+                recoveryService: MockRecordingRecoveryService(),
+                pipelineCoordinator: coordinator,
+                screenContextCaptureService: ScreenContextCaptureService(inferencer: MockScreenContextInferenceService()),
+                screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: MockScreenContextInferenceService()),
+                screenContextSettingsStore: ScreenContextSettingsStore(),
+                vaultAccess: viewModelVaultAccess,
+                recordingPermissions: .alwaysGranted(),
+                stagePreferencesStore: stagePreferencesStore,
+                visionAvailabilityProvider: {
+                    CapabilityAvailabilityState(
+                        capabilityID: .vision,
+                        providerID: .lmStudio,
+                        isReady: false,
+                        status: .serverUnavailable,
+                        message: "LM Studio is unavailable. Start the local server and refresh.",
+                        selectedReference: "qwen2.5-vl-7b"
+                    )
+                }
+            )
+        }
+
+        await MainActor.run {
+            model.send(.startRecordingWithWindow(selection))
+        }
+
+        try await eventually(timeoutNanoseconds: 1_500_000_000) {
+            await MainActor.run {
+                model.captureState == .recording && model.activeScreenContextAlertMessage != nil
+            }
+        }
+
+        let message = await MainActor.run {
+            model.activeScreenContextAlertMessage
+        }
+        #expect(message?.contains("LM Studio is unavailable") == true)
+
+        await MainActor.run {
+            model.send(.cancelRecording)
+        }
+    }
+
+    @Test
+    func runtimeVisionFailure_showsConfigurationAlertWithoutStoppingRecording() async throws {
+        let suiteName = "MeetingPipelineViewModelScreenContextAlertsTests.runtime.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let stagePreferencesStore = StagePreferencesStore(defaults: defaults)
+        stagePreferencesStore.clear()
+
+        let coordinatorVaultAccess = VaultAccess(bookmarkStore: InMemoryVaultBookmarkStore(bookmark: nil))
+        let viewModelVaultAccess = VaultAccess(bookmarkStore: InMemoryVaultBookmarkStore(bookmark: nil))
+        let coordinator = MeetingPipelineCoordinator(
+            transcriptionService: MockTranscriptionService(),
+            diarizationService: MockDiarizationService(),
+            summarizationServiceProvider: { MockSummarizationService() },
+            modelManager: MockModelManager(),
+            vaultAccess: coordinatorVaultAccess,
+            vaultWriter: DefaultVaultWriter()
+        )
+
+        let model = await MainActor.run {
+            MeetingPipelineViewModel(
+                audioService: MockAudioService(),
+                mediaImportService: MockMediaImportService(),
+                recoveryService: MockRecordingRecoveryService(),
+                pipelineCoordinator: coordinator,
+                screenContextCaptureService: ScreenContextCaptureService(inferencer: MockScreenContextInferenceService()),
+                screenContextVideoExtractor: ScreenContextVideoFrameExtractor(inferencer: MockScreenContextInferenceService()),
+                screenContextSettingsStore: ScreenContextSettingsStore(),
+                vaultAccess: viewModelVaultAccess,
+                recordingPermissions: .alwaysGranted(),
+                stagePreferencesStore: stagePreferencesStore
+            )
+        }
+
+        await MainActor.run {
+            model.send(.startRecording)
+        }
+
+        try await eventually(timeoutNanoseconds: 1_500_000_000) {
+            await MainActor.run { model.captureState == .recording }
+        }
+
+        await MainActor.run {
+            model._testHandleScreenContextLifecycleEvent(
+                ScreenContextLifecycleEvent(
+                    type: .inferenceUnavailable,
+                    windowTitle: "Slides",
+                    message: "Selected vision model could not process image input."
+                )
+            )
+        }
+
+        try await eventually(timeoutNanoseconds: 1_500_000_000) {
+            await MainActor.run {
+                model.captureState == .recording
+                    && model.activeScreenContextAlertMessage?.contains("could not process image input") == true
+            }
+        }
+
+        let recordedEvent = await MainActor.run {
+            model.recordingSessionEvents.contains { $0.eventType == .screenContextConfigurationNotified }
+        }
+        #expect(recordedEvent)
+
+        await MainActor.run {
+            model.send(.cancelRecording)
+        }
+    }
 }

@@ -6,22 +6,23 @@ struct VocabularyBoostingSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Toggle("Enable vocabulary boosting", isOn: $model.vocabularyBoostingEnabled)
+            SettingsToggleRow(
+                "Enable vocabulary boosting",
+                detail: "Improve recognition for names, acronyms, and domain terms.",
+                isOn: $model.vocabularyBoostingEnabled
+            )
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Terms")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                TextEditor(text: $model.vocabularyBoostingTermsInput)
-                    .font(.body)
-                    .frame(minHeight: 72)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.secondary.opacity(0.2))
-                    )
-                    .accessibilityLabel(Text("Vocabulary terms"))
-                    .accessibilityHint(Text("Comma or newline separated terms and phrases."))
+            SettingsFieldBlock(
+                title: "Terms",
+                subtitle: "Comma or newline separated terms and phrases."
+            ) {
+                SettingsMultilineInput(
+                    text: $model.vocabularyBoostingTermsInput,
+                    placeholder: "Acme, Q4 planning, InfraOps",
+                    minHeight: 72
+                )
+                .accessibilityLabel(Text("Vocabulary terms"))
+                .accessibilityHint(Text("Comma or newline separated terms and phrases."))
             }
 
             Picker("Strength", selection: $model.vocabularyBoostingStrength) {
@@ -31,22 +32,22 @@ struct VocabularyBoostingSection: View {
             }
             .pickerStyle(.segmented)
 
-            Text(model.vocabularyHintText)
-                .minuteCaption()
+            SettingsInlineMessage(text: model.vocabularyHintText)
 
             if model.showsVocabularyReadinessRow, let message = model.vocabularyReadinessMessage {
-                HStack(alignment: .center, spacing: 10) {
-                    StatusIcon(state: .attention)
-                    Text(message)
-                        .minuteCaption()
-                    Spacer()
-                    Button("Download Models") {
-                        model.startDownload()
+                SettingsCard {
+                    HStack(alignment: .center, spacing: 10) {
+                        StatusIcon(state: .attention)
+                        Text(message)
+                            .minuteCaption()
+                        Spacer()
+                        Button("Download Models") {
+                            model.startDownload()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
                 }
-                .padding(.vertical, 4)
             }
         }
     }

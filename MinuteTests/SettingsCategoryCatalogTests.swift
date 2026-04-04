@@ -22,4 +22,16 @@ struct SettingsCategoryCatalogTests {
         #expect(aiIndex! < meetingTypesIndex!)
         #expect(meetingTypesIndex! < updatesIndex!)
     }
+
+    @Test
+    func everySettingsEntry_hasExactlyOneCategoryOwner() {
+        let entries = SettingsCategoryCatalog.entries(updatesEnabled: true)
+
+        #expect(entries.count == SettingsEntryDefinition.ID.allCases.count)
+
+        for entryID in SettingsEntryDefinition.ID.allCases {
+            let matches = entries.filter { $0.id == entryID }
+            #expect(matches.count == 1)
+        }
+    }
 }
