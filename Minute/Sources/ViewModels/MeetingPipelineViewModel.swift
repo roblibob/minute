@@ -2084,7 +2084,8 @@ final class MeetingPipelineViewModel: ObservableObject {
             meetingType: fallbackMeetingType,
             languageProcessing: languageProcessing,
             outputLanguage: effectiveOutputLanguage,
-            knownSpeakerSuggestionsEnabled: configuration.knownSpeakerSuggestionsEnabled
+            knownSpeakerSuggestionsEnabled: configuration.knownSpeakerSuggestionsEnabled,
+            skipSummarization: !configuration.summarizationEnabled
         )
     }
 

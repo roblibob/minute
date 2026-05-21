@@ -10,6 +10,8 @@ struct GeneralSettingsSection: View {
     private var micActivityNotificationsEnabled: Bool = AppConfiguration.Defaults.defaultMicActivityNotificationsEnabled
     @AppStorage(AppDefaultsKey.outputLanguage)
     private var outputLanguageRaw: String = AppConfiguration.Defaults.defaultOutputLanguage.rawValue
+    @AppStorage(AppDefaultsKey.summarizationEnabled)
+    private var summarizationEnabled: Bool = AppConfiguration.Defaults.defaultSummarizationEnabled
 
     private var outputLanguageBinding: Binding<OutputLanguage> {
         Binding(
@@ -43,6 +45,12 @@ struct GeneralSettingsSection: View {
                     "Mic activity reminders",
                     detail: "Show a notification when the microphone becomes active.",
                     isOn: $micActivityNotificationsEnabled
+                )
+
+                SettingsToggleRow(
+                    "Summarize after recording",
+                    detail: "When off, only the transcript and audio are saved. Use this if you prefer to summarize with your own tools.",
+                    isOn: $summarizationEnabled
                 )
             }
 

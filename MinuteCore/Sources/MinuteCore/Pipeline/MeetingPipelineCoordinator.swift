@@ -314,6 +314,44 @@ public actor MeetingPipelineCoordinator {
                 screenEvents: context.screenContextEvents
             )
             let timelineText = MeetingTimelineRenderer().render(entries: timelineEntries)
+
+            if context.skipSummarization {
+                let dateISO = MinuteISODate.format(context.startedAt)
+                var extraction = MeetingExtraction(title: "Meeting", date: dateISO, summary: "")
+                extraction.meetingType = context.meetingType
+
+                progress?(.writing(fractionCompleted: 0.85, extraction: extraction))
+
+                let suggestionResult = await suggestKnownSpeakersFrontmatterIfEnabled(
+                    context: context,
+                    diarizationSegments: diarizationSegments,
+                    embeddingExportURL: embeddingExportURL
+                )
+                let participantFrontmatter = suggestionResult?.frontmatter
+
+                let outputs = try writeOutputsToVault(
+                    context: context,
+                    extraction: extraction,
+                    transcription: transcription,
+                    attributedSegments: attributedSegments,
+                    originalAudioData: originalAudioData,
+                    participantFrontmatter: participantFrontmatter,
+                    sectionVisibility: .allEnabled
+                )
+
+                if let embeddingsBySpeakerID = suggestionResult?.embeddingsBySpeakerID, !embeddingsBySpeakerID.isEmpty {
+                    try await meetingSpeakerEmbeddingCache.upsert(
+                        meetingKey: outputs.noteURL.path,
+                        embeddingsBySpeakerID: embeddingsBySpeakerID,
+                        embeddingModelVersion: SpeakerEmbeddingModelVersions.fluidAudioOfflineVbx256
+                    )
+                }
+
+                cleanupTemporaryArtifacts(for: context)
+                await checkpointStore.clear(meetingID: meetingRunID)
+                return outputs
+            }
+
             let summarizationBinding = context.summarizationBinding
             let preflightConfiguration = if let summarizationBinding, let summarizationPreflightConfigurationForBinding {
                 summarizationPreflightConfigurationForBinding(summarizationBinding)
