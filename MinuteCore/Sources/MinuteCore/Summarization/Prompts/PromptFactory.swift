@@ -32,6 +32,18 @@ public enum PromptFactory {
 
         case .designReview:
             return DesignReviewPromptStrategy()
+
+        case .interviewTaken:
+            return InterviewTakenPromptStrategy()
+
+        case .interviewGiven:
+            return InterviewGivenPromptStrategy()
+
+        case .allHands:
+            return AllHandsPromptStrategy()
+
+        case .retrospective:
+            return RetrospectivePromptStrategy()
         }
     }
 
