@@ -58,7 +58,7 @@ public struct AppConfiguration: Sendable, Equatable {
         /// Per-request timeout for local inference servers (Ollama, LM Studio).
         /// Local models on modest hardware can take well over URLSession's
         /// 60-second default to produce a full non-streaming response.
-        public static let localServerRequestTimeoutSeconds: TimeInterval = 120
+        public static let localServerRequestTimeoutSeconds: TimeInterval = 300
         public static let defaultMicActivityNotificationsEnabled = true
         public static let defaultKnownSpeakerSuggestionsEnabled = false
         public static let defaultOutputLanguage = OutputLanguage.defaultSelection

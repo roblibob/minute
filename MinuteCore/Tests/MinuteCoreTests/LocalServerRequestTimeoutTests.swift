@@ -10,8 +10,8 @@ import Testing
 struct LocalServerRequestTimeoutTests {
 
     @Test
-    func timeoutConstant_isTwoMinutes() {
-        #expect(AppConfiguration.Defaults.localServerRequestTimeoutSeconds == 120)
+    func timeoutConstant_isFiveMinutes() {
+        #expect(AppConfiguration.Defaults.localServerRequestTimeoutSeconds == 300)
     }
 
     @Test
