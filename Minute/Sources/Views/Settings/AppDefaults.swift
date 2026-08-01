@@ -15,4 +15,5 @@ enum AppDefaultsKey {
     static let micActivityNotificationsEnabled = AppConfiguration.Defaults.micActivityNotificationsEnabledKey
     static let knownSpeakerSuggestionsEnabled = AppConfiguration.Defaults.knownSpeakerSuggestionsEnabledKey
     static let outputLanguage = AppConfiguration.Defaults.outputLanguageKey
+    static let summarizationEnabled = AppConfiguration.Defaults.summarizationEnabledKey
 }

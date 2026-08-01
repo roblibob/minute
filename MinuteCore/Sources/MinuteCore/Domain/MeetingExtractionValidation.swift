@@ -29,12 +29,41 @@ public enum MeetingExtractionValidation {
             .map {
                 ActionItem(
                     owner: StringNormalizer.normalizeInline($0.owner),
-                    task: StringNormalizer.normalizeInline($0.task)
+                    task: StringNormalizer.normalizeInline($0.task),
+                    dueDate: normalizedOptional($0.dueDate),
+                    status: normalizedOptional($0.status),
+                    comments: normalizedOptional($0.comments)
                 )
             }
             .filter { !$0.owner.isEmpty || !$0.task.isEmpty }
 
+        copy.participants = copy.participants
+            .map {
+                MeetingParticipant(
+                    name: StringNormalizer.normalizeInline($0.name),
+                    role: normalizedOptional($0.role),
+                    speaker: normalizedOptional($0.speaker),
+                    details: normalizedOptional($0.details)
+                )
+            }
+            .filter { !$0.name.isEmpty }
+
+        copy.topics = copy.topics
+            .map {
+                MeetingTopic(
+                    title: StringNormalizer.normalizeInline($0.title),
+                    points: $0.points.map(StringNormalizer.normalizeInline).filter { !$0.isEmpty }
+                )
+            }
+            .filter { !$0.title.isEmpty }
+
         return copy
+    }
+
+    private static func normalizedOptional(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = StringNormalizer.normalizeInline(value)
+        return normalized.isEmpty ? nil : normalized
     }
 
     /// Fallback extraction used when JSON cannot be decoded even after repair.

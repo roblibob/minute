@@ -314,6 +314,44 @@ public actor MeetingPipelineCoordinator {
                 screenEvents: context.screenContextEvents
             )
             let timelineText = MeetingTimelineRenderer().render(entries: timelineEntries)
+
+            if context.skipSummarization {
+                let dateISO = MinuteISODate.format(context.startedAt)
+                var extraction = MeetingExtraction(title: "Meeting", date: dateISO, summary: "")
+                extraction.meetingType = context.meetingType
+
+                progress?(.writing(fractionCompleted: 0.85, extraction: extraction))
+
+                let suggestionResult = await suggestKnownSpeakersFrontmatterIfEnabled(
+                    context: context,
+                    diarizationSegments: diarizationSegments,
+                    embeddingExportURL: embeddingExportURL
+                )
+                let participantFrontmatter = suggestionResult?.frontmatter
+
+                let outputs = try writeOutputsToVault(
+                    context: context,
+                    extraction: extraction,
+                    transcription: transcription,
+                    attributedSegments: attributedSegments,
+                    originalAudioData: originalAudioData,
+                    participantFrontmatter: participantFrontmatter,
+                    sectionVisibility: .allEnabled
+                )
+
+                if let embeddingsBySpeakerID = suggestionResult?.embeddingsBySpeakerID, !embeddingsBySpeakerID.isEmpty {
+                    try await meetingSpeakerEmbeddingCache.upsert(
+                        meetingKey: outputs.noteURL.path,
+                        embeddingsBySpeakerID: embeddingsBySpeakerID,
+                        embeddingModelVersion: SpeakerEmbeddingModelVersions.fluidAudioOfflineVbx256
+                    )
+                }
+
+                cleanupTemporaryArtifacts(for: context)
+                await checkpointStore.clear(meetingID: meetingRunID)
+                return outputs
+            }
+
             let summarizationBinding = context.summarizationBinding
             let preflightConfiguration = if let summarizationBinding, let summarizationPreflightConfigurationForBinding {
                 summarizationPreflightConfigurationForBinding(summarizationBinding)
@@ -1120,9 +1158,11 @@ public actor MeetingPipelineCoordinator {
         - date (YYYY-MM-DD; empty string if unchanged)
         - summary_points (array of short, high-signal new facts from this chunk only)
         - decisions (array of new decisions only)
-        - action_items (array of objects with owner and task; new or materially refined items only)
+        - action_items (array of objects with owner, task, due_date, status, and comments; new or materially refined items only)
         - open_questions (array of new open questions only)
         - key_points (array of new key points only)
+        - participants (array of objects with name, speaker, role, and details; newly identified participants or new evidence only)
+        - topics (array of objects with title and points; new topics or new points for existing topics only)
 
         Rules:
         - Do not restate information already captured in the existing accepted state.

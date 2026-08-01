@@ -46,9 +46,13 @@ public struct MarkdownRenderer: Sendable {
         lines.append("# \(title)")
         lines.append("")
 
+        appendParticipants(extraction.participants, to: &lines)
+
         lines.append("## Summary")
         lines.append(StringNormalizer.normalizeParagraph(extraction.summary))
         lines.append("")
+
+        appendTopics(extraction.topics, to: &lines)
 
         if sectionVisibility.decisions {
             lines.append("## Decisions")
@@ -104,17 +108,112 @@ public struct MarkdownRenderer: Sendable {
         }
     }
 
+    private func appendParticipants(_ participants: [MeetingParticipant], to lines: inout [String]) {
+        let cleaned = participants
+            .map {
+                MeetingParticipant(
+                    name: StringNormalizer.normalizeInline($0.name),
+                    role: Self.nonEmpty($0.role),
+                    speaker: Self.nonEmpty($0.speaker),
+                    details: Self.nonEmpty($0.details)
+                )
+            }
+            .filter { !$0.name.isEmpty }
+
+        guard !cleaned.isEmpty else { return }
+
+        lines.append("## Participants")
+        for participant in cleaned {
+            lines.append(Self.participantLine(participant))
+        }
+        lines.append("")
+    }
+
+    /// Renders `- **Name** (Speaker N) — Role. Details` with absent parts omitted.
+    /// The speaker label collapses when it matches the name (e.g. unresolved "Speaker 3").
+    static func participantLine(_ participant: MeetingParticipant) -> String {
+        var line = "- **\(participant.name)**"
+
+        if let speaker = participant.speaker,
+           speaker.lowercased() != participant.name.lowercased() {
+            line += " (\(speaker))"
+        }
+
+        var descriptorParts: [String] = []
+        if let role = participant.role {
+            descriptorParts.append(role)
+        }
+        if let details = participant.details {
+            descriptorParts.append(details)
+        }
+        if !descriptorParts.isEmpty {
+            line += " — " + descriptorParts.joined(separator: ". ")
+        }
+
+        return line
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = StringNormalizer.normalizeInline(value)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private func appendTopics(_ topics: [MeetingTopic], to lines: inout [String]) {
+        let cleaned = topics
+            .map {
+                MeetingTopic(
+                    title: StringNormalizer.normalizeInline($0.title),
+                    points: $0.points.map { StringNormalizer.normalizeInline($0) }.filter { !$0.isEmpty }
+                )
+            }
+            .filter { !$0.title.isEmpty }
+
+        guard !cleaned.isEmpty else { return }
+
+        lines.append("## Topics Discussed")
+        for (index, topic) in cleaned.enumerated() {
+            lines.append("")
+            lines.append("### \(index + 1). \(topic.title)")
+            for point in topic.points {
+                lines.append("- \(point)")
+            }
+        }
+        lines.append("")
+    }
+
     private func appendActionItems(_ items: [ActionItem], to lines: inout [String]) {
         let cleaned = items
             .map {
                 ActionItem(
                     owner: StringNormalizer.normalizeInline($0.owner),
-                    task: StringNormalizer.normalizeInline($0.task)
+                    task: StringNormalizer.normalizeInline($0.task),
+                    dueDate: $0.dueDate.map(StringNormalizer.normalizeInline),
+                    status: $0.status.map(StringNormalizer.normalizeInline),
+                    comments: $0.comments.map(StringNormalizer.normalizeInline)
                 )
             }
             .filter { !$0.task.isEmpty || !$0.owner.isEmpty }
 
         if cleaned.isEmpty {
+            return
+        }
+
+        // Table mode when any item carries table columns; legacy checkbox list otherwise.
+        if cleaned.contains(where: \.hasTableFields) {
+            lines.append("| # | Action | Owner | Due Date | Status | Comments |")
+            lines.append("|---|--------|-------|----------|--------|----------|")
+            for (index, item) in cleaned.enumerated() {
+                let cells = [
+                    "\(index + 1)",
+                    Self.tableCell(item.task),
+                    Self.tableCell(item.owner),
+                    Self.tableCell(item.dueDate ?? "TBD", fallback: "TBD"),
+                    Self.tableCell(item.status ?? "Not Started", fallback: "Not Started"),
+                    Self.tableCell(item.comments ?? ""),
+                ]
+                lines.append("| " + cells.joined(separator: " | ") + " |")
+            }
             return
         }
 
@@ -125,6 +224,12 @@ public struct MarkdownRenderer: Sendable {
                 lines.append("- [ ] \(item.task) (Owner: \(item.owner))")
             }
         }
+    }
+
+    private static func tableCell(_ value: String, fallback: String = "") -> String {
+        let escaped = value.replacingOccurrences(of: "|", with: "\\|")
+        let trimmed = escaped.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? fallback : trimmed
     }
 
     private static func formatDuration(_ seconds: TimeInterval?) -> String? {

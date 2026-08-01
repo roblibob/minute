@@ -29,6 +29,18 @@ public enum MeetingType: String, CaseIterable, Codable, Sendable {
     
     /// Focused on task allocation, timelines, and roadmap discussions
     case planning
+
+    /// You are the interviewer evaluating a candidate; focuses on questions, responses, and hiring signals
+    case interviewTaken = "interview_taken"
+
+    /// You are the candidate being interviewed; focuses on questions asked, your approach, and learnings
+    case interviewGiven = "interview_given"
+
+    /// Org-wide updates and leadership Q&A; focuses on announcements, metrics, and key messages
+    case allHands = "all_hands"
+
+    /// Sprint retro or post-mortem; focuses on what went well, what didn't, and improvements
+    case retrospective
 }
 
 extension MeetingType {
@@ -41,6 +53,10 @@ extension MeetingType {
         case .oneOnOne: return "One-on-One"
         case .presentation: return "Presentation"
         case .planning: return "Planning"
+        case .interviewTaken: return "Interview — Taken"
+        case .interviewGiven: return "Interview — Given"
+        case .allHands: return "All Hands"
+        case .retrospective: return "Retrospective"
         }
     }
 }

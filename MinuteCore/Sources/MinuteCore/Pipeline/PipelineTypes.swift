@@ -216,6 +216,7 @@ public struct PipelineContext: Sendable {
     public var languageProcessing: LanguageProcessingProfile
     public var outputLanguage: OutputLanguage
     public var knownSpeakerSuggestionsEnabled: Bool
+    public var skipSummarization: Bool
 
     public init(
         vaultFolders: MeetingFileContract.VaultFolders,
@@ -236,7 +237,8 @@ public struct PipelineContext: Sendable {
         meetingType: MeetingType = .autodetect,
         languageProcessing: LanguageProcessingProfile = .autoToEnglish,
         outputLanguage: OutputLanguage = .defaultSelection,
-        knownSpeakerSuggestionsEnabled: Bool = false
+        knownSpeakerSuggestionsEnabled: Bool = false,
+        skipSummarization: Bool = false
     ) {
         self.vaultFolders = vaultFolders
         self.audioTempURL = audioTempURL
@@ -260,5 +262,6 @@ public struct PipelineContext: Sendable {
         self.languageProcessing = languageProcessing
         self.outputLanguage = outputLanguage
         self.knownSpeakerSuggestionsEnabled = knownSpeakerSuggestionsEnabled
+        self.skipSummarization = skipSummarization
     }
 }

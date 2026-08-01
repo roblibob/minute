@@ -304,10 +304,27 @@ public final class MeetingTypeLibraryStore: MeetingTypeLibraryStoring, @unchecke
         }
         do {
             let decoded = try JSONDecoder().decode(MeetingTypeLibrary.self, from: data)
-            return try decoded.validated()
+            let reconciled = reconcileBuiltInDefinitions(in: decoded)
+            return try reconciled.validated()
         } catch {
             return .default
         }
+    }
+
+    /// Merges built-in meeting types added in newer app versions into a
+    /// previously saved library, so users who stored a library before an
+    /// update still see the full built-in catalog. Existing definitions
+    /// (including built-in overrides) are left untouched.
+    private func reconcileBuiltInDefinitions(in library: MeetingTypeLibrary) -> MeetingTypeLibrary {
+        let knownTypeIDs = Set(library.definitions.map(\.typeId))
+        let missing = MeetingType.allCases
+            .filter { !knownTypeIDs.contains($0.rawValue) }
+            .map(MeetingTypeLibrary.builtInDefinition(for:))
+        guard !missing.isEmpty else { return library }
+
+        var updated = library
+        updated.definitions.append(contentsOf: missing)
+        return updated
     }
 
     @discardableResult

@@ -427,13 +427,81 @@ public struct MeetingTypeLibrary: Codable, Sendable, Equatable {
             promptComponents: defaultPromptComponents(for: type),
             classifierProfile: type == .autodetect ? nil : ClassifierProfile(
                 label: type.displayName,
-                strongSignals: [type.displayName.lowercased()]
+                strongSignals: defaultClassifierSignals(for: type)
             ),
             status: .active
         )
     }
 
+    /// Strong autodetect signals per built-in type, derived from detection
+    /// heuristics refined through real meeting-notes usage.
+    public static func defaultClassifierSignals(for type: MeetingType) -> [String] {
+        switch type {
+        case .autodetect:
+            return []
+        case .general:
+            return ["general"]
+        case .standup:
+            return [
+                "explicit standup/daily mention",
+                "yesterday/today/blockers round-robin status updates"
+            ]
+        case .designReview:
+            return [
+                "explicit design review mention",
+                "critique of mockups/UX/architecture proposals",
+                "trade-offs discussed with concerns raised and resolved"
+            ]
+        case .oneOnOne:
+            return [
+                "explicit 1:1 mention",
+                "exactly two participants with informal topic jumps between personal and project updates",
+                "manager-report feedback, career check-in, or growth-plan discussion"
+            ]
+        case .presentation:
+            return [
+                "one person speaks mostly with slides or demos referenced",
+                "speaker-led narrative with audience Q&A at the end"
+            ]
+        case .planning:
+            return [
+                "sprint/roadmap planning with estimation and ticketing",
+                "task allocation with owners, timelines, and scope"
+            ]
+        case .interviewTaken:
+            return [
+                "structured Q&A posing coding or design problems to evaluate a candidate",
+                "introductions mentioning an interview round with the transcript owner asking the questions",
+                "evaluation language about candidate strengths and hiring signal"
+            ]
+        case .interviewGiven:
+            return [
+                "structured Q&A with the transcript owner answering coding or design problems",
+                "introductions mentioning an interview round with the owner being evaluated",
+                "interviewer giving hints, redirections, or asking follow-up probes"
+            ]
+        case .allHands:
+            return [
+                "explicit all-hands or town-hall mention",
+                "large audience implied with leadership speaking",
+                "company or org-wide updates with metrics and audience Q&A"
+            ]
+        case .retrospective:
+            return [
+                "explicit retro/retrospective/post-mortem mention",
+                "what went well / what didn't go well / what to improve structure",
+                "lessons learned discussion about a completed sprint or project"
+            ]
+        }
+    }
+
     public static func defaultPromptComponents(for type: MeetingType) -> PromptComponentSet {
+        // Shared guidance derived from field-tested meeting-notes generation rules:
+        // speaker attribution, garbled-ASR handling, and technical accuracy.
+        let attributionGuidance = """
+        Identify participants carefully before assigning statements: direct address by name is the strongest identity evidence; a person mentioned in third person is almost certainly not the speaker; role signals (assigning goals, giving feedback vs. receiving coaching, giving status) distinguish manager from report. Attribute positions to the right person — who gave advice vs. who received it. Transcripts may be code-mixed or contain heavy ASR errors: read past garbling to recover intent, and never invent a confident reading for an unresolvable name or phrase. Preserve project names, service names, team names, and technical terms exactly as spoken.
+        """
+
         switch type {
         case .autodetect:
             return PromptComponentSet(
@@ -443,32 +511,95 @@ public struct MeetingTypeLibrary: Codable, Sendable, Equatable {
         case .general:
             return PromptComponentSet(
                 objective: "Create a factual executive summary for a general business meeting.",
-                summaryFocus: "Prioritize meeting outcomes, decisions, and assigned follow-ups."
+                summaryFocus: "Prioritize meeting outcomes, decisions, and assigned follow-ups. Capture ALL distinct topics, even brief ones, including disagreements, concerns, and unresolved debates.",
+                decisionRules: "Only list explicit agreements or conclusions reached, with rationale when stated.",
+                actionItemRules: "Only list clear commitments to perform a task. Start each task with a verb; name the owner when stated and never guess names.",
+                openQuestionRules: "List unresolved issues and topics explicitly tabled for later.",
+                keyPointRules: "Capture notable facts, constraints, data points, and context essential to understanding the meeting, including the reasoning behind guidance or advice given.",
+                noiseFilterRules: "Ignore small talk, pleasantries, and non-substantive filler.",
+                additionalGuidance: attributionGuidance
             )
         case .standup:
             return PromptComponentSet(
                 objective: "Summarize daily standup progress accurately.",
-                summaryFocus: "Highlight yesterday/today updates and blockers by speaker where possible."
+                summaryFocus: "Highlight yesterday/today updates and blockers by speaker where possible. Capture status updates, risks, and cross-team dependencies.",
+                actionItemRules: "Capture committed follow-ups with owners; do not convert routine status into action items.",
+                keyPointRules: "Capture blockers with owner and impact, and any mitigation discussed.",
+                additionalGuidance: attributionGuidance
             )
         case .designReview:
             return PromptComponentSet(
                 objective: "Summarize design review feedback and outcomes.",
-                summaryFocus: "Emphasize approved changes, critiques, unresolved UX questions, and follow-ups."
+                summaryFocus: "Emphasize the proposal reviewed, approved changes, critiques, trade-offs discussed, unresolved design questions, and follow-ups.",
+                decisionRules: "Capture each design decision with its rationale and the trade-offs considered.",
+                openQuestionRules: "Capture unresolved design questions and who is to investigate them.",
+                keyPointRules: "Capture important design principles or constraints identified, concerns raised, and their resolution.",
+                additionalGuidance: attributionGuidance
             )
         case .oneOnOne:
             return PromptComponentSet(
                 objective: "Summarize one-on-one discussions with clear outcomes.",
-                summaryFocus: "Capture feedback themes, agreements, and personal follow-up actions."
+                summaryFocus: "Capture feedback themes, guidance given with its reasoning, agreements, growth/career discussion, and personal follow-up actions. Be professional and discreet.",
+                decisionRules: "Capture agreements made between the two parties, with rationale.",
+                actionItemRules: "Capture specific follow-ups each person committed to.",
+                keyPointRules: "Capture important feedback or context shared, and who gave versus who received coaching.",
+                additionalGuidance: attributionGuidance
             )
         case .presentation:
             return PromptComponentSet(
                 objective: "Summarize presentation content and takeaways.",
-                summaryFocus: "Capture key arguments, Q&A highlights, and concrete next steps."
+                summaryFocus: "Capture what was presented section by section, key arguments, data and metrics shared, demos shown, Q&A highlights, and concrete next steps.",
+                keyPointRules: "Capture key data points and benchmarks exactly as stated, and notable Q&A exchanges with who asked when identifiable.",
+                additionalGuidance: attributionGuidance
             )
         case .planning:
             return PromptComponentSet(
                 objective: "Summarize planning decisions and execution intent.",
-                summaryFocus: "Capture scope, ownership, timelines, dependencies, and open risks."
+                summaryFocus: "Capture scope, ownership, timelines, dependencies, and open risks.",
+                decisionRules: "Capture scope and priority decisions with rationale.",
+                actionItemRules: "Capture allocated tasks with owner and due date where stated.",
+                keyPointRules: "Capture estimates, dependencies, risks, and constraints discussed.",
+                additionalGuidance: attributionGuidance
+            )
+        case .interviewTaken:
+            return PromptComponentSet(
+                objective: "Summarize a job interview from the interviewer's perspective, producing an evidence-based record for the hiring debrief.",
+                summaryFocus: "Capture the round type, problems or questions posed, the candidate's approach to each, follow-up probes, observed strengths and concerns with specific evidence, and the overall impression.",
+                decisionRules: "Capture assessment leanings explicitly expressed (e.g. signal strength or hire/no-hire leaning); never infer one.",
+                actionItemRules: "Capture follow-ups such as debrief points to raise, references to check, or next rounds to schedule.",
+                openQuestionRules: "Capture unresolved doubts about the candidate and topics not covered in time.",
+                keyPointRules: "Capture question-by-question highlights: what was asked, how the candidate responded, and notable strengths or weaknesses tied to specific answers.",
+                additionalGuidance: attributionGuidance
+            )
+        case .interviewGiven:
+            return PromptComponentSet(
+                objective: "Summarize a job interview from the candidate's perspective, producing an honest self-review record.",
+                summaryFocus: "Capture the company and round type if mentioned, each question posed, the approach taken, interviewer hints or corrections, what went well, what could improve, and learnings for next time.",
+                decisionRules: "Capture concrete process conclusions, such as agreed next steps.",
+                actionItemRules: "Capture follow-ups such as topics to study or practice and materials to send.",
+                openQuestionRules: "Capture unanswered questions about the role, team, or process, and problems left unresolved.",
+                keyPointRules: "Capture question-by-question highlights including interviewer feedback, plus interviewer style, time management, and role/team information gathered.",
+                additionalGuidance: attributionGuidance
+            )
+        case .allHands:
+            return PromptComponentSet(
+                objective: "Summarize an all-hands or town-hall meeting for people who missed it.",
+                summaryFocus: "Capture announcements and org updates with the speaker attributed, key messages from leadership, metrics and goals shared, and Q&A highlights.",
+                decisionRules: "Capture announced changes or commitments, such as org changes or strategy shifts.",
+                actionItemRules: "Capture asks made of the audience and commitments made by leadership.",
+                openQuestionRules: "Capture Q&A questions that were deferred or left unanswered.",
+                keyPointRules: "Capture each announcement, metrics and goals exactly as stated, and notable Q&A exchanges with who asked and who answered when identifiable.",
+                additionalGuidance: attributionGuidance
+            )
+        case .retrospective:
+            return PromptComponentSet(
+                objective: "Summarize a retrospective or post-mortem with balanced, attributed findings.",
+                summaryFocus: "Organize findings into what went well, what didn't go well, and what to improve, attributing who raised each item where identifiable.",
+                decisionRules: "Capture agreed process changes or experiments to adopt.",
+                actionItemRules: "Capture improvement actions with a committed owner; ideas without commitment belong in key points.",
+                openQuestionRules: "Capture unresolved disagreements or topics parked for follow-up.",
+                keyPointRules: "Capture what went well and what didn't, each with who raised it and the surrounding discussion.",
+                additionalGuidance: attributionGuidance
             )
         }
     }

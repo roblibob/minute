@@ -42,6 +42,10 @@ struct MeetingTypePicker: View {
         case .designReview: return "paintbrush"
         case .oneOnOne: return "person.2"
         case .planning: return "calendar"
+        case .interviewTaken: return "person.crop.circle.badge.questionmark"
+        case .interviewGiven: return "person.crop.circle.badge.checkmark"
+        case .allHands: return "person.3"
+        case .retrospective: return "arrow.uturn.backward.circle"
         }
     }
 }

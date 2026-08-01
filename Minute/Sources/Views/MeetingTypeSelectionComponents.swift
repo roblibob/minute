@@ -26,6 +26,14 @@ enum MeetingTypeSelectionStyle {
             return "rectangle.on.rectangle.angled"
         case .planning:
             return "calendar.badge.clock"
+        case .interviewTaken:
+            return "person.crop.circle.badge.questionmark"
+        case .interviewGiven:
+            return "person.crop.circle.badge.checkmark"
+        case .allHands:
+            return "megaphone.fill"
+        case .retrospective:
+            return "arrow.uturn.backward.circle.fill"
         }
     }
 

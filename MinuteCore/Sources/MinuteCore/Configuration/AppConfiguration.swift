@@ -35,6 +35,7 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let vocabularyBoostingEnabledKey = "vocabularyBoostingEnabled"
         public static let vocabularyBoostingTermsKey = "vocabularyBoostingTerms"
         public static let vocabularyBoostingStrengthKey = "vocabularyBoostingStrength"
+        public static let summarizationEnabledKey = "summarizationEnabled"
         public static let vocabularyBoostingUpdatedAtKey = "vocabularyBoostingUpdatedAt"
 
         public static let stageMeetingTypeKey = "stageMeetingType"
@@ -54,6 +55,10 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let defaultScreenContextCaptureIntervalSeconds: TimeInterval = 60
         public static let defaultOllamaBaseURL = "http://127.0.0.1:11434"
         public static let defaultLMStudioBaseURL = "http://127.0.0.1:1234"
+        /// Per-request timeout for local inference servers (Ollama, LM Studio).
+        /// Local models on modest hardware can take well over URLSession's
+        /// 60-second default to produce a full non-streaming response.
+        public static let localServerRequestTimeoutSeconds: TimeInterval = 300
         public static let defaultMicActivityNotificationsEnabled = true
         public static let defaultKnownSpeakerSuggestionsEnabled = false
         public static let defaultOutputLanguage = OutputLanguage.defaultSelection
@@ -64,6 +69,7 @@ public struct AppConfiguration: Sendable, Equatable {
         public static let defaultTranscriptionBackendID = TranscriptionBackend.whisper.rawValue
         public static let defaultFluidAudioAsrModelID = FluidAudioASRModelCatalog.defaultModelID
         public static let defaultVocabularyBoostingEnabled = false
+        public static let defaultSummarizationEnabled = true
         public static let defaultVocabularyBoostingStrength = VocabularyBoostingStrength.balanced
         public static let defaultTranscriptionLanguage = TranscriptionLanguage.defaultSelection
 
@@ -95,6 +101,7 @@ public struct AppConfiguration: Sendable, Equatable {
     public var micActivityNotificationsEnabled: Bool
     public var knownSpeakerSuggestionsEnabled: Bool
     public var vocabularyBoostingEnabled: Bool
+    public var summarizationEnabled: Bool
     public var vocabularyBoostingTerms: [String]
     public var vocabularyBoostingStrength: VocabularyBoostingStrength
 
@@ -164,6 +171,8 @@ public struct AppConfiguration: Sendable, Equatable {
 
         vocabularyBoostingEnabled = defaults.object(forKey: Defaults.vocabularyBoostingEnabledKey) as? Bool
             ?? Defaults.defaultVocabularyBoostingEnabled
+        summarizationEnabled = defaults.object(forKey: Defaults.summarizationEnabledKey) as? Bool
+            ?? Defaults.defaultSummarizationEnabled
         vocabularyBoostingTerms = VocabularyTermEntry.normalizeDisplayTerms(
             defaults.stringArray(forKey: Defaults.vocabularyBoostingTermsKey) ?? []
         )

@@ -19,6 +19,8 @@ public enum SummarizationSummaryMerger {
             actionItems: mergeActionItems(previous.actionItems, delta.actionItems),
             openQuestions: mergeStrings(previous.openQuestions, delta.openQuestions),
             keyPoints: mergeStrings(previous.keyPoints, delta.keyPoints),
+            participants: mergeParticipants(previous.participants, delta.participants),
+            topics: mergeTopics(previous.topics, delta.topics),
             meetingType: meetingType ?? previous.meetingType
         )
     }
@@ -35,6 +37,8 @@ public enum SummarizationSummaryMerger {
             actionItems: state.actionItems,
             openQuestions: state.openQuestions,
             keyPoints: state.keyPoints,
+            participants: state.participants,
+            topics: state.topics,
             meetingType: state.meetingType
         )
         return MeetingExtractionValidation.validated(extraction, recordingDate: recordingDate)
@@ -89,23 +93,103 @@ public enum SummarizationSummaryMerger {
 
     private static func mergeActionItems(_ previous: [ActionItem], _ next: [ActionItem]) -> [ActionItem] {
         var merged = previous
-            .map {
-                ActionItem(
-                    owner: StringNormalizer.normalizeInline($0.owner),
-                    task: StringNormalizer.normalizeInline($0.task)
-                )
-            }
+            .map { normalizedActionItem($0) }
             .filter { !$0.owner.isEmpty || !$0.task.isEmpty }
 
         for candidate in next {
-            let normalized = ActionItem(
-                owner: StringNormalizer.normalizeInline(candidate.owner),
-                task: StringNormalizer.normalizeInline(candidate.task)
-            )
+            let normalized = normalizedActionItem(candidate)
             guard !normalized.owner.isEmpty || !normalized.task.isEmpty else { continue }
 
             if let index = merged.firstIndex(where: { overlaps($0, normalized) }) {
                 merged[index] = preferredActionItem(existing: merged[index], incoming: normalized)
+            } else {
+                merged.append(normalized)
+            }
+        }
+
+        return merged
+    }
+
+    private static func normalizedActionItem(_ item: ActionItem) -> ActionItem {
+        ActionItem(
+            owner: StringNormalizer.normalizeInline(item.owner),
+            task: StringNormalizer.normalizeInline(item.task),
+            dueDate: normalizedOptionalField(item.dueDate),
+            status: normalizedOptionalField(item.status),
+            comments: normalizedOptionalField(item.comments)
+        )
+    }
+
+    private static func normalizedOptionalField(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = StringNormalizer.normalizeInline(value)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func mergeParticipants(
+        _ previous: [MeetingParticipant],
+        _ next: [MeetingParticipant]
+    ) -> [MeetingParticipant] {
+        var merged = previous
+            .map { normalizedParticipant($0) }
+            .filter { !$0.name.isEmpty }
+
+        for candidate in next {
+            let normalized = normalizedParticipant(candidate)
+            guard !normalized.name.isEmpty else { continue }
+
+            if let index = merged.firstIndex(where: { normalizedKey($0.name) == normalizedKey(normalized.name) }) {
+                merged[index].role = mergedOptionalField(existing: merged[index].role, incoming: normalized.role)
+                merged[index].speaker = merged[index].speaker ?? normalized.speaker
+                merged[index].details = mergedOptionalField(existing: merged[index].details, incoming: normalized.details)
+            } else {
+                merged.append(normalized)
+            }
+        }
+
+        return merged
+    }
+
+    private static func normalizedParticipant(_ participant: MeetingParticipant) -> MeetingParticipant {
+        MeetingParticipant(
+            name: StringNormalizer.normalizeInline(participant.name),
+            role: normalizedOptionalField(participant.role),
+            speaker: normalizedOptionalField(participant.speaker),
+            details: normalizedOptionalField(participant.details)
+        )
+    }
+
+    /// Backfills a nil field or prefers the richer of two values.
+    private static func mergedOptionalField(existing: String?, incoming: String?) -> String? {
+        switch (existing, incoming) {
+        case (nil, let incoming):
+            return incoming
+        case (let existing, nil):
+            return existing
+        case (let existing?, let incoming?):
+            return preferredValue(existing: existing, incoming: incoming)
+        }
+    }
+
+    private static func mergeTopics(_ previous: [MeetingTopic], _ next: [MeetingTopic]) -> [MeetingTopic] {
+        var merged = previous
+            .map {
+                MeetingTopic(
+                    title: StringNormalizer.normalizeInline($0.title),
+                    points: $0.points.map(StringNormalizer.normalizeInline).filter { !$0.isEmpty }
+                )
+            }
+            .filter { !$0.title.isEmpty }
+
+        for candidate in next {
+            let normalized = MeetingTopic(
+                title: StringNormalizer.normalizeInline(candidate.title),
+                points: candidate.points.map(StringNormalizer.normalizeInline).filter { !$0.isEmpty }
+            )
+            guard !normalized.title.isEmpty else { continue }
+
+            if let index = merged.firstIndex(where: { normalizedKey($0.title) == normalizedKey(normalized.title) }) {
+                merged[index].points = mergeStrings(merged[index].points, normalized.points)
             } else {
                 merged.append(normalized)
             }

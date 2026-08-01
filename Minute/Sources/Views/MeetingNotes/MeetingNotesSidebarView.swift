@@ -42,6 +42,28 @@ struct MeetingNotesSidebarView: View {
                 Color.clear
                     .frame(height: topInset)
             }
+            .alert(
+                "Rename Note",
+                isPresented: Binding(
+                    get: { model.renamePromptItem != nil },
+                    set: { presented in
+                        if !presented {
+                            model.cancelRename()
+                        }
+                    }
+                )
+            ) {
+                TextField("Title", text: $model.renameTitleDraft)
+                Button("Rename") {
+                    model.confirmRename()
+                }
+                .disabled(model.isRenamingNote)
+                Button("Cancel", role: .cancel) {
+                    model.cancelRename()
+                }
+            } message: {
+                Text("Renames the summary note along with its audio recording and transcript files.")
+            }
     }
 
     @ViewBuilder
@@ -110,6 +132,7 @@ struct MeetingNotesSidebarView: View {
                                 onOpenSummaryInObsidian: { model.openSummaryInObsidian(for: item) },
                                 onOpenTranscriptInObsidian: { model.openTranscriptInObsidian(for: item) },
                                 onRevealInFinder: { model.revealInFinder(for: item) },
+                                onRename: { model.beginRename(item) },
                                 onDelete: { model.delete(item) },
                                 onPrepareReprocess: { targetTypeID in
                                     model.prepareReprocess(for: item, targetTypeID: targetTypeID)
@@ -269,6 +292,7 @@ private struct MeetingNoteRow: View {
     let onOpenSummaryInObsidian: () -> Void
     let onOpenTranscriptInObsidian: () -> Void
     let onRevealInFinder: () -> Void
+    let onRename: () -> Void
     let onDelete: () -> Void
     let onPrepareReprocess: (String) -> Void
 
@@ -346,6 +370,12 @@ private struct MeetingNoteRow: View {
             .help(reprocessDisabledReason ?? "Resummarize using a different meeting type")
 
             Divider()
+            Button {
+                onRename()
+            } label: {
+                Label("Rename…", systemImage: "pencil")
+            }
+
             Button(role: .destructive) {
                 onDelete()
             } label: {

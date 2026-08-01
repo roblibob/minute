@@ -17,7 +17,10 @@ struct MeetingTypeClassifierPromptTests {
     func prompt_containsAllAllowedLabelsAsExactOutputs() {
         let prompt = MeetingTypeClassifier.prompt(for: "Hello")
 
-        for label in ["General", "Standup", "Design Review", "One-on-One", "Presentation", "Planning"] {
+        for label in [
+            "General", "Standup", "Design Review", "One-on-One", "Presentation", "Planning",
+            "Interview — Taken", "Interview — Given", "All Hands", "Retrospective"
+        ] {
             #expect(prompt.contains(label))
         }
     }

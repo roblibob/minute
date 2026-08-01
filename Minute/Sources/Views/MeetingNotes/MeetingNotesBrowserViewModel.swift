@@ -68,6 +68,11 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     @Published private(set) var isReprocessingMeeting: Bool = false
     @Published private(set) var reprocessErrorMessage: String?
 
+    // Note rename (renames summary, audio, and transcript files together).
+    @Published private(set) var renamePromptItem: MeetingNoteItem?
+    @Published var renameTitleDraft: String = ""
+    @Published private(set) var isRenamingNote: Bool = false
+
     var selectedItem: MeetingNoteItem? { overlayState.selectedItem }
     var selectedTab: MeetingNotePreviewTab { overlayState.selectedTab }
     var isOverlayPresented: Bool { overlayState.isPresented }
@@ -106,6 +111,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     private var transcriptLoadTask: Task<Void, Never>?
     private var transcriptSpeakerIDsTask: Task<Void, Never>?
     private var deleteTask: Task<Void, Never>?
+    private var renameTask: Task<Void, Never>?
     private var reprocessTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
     private var defaultsObserver: AnyCancellable?
@@ -139,6 +145,7 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
         transcriptLoadTask?.cancel()
         transcriptSpeakerIDsTask?.cancel()
         deleteTask?.cancel()
+        renameTask?.cancel()
         reprocessTask?.cancel()
         previewTask?.cancel()
         knownSpeakerStatusTask?.cancel()
@@ -666,6 +673,68 @@ final class MeetingNotesBrowserViewModel: ObservableObject {
     func openInObsidian() {
         guard let fileURL = selectedItem?.fileURL else { return }
         openInObsidianOrDefault(fileURL)
+    }
+
+    // MARK: - Note rename
+
+    func beginRename(_ item: MeetingNoteItem) {
+        renamePromptItem = item
+        renameTitleDraft = item.title
+    }
+
+    func cancelRename() {
+        renamePromptItem = nil
+        renameTitleDraft = ""
+    }
+
+    func confirmRename() {
+        guard let item = renamePromptItem, !isRenamingNote else { return }
+        let newTitle = renameTitleDraft
+
+        renameTask?.cancel()
+        sidebarErrorMessage = nil
+        isRenamingNote = true
+
+        let provider = browserProvider
+        renameTask = Task { [weak self] in
+            do {
+                let renamed = try await provider().renameNoteFiles(for: item, to: newTitle)
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isRenamingNote = false
+                    self.renamePromptItem = nil
+                    self.renameTitleDraft = ""
+                    self.notePreviews[item.id] = nil
+                    if self.selectedItem?.id == item.id {
+                        self.dismissOverlay()
+                    }
+                    self.refreshAndSelect(noteURL: renamed.fileURL)
+                }
+            } catch is CancellationError {
+                await MainActor.run { [weak self] in
+                    self?.isRenamingNote = false
+                }
+                return
+            } catch let error as MeetingNoteRenameError {
+                let message = error.errorDescription ?? "Failed to rename note."
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isRenamingNote = false
+                    self.renamePromptItem = nil
+                    self.renameTitleDraft = ""
+                    self.sidebarErrorMessage = message
+                }
+            } catch {
+                let message = ErrorHandler.userMessage(for: error, fallback: "Failed to rename note.")
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isRenamingNote = false
+                    self.renamePromptItem = nil
+                    self.renameTitleDraft = ""
+                    self.sidebarErrorMessage = message
+                }
+            }
+        }
     }
 
     func openSummaryInApp(for item: MeetingNoteItem) {

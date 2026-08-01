@@ -71,9 +71,18 @@ public struct LMStudioAPIClient: Sendable {
     public var baseURL: URL
     private let session: URLSession
 
+    /// Default session with an extended request timeout: local servers can take
+    /// longer than URLSession's 60-second default to complete a non-streaming
+    /// chat completion (large prompts, slow models, cold starts).
+    public static let defaultSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = AppConfiguration.Defaults.localServerRequestTimeoutSeconds
+        return URLSession(configuration: configuration)
+    }()
+
     public init(
         baseURL: URL = URL(string: AppConfiguration.Defaults.defaultLMStudioBaseURL)!,
-        session: URLSession = .shared
+        session: URLSession = LMStudioAPIClient.defaultSession
     ) {
         self.baseURL = baseURL
         self.session = session

@@ -34,11 +34,28 @@ public struct PlanningPromptStrategy: PromptStrategy {
             "title": "string (E.g., 'Sprint Planning', 'Q3 Roadmap')",
             "date": "YYYY-MM-DD",
             "summary": "string (Summary of the plan: main goals, scope agreed upon. 3-8 sentences.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "speaker": "string (Transcript speaker label this participant maps to, e.g. 'Speaker 1'. Empty if not applicable.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)",
+                "details": "string (Evidence-based description: what they did or said, role signals, and the evidence for the name mapping, e.g. 'addressed as Priya at [00:31]'. Note confidence when the mapping is inferred. Empty if nothing notable.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Scope decisions: what is in, what is out? Deadline decisions.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Tasks assigned for the sprint/project.)"
+                "task": "string (Tasks assigned for the sprint/project.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Dependencies or unknowns that need resolution.)"],

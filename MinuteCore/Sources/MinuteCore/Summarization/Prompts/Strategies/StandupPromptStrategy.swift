@@ -34,11 +34,28 @@ public struct StandupPromptStrategy: PromptStrategy {
             "title": "string (defaults to 'Daily Standup - YYYY-MM-DD' unless a specific topic is mentioned)",
             "date": "YYYY-MM-DD",
             "summary": "string (Concise summary of team progress, major blockers, and announcements. 3-8 sentences.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "speaker": "string (Transcript speaker label this participant maps to, e.g. 'Speaker 1'. Empty if not applicable.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)",
+                "details": "string (Evidence-based description: what they did or said, role signals, and the evidence for the name mapping, e.g. 'addressed as Priya at [00:31]'. Note confidence when the mapping is inferred. Empty if nothing notable.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Usually empty for standups, unless a process change is agreed upon.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Focus on blockers intended to be resolved or follow-ups.)"
+                "task": "string (Focus on blockers intended to be resolved or follow-ups.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string"],

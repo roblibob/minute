@@ -31,7 +31,12 @@ struct MeetingTypeClassifierParseTests {
             (" one-on-one ", .oneOnOne),
             ("presentation", .presentation),
             ("PLANNING", .planning),
-            ("general", .general)
+            ("general", .general),
+            ("Interview — Taken", .interviewTaken),
+            ("interview - given", .interviewGiven),
+            ("ALL HANDS", .allHands),
+            ("retrospective", .retrospective),
+            ("retro", .retrospective)
         ]
 
         for (input, expected) in cases {

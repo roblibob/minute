@@ -34,11 +34,28 @@ public struct OneOnOnePromptStrategy: PromptStrategy {
             "title": "string (E.g., '1:1 - [Name] & [Name]')",
             "date": "YYYY-MM-DD",
             "summary": "string (High-level summary of topics discussed. 3-8 sentences.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "speaker": "string (Transcript speaker label this participant maps to, e.g. 'Speaker 1'. Empty if not applicable.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)",
+                "details": "string (Evidence-based description: what they did or said, role signals, and the evidence for the name mapping, e.g. 'addressed as Priya at [00:31]'. Note confidence when the mapping is inferred. Empty if nothing notable.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Agreements made between the two parties.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Specific follow-ups.)"
+                "task": "string (Specific follow-ups.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Topics requiring further thought or external input.)"],

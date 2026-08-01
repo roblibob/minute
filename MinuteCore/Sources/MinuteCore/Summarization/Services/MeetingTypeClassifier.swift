@@ -27,7 +27,11 @@ public enum MeetingTypeClassifier {
         "Design Review",
         "One-on-One",
         "Presentation",
-        "Planning"
+        "Planning",
+        "Interview — Taken",
+        "Interview — Given",
+        "All Hands",
+        "Retrospective"
     ]
     
     /// Generates the prompt for the first-pass classification.
@@ -54,6 +58,10 @@ public enum MeetingTypeClassifier {
         - Design Review: explicit design review mention OR critique of mockups/UX/architecture proposals, tradeoffs.
         - Presentation: one-to-many talk with slides/demo, speaker-led narrative, audience Q&A.
         - Planning: sprint/roadmap planning with estimation, ticketing, owners, timelines, scope.
+        - Interview — Taken: structured Q&A evaluating a candidate, with the transcript owner ASKING coding/design/behavioral questions.
+        - Interview — Given: structured interview Q&A with the transcript owner ANSWERING questions and being evaluated.
+        - All Hands: org-wide updates, leadership speaking to a large audience, town-hall Q&A.
+        - Retrospective: explicit retro/post-mortem mention OR what-went-well / what-didn't / improvements structure.
 
         Default-to-General examples (low-information):
         - "Hey everyone." => General
@@ -146,6 +154,10 @@ public enum MeetingTypeClassifier {
         case "one-on-one": return .oneOnOne
         case "presentation": return .presentation
         case "planning": return .planning
+        case "interview — taken", "interview - taken", "interview taken": return .interviewTaken
+        case "interview — given", "interview - given", "interview given": return .interviewGiven
+        case "all hands", "all hands / town hall", "town hall": return .allHands
+        case "retrospective", "retro", "post-mortem", "postmortem": return .retrospective
         default: return .general
         }
     }

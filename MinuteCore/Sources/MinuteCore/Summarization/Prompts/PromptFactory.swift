@@ -32,6 +32,18 @@ public enum PromptFactory {
 
         case .designReview:
             return DesignReviewPromptStrategy()
+
+        case .interviewTaken:
+            return InterviewTakenPromptStrategy()
+
+        case .interviewGiven:
+            return InterviewGivenPromptStrategy()
+
+        case .allHands:
+            return AllHandsPromptStrategy()
+
+        case .retrospective:
+            return RetrospectivePromptStrategy()
         }
     }
 
@@ -197,13 +209,15 @@ public enum PromptFactory {
             "- title (string)",
             "- date (YYYY-MM-DD)",
             "- summary (string)",
+            "- participants (array of objects with name, speaker, role, and details; map each to a transcript Speaker N label, describe what they did with evidence for the name mapping, and never guess names)",
+            "- topics (array of objects with title and points, capturing each distinct topic discussed)",
         ]
 
         if components.decisionRulesEnabled {
             fields.append("- decisions (array of string)")
         }
         if components.actionItemRulesEnabled {
-            fields.append("- action_items (array of objects with owner and task)")
+            fields.append("- action_items (array of objects with owner, task, due_date, status, and comments)")
         }
         if components.openQuestionRulesEnabled {
             fields.append("- open_questions (array of string)")
