@@ -37,6 +37,11 @@ public protocol MeetingNotesBrowsing: Sendable {
     func loadNoteContent(for item: MeetingNoteItem) async throws -> String
     func loadTranscriptContent(for item: MeetingNoteItem) async throws -> String
     func deleteNoteFiles(for item: MeetingNoteItem) async throws
+    /// Renames the note title: moves the summary, audio, and transcript files to
+    /// the new base name and rewrites the note/transcript markdown (frontmatter
+    /// title, headings, wiki-links). Returns the updated item.
+    @discardableResult
+    func renameNoteFiles(for item: MeetingNoteItem, to newTitle: String) async throws -> MeetingNoteItem
 }
 
 public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendable {
@@ -209,6 +214,99 @@ public struct VaultMeetingNotesBrowser: MeetingNotesBrowsing, @unchecked Sendabl
             if let firstError {
                 throw firstError
             }
+        }
+    }
+
+    @discardableResult
+    public func renameNoteFiles(for item: MeetingNoteItem, to newTitle: String) async throws -> MeetingNoteItem {
+        try Task.checkCancellation()
+
+        let trimmedTitle = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            throw MeetingNoteRenameError.emptyTitle
+        }
+
+        return try vaultAccess.withVaultAccess { vaultRootURL in
+            let oldBaseName = item.fileURL.deletingPathExtension().lastPathComponent
+            let newBaseName = MeetingNoteRenamer.newBaseName(oldBaseName: oldBaseName, newTitle: trimmedTitle)
+            let sanitizedNewTitle = FilenameSanitizer.sanitizeTitle(trimmedTitle)
+
+            guard newBaseName != oldBaseName else {
+                throw MeetingNoteRenameError.titleUnchanged
+            }
+
+            let audioRootURL = Self.directoryURL(from: vaultRootURL, relativePath: audioRelativePath)
+            let transcriptRootURL = Self.directoryURL(from: vaultRootURL, relativePath: transcriptsRelativePath)
+
+            let oldNoteURL = item.fileURL
+            let oldAudioURL = audioRootURL.appendingPathComponent("\(oldBaseName).wav")
+            let oldTranscriptURL = item.transcriptURL
+                ?? transcriptRootURL.appendingPathComponent("\(oldBaseName).md")
+
+            let newNoteURL = oldNoteURL.deletingLastPathComponent().appendingPathComponent("\(newBaseName).md")
+            let newAudioURL = audioRootURL.appendingPathComponent("\(newBaseName).wav")
+            let newTranscriptURL = transcriptRootURL.appendingPathComponent("\(newBaseName).md")
+
+            let fileManager = FileManager.default
+            let plannedMoves: [(from: URL, to: URL)] = [
+                (oldNoteURL, newNoteURL),
+                (oldAudioURL, newAudioURL),
+                (oldTranscriptURL, newTranscriptURL),
+            ].filter { fileManager.fileExists(atPath: $0.from.path) }
+
+            // Refuse to overwrite anything at the destinations.
+            for move in plannedMoves where fileManager.fileExists(atPath: move.to.path) {
+                throw MeetingNoteRenameError.destinationAlreadyExists
+            }
+
+            // Rewrite markdown contents BEFORE moving, so a content failure
+            // leaves the vault untouched.
+            let noteMarkdown = try String(contentsOf: oldNoteURL, encoding: .utf8)
+            let rewrittenNote = MeetingNoteRenamer.rewrittenNoteMarkdown(
+                noteMarkdown,
+                oldTitle: item.title,
+                newTitle: sanitizedNewTitle,
+                oldBaseName: oldBaseName,
+                newBaseName: newBaseName
+            )
+
+            var rewrittenTranscript: String?
+            if fileManager.fileExists(atPath: oldTranscriptURL.path),
+               let transcriptMarkdown = try? String(contentsOf: oldTranscriptURL, encoding: .utf8) {
+                rewrittenTranscript = MeetingNoteRenamer.rewrittenTranscriptMarkdown(
+                    transcriptMarkdown,
+                    oldTitle: item.title,
+                    newTitle: sanitizedNewTitle
+                )
+            }
+
+            // Move files, rolling back completed moves on failure.
+            var completedMoves: [(from: URL, to: URL)] = []
+            do {
+                for move in plannedMoves {
+                    try fileManager.moveItem(at: move.from, to: move.to)
+                    completedMoves.append(move)
+                }
+            } catch {
+                for move in completedMoves.reversed() {
+                    try? fileManager.moveItem(at: move.to, to: move.from)
+                }
+                throw error
+            }
+
+            // Write rewritten contents at the new locations (atomic writes).
+            try Data(rewrittenNote.utf8).write(to: newNoteURL, options: [.atomic])
+            if let rewrittenTranscript {
+                try Data(rewrittenTranscript.utf8).write(to: newTranscriptURL, options: [.atomic])
+            }
+
+            var renamed = item
+            renamed.title = sanitizedNewTitle
+            renamed.fileURL = newNoteURL
+            renamed.relativePath = Self.relativePath(from: vaultRootURL, to: newNoteURL)
+            renamed.transcriptURL = fileManager.fileExists(atPath: newTranscriptURL.path) ? newTranscriptURL : nil
+            renamed.hasTranscript = renamed.transcriptURL != nil
+            return renamed
         }
     }
 

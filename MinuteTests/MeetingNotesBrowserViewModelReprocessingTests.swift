@@ -140,6 +140,11 @@ private actor ReprocessingBrowserStub: MeetingNotesBrowsing {
     func loadNoteContent(for item: MeetingNoteItem) async throws -> String { noteByID[item.id] ?? "" }
     func loadTranscriptContent(for item: MeetingNoteItem) async throws -> String { transcriptByID[item.id] ?? "" }
     func deleteNoteFiles(for item: MeetingNoteItem) async throws { _ = item }
+
+    func renameNoteFiles(for item: MeetingNoteItem, to newTitle: String) async throws -> MeetingNoteItem {
+        _ = newTitle
+        return item
+    }
 }
 
 private final class MockMeetingTypeLibraryStore: MeetingTypeLibraryStoring, @unchecked Sendable {

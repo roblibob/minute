@@ -547,6 +547,11 @@ private actor SpeakerDraftIsolationBrowserStub: MeetingNotesBrowsing {
     func deleteNoteFiles(for item: MeetingNoteItem) async throws {
         _ = item
     }
+
+    func renameNoteFiles(for item: MeetingNoteItem, to newTitle: String) async throws -> MeetingNoteItem {
+        _ = newTitle
+        return item
+    }
 }
 
 @MainActor
