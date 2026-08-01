@@ -153,4 +153,24 @@ struct NewBuiltInMeetingTypesTests {
         #expect(guidance.contains("direct address"))
         #expect(guidance.contains("third person"))
     }
+
+    @Test
+    func generalStrategy_carriesPortedRuleIntentions() {
+        let prompt = GeneralPromptStrategy().systemPrompt()
+
+        // Step 2: participant identification.
+        #expect(prompt.contains("Identify Participants"))
+        #expect(prompt.contains("keep the Speaker N label"))
+        // Step 4 / rule 6: thoroughness including disagreements and reasoning.
+        #expect(prompt.contains("disagreements, concerns, and unresolved debates"))
+        #expect(prompt.contains("capture the reasoning"))
+        // Rule 5: technical accuracy.
+        #expect(prompt.contains("exactly as spoken"))
+        // Rules 4/7: screen capture context.
+        #expect(prompt.contains("Use Screen Context"))
+        // Rule 2: action item dates.
+        #expect(prompt.contains("Use \"TBD\" when no date was mentioned"))
+        // Rule 6 phrasing: better to include too much.
+        #expect(prompt.contains("Better Too Much Than Missing"))
+    }
 }
