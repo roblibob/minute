@@ -34,11 +34,26 @@ public struct OneOnOnePromptStrategy: PromptStrategy {
             "title": "string (E.g., '1:1 - [Name] & [Name]')",
             "date": "YYYY-MM-DD",
             "summary": "string (High-level summary of topics discussed. 3-8 sentences.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Agreements made between the two parties.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Specific follow-ups.)"
+                "task": "string (Specific follow-ups.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Topics requiring further thought or external input.)"],

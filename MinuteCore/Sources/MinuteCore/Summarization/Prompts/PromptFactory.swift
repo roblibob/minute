@@ -209,13 +209,15 @@ public enum PromptFactory {
             "- title (string)",
             "- date (YYYY-MM-DD)",
             "- summary (string)",
+            "- participants (array of objects with name and role; use Speaker N when the real name is not inferable)",
+            "- topics (array of objects with title and points, capturing each distinct topic discussed)",
         ]
 
         if components.decisionRulesEnabled {
             fields.append("- decisions (array of string)")
         }
         if components.actionItemRulesEnabled {
-            fields.append("- action_items (array of objects with owner and task)")
+            fields.append("- action_items (array of objects with owner, task, due_date, status, and comments)")
         }
         if components.openQuestionRulesEnabled {
             fields.append("- open_questions (array of string)")

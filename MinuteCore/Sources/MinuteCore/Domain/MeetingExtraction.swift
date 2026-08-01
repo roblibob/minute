@@ -21,9 +21,45 @@ public struct MeetingSummarySectionVisibility: Equatable, Sendable {
     public static let allEnabled = MeetingSummarySectionVisibility()
 }
 
+/// A meeting participant identified from the transcript.
+public struct MeetingParticipant: Codable, Equatable, Sendable {
+    public var name: String
+    /// Role or relationship (e.g. "Manager", "Presenter"). Optional.
+    public var role: String?
+
+    public init(name: String, role: String? = nil) {
+        self.name = name
+        self.role = role
+    }
+}
+
+/// A distinct topic discussed in the meeting, with detail points.
+public struct MeetingTopic: Codable, Equatable, Sendable {
+    public var title: String
+    public var points: [String]
+
+    public init(title: String, points: [String] = []) {
+        self.title = title
+        self.points = points
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case title
+        case points
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decode(String.self, forKey: .title)
+        points = try container.decodeIfPresent([String].self, forKey: .points) ?? []
+    }
+}
+
 /// Fixed v1 schema produced by the summarization model.
 ///
 /// The model must output JSON only, matching this structure exactly.
+/// `participants` and `topics` are optional enrichments — capable models fill
+/// them; models that omit them produce the original layout.
 public struct MeetingExtraction: Codable, Equatable, Sendable {
     public var title: String
     /// `YYYY-MM-DD`
@@ -33,6 +69,8 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
     public var actionItems: [ActionItem]
     public var openQuestions: [String]
     public var keyPoints: [String]
+    public var participants: [MeetingParticipant]
+    public var topics: [MeetingTopic]
     public var meetingType: MeetingType?
 
     public init(
@@ -43,6 +81,8 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
         actionItems: [ActionItem] = [],
         openQuestions: [String] = [],
         keyPoints: [String] = [],
+        participants: [MeetingParticipant] = [],
+        topics: [MeetingTopic] = [],
         meetingType: MeetingType? = nil
     ) {
         self.title = title
@@ -52,6 +92,8 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
         self.actionItems = actionItems
         self.openQuestions = openQuestions
         self.keyPoints = keyPoints
+        self.participants = participants
+        self.topics = topics
         self.meetingType = meetingType
     }
 
@@ -63,6 +105,8 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
         case actionItems = "action_items"
         case openQuestions = "open_questions"
         case keyPoints = "key_points"
+        case participants
+        case topics
         case meetingType = "meeting_type"
     }
 
@@ -75,6 +119,8 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
         actionItems = try container.decodeIfPresent([ActionItem].self, forKey: .actionItems) ?? []
         openQuestions = try container.decodeIfPresent([String].self, forKey: .openQuestions) ?? []
         keyPoints = try container.decodeIfPresent([String].self, forKey: .keyPoints) ?? []
+        participants = try container.decodeIfPresent([MeetingParticipant].self, forKey: .participants) ?? []
+        topics = try container.decodeIfPresent([MeetingTopic].self, forKey: .topics) ?? []
         meetingType = try container.decodeIfPresent(MeetingType.self, forKey: .meetingType)
     }
 }
@@ -82,10 +128,41 @@ public struct MeetingExtraction: Codable, Equatable, Sendable {
 public struct ActionItem: Codable, Equatable, Sendable {
     public var owner: String
     public var task: String
+    /// `YYYY-MM-DD` or "TBD". Optional table field.
+    public var dueDate: String?
+    /// E.g. "Not Started". Optional table field.
+    public var status: String?
+    /// Supporting context. Optional table field.
+    public var comments: String?
 
-    public init(owner: String, task: String) {
+    public init(
+        owner: String,
+        task: String,
+        dueDate: String? = nil,
+        status: String? = nil,
+        comments: String? = nil
+    ) {
         self.owner = owner
         self.task = task
+        self.dueDate = dueDate
+        self.status = status
+        self.comments = comments
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case owner
+        case task
+        case dueDate = "due_date"
+        case status
+        case comments
+    }
+
+    /// True when any optional table column is populated.
+    public var hasTableFields: Bool {
+        [dueDate, status, comments].contains { field in
+            guard let field else { return false }
+            return !field.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 }
 
@@ -97,6 +174,8 @@ public struct SummarizationPassDelta: Codable, Equatable, Sendable {
     public var actionItems: [ActionItem]
     public var openQuestions: [String]
     public var keyPoints: [String]
+    public var participants: [MeetingParticipant]
+    public var topics: [MeetingTopic]
 
     public init(
         title: String = "",
@@ -105,7 +184,9 @@ public struct SummarizationPassDelta: Codable, Equatable, Sendable {
         decisions: [String] = [],
         actionItems: [ActionItem] = [],
         openQuestions: [String] = [],
-        keyPoints: [String] = []
+        keyPoints: [String] = [],
+        participants: [MeetingParticipant] = [],
+        topics: [MeetingTopic] = []
     ) {
         self.title = title
         self.date = date
@@ -114,6 +195,8 @@ public struct SummarizationPassDelta: Codable, Equatable, Sendable {
         self.actionItems = actionItems
         self.openQuestions = openQuestions
         self.keyPoints = keyPoints
+        self.participants = participants
+        self.topics = topics
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -125,6 +208,8 @@ public struct SummarizationPassDelta: Codable, Equatable, Sendable {
         case actionItems = "action_items"
         case openQuestions = "open_questions"
         case keyPoints = "key_points"
+        case participants
+        case topics
     }
 
     public init(from decoder: any Decoder) throws {
@@ -138,6 +223,8 @@ public struct SummarizationPassDelta: Codable, Equatable, Sendable {
         actionItems = try container.decodeIfPresent([ActionItem].self, forKey: .actionItems) ?? []
         openQuestions = try container.decodeIfPresent([String].self, forKey: .openQuestions) ?? []
         keyPoints = try container.decodeIfPresent([String].self, forKey: .keyPoints) ?? []
+        participants = try container.decodeIfPresent([MeetingParticipant].self, forKey: .participants) ?? []
+        topics = try container.decodeIfPresent([MeetingTopic].self, forKey: .topics) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -149,6 +236,8 @@ public struct SummarizationPassDelta: Codable, Equatable, Sendable {
         try container.encode(actionItems, forKey: .actionItems)
         try container.encode(openQuestions, forKey: .openQuestions)
         try container.encode(keyPoints, forKey: .keyPoints)
+        try container.encode(participants, forKey: .participants)
+        try container.encode(topics, forKey: .topics)
     }
 
     public static func summaryPoints(from summary: String) -> [String] {
@@ -166,6 +255,8 @@ public struct SummarizationMergeState: Codable, Equatable, Sendable {
     public var actionItems: [ActionItem]
     public var openQuestions: [String]
     public var keyPoints: [String]
+    public var participants: [MeetingParticipant]
+    public var topics: [MeetingTopic]
     public var meetingType: MeetingType?
 
     public init(
@@ -176,6 +267,8 @@ public struct SummarizationMergeState: Codable, Equatable, Sendable {
         actionItems: [ActionItem] = [],
         openQuestions: [String] = [],
         keyPoints: [String] = [],
+        participants: [MeetingParticipant] = [],
+        topics: [MeetingTopic] = [],
         meetingType: MeetingType? = nil
     ) {
         self.title = title
@@ -185,7 +278,36 @@ public struct SummarizationMergeState: Codable, Equatable, Sendable {
         self.actionItems = actionItems
         self.openQuestions = openQuestions
         self.keyPoints = keyPoints
+        self.participants = participants
+        self.topics = topics
         self.meetingType = meetingType
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case title
+        case date
+        case summaryPoints
+        case decisions
+        case actionItems
+        case openQuestions
+        case keyPoints
+        case participants
+        case topics
+        case meetingType
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        date = try container.decodeIfPresent(String.self, forKey: .date) ?? ""
+        summaryPoints = try container.decodeIfPresent([String].self, forKey: .summaryPoints) ?? []
+        decisions = try container.decodeIfPresent([String].self, forKey: .decisions) ?? []
+        actionItems = try container.decodeIfPresent([ActionItem].self, forKey: .actionItems) ?? []
+        openQuestions = try container.decodeIfPresent([String].self, forKey: .openQuestions) ?? []
+        keyPoints = try container.decodeIfPresent([String].self, forKey: .keyPoints) ?? []
+        participants = try container.decodeIfPresent([MeetingParticipant].self, forKey: .participants) ?? []
+        topics = try container.decodeIfPresent([MeetingTopic].self, forKey: .topics) ?? []
+        meetingType = try container.decodeIfPresent(MeetingType.self, forKey: .meetingType)
     }
 
     public init(extraction: MeetingExtraction) {
@@ -197,6 +319,8 @@ public struct SummarizationMergeState: Codable, Equatable, Sendable {
             actionItems: extraction.actionItems,
             openQuestions: extraction.openQuestions,
             keyPoints: extraction.keyPoints,
+            participants: extraction.participants,
+            topics: extraction.topics,
             meetingType: extraction.meetingType
         )
     }

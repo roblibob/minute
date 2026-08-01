@@ -36,11 +36,26 @@ public struct InterviewTakenPromptStrategy: PromptStrategy {
             "title": "string (E.g., 'Interview - [Candidate] - [Round Type]')",
             "date": "YYYY-MM-DD",
             "summary": "string (3-8 sentences: round type, problem(s) given, candidate's approach, key strengths observed, areas of concern, overall impression.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Assessment leanings expressed, e.g. signal strength or hire/no-hire leaning. Empty if none stated.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Follow-ups: debrief points to raise, references to check, next rounds to schedule.)"
+                "task": "string (Follow-ups: debrief points to raise, references to check, next rounds to schedule.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Unresolved doubts about the candidate or topics not covered in time.)"],

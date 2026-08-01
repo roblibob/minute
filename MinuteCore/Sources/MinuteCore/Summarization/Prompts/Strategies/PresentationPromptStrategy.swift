@@ -34,11 +34,26 @@ public struct PresentationPromptStrategy: PromptStrategy {
             "title": "string (The title of the presentation or talk)",
             "date": "YYYY-MM-DD",
             "summary": "string (Executive summary of the presentation content. what was the main topic? What were the conclusions? 3-8 sentences.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Likely empty, unless the presentation called for a vote or decision.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Follow-ups requested by the presenter or audience.)"
+                "task": "string (Follow-ups requested by the presenter or audience.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Questions asked by the audience during Q&A.)"],

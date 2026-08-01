@@ -1158,9 +1158,11 @@ public actor MeetingPipelineCoordinator {
         - date (YYYY-MM-DD; empty string if unchanged)
         - summary_points (array of short, high-signal new facts from this chunk only)
         - decisions (array of new decisions only)
-        - action_items (array of objects with owner and task; new or materially refined items only)
+        - action_items (array of objects with owner, task, due_date, status, and comments; new or materially refined items only)
         - open_questions (array of new open questions only)
         - key_points (array of new key points only)
+        - participants (array of objects with name and role; newly identified participants only)
+        - topics (array of objects with title and points; new topics or new points for existing topics only)
 
         Rules:
         - Do not restate information already captured in the existing accepted state.

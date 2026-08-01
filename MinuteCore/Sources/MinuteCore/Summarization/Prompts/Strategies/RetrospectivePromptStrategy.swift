@@ -36,11 +36,26 @@ public struct RetrospectivePromptStrategy: PromptStrategy {
             "title": "string (E.g., 'Retro - [Sprint/Project Name]')",
             "date": "YYYY-MM-DD",
             "summary": "string (3-8 sentences summarizing the retro themes: main wins, main pain points, and the improvements agreed.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Agreed process changes or experiments to adopt. Empty if none.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Specific improvement actions with a committed owner.)"
+                "task": "string (Specific improvement actions with a committed owner.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Unresolved disagreements or topics parked for follow-up.)"],

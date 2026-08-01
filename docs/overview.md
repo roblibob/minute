@@ -31,7 +31,12 @@ Note structure (deterministic)
    - `speaker_map`: mapping of speaker IDs to participant names
      - YAML keys are strings (e.g. `"1"`), but represent stable speaker IDs as integers.
    - `speaker_order`: optional list of speaker IDs used to display speakers in a stable order
-- Sections: Summary, Decisions, Action Items, Open Questions, Key Points.
+- Sections: Participants (optional), Summary, Topics Discussed (optional), Decisions, Action Items, Open Questions, Key Points.
+   - `Participants` and `Topics Discussed` render only when the model supplies the optional
+     `participants` / `topics` JSON fields; models that omit them produce the original layout.
+   - Action items render as a table (`# | Action | Owner | Due Date | Status | Comments`) when any
+     item carries the optional `due_date`, `status`, or `comments` fields; otherwise they render as
+     the original checkbox list.
 - Links to the audio and transcript files in the vault.
 
 How the app works (pipeline)

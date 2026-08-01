@@ -34,11 +34,26 @@ public struct GeneralPromptStrategy: PromptStrategy {
             "title": "string (3-8 words, filename-safe, summarizes the main topic)",
             "date": "YYYY-MM-DD (use provided date unless transcript explicitly mentions a different meeting date)",
             "summary": "string (A concise executive summary of 3-8 sentences. Focus on the 'what' and 'why' of the meeting outcomes. Also a summary of the full names of the main participants )",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Explicit agreements or conclusions reached. Empty if none.)"],
             "action_items": [
                 {
                 "owner": "string (Name of the person assigned. Use 'Unassigned' if clear task but no owner. Do not guess names.)",
-                "task": "string (Start with a verb. Be specific.)"
+                "task": "string (Start with a verb. Be specific.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Unresolved issues or topics tabled for later. Empty if none.)"],

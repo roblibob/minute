@@ -34,11 +34,26 @@ public struct PlanningPromptStrategy: PromptStrategy {
             "title": "string (E.g., 'Sprint Planning', 'Q3 Roadmap')",
             "date": "YYYY-MM-DD",
             "summary": "string (Summary of the plan: main goals, scope agreed upon. 3-8 sentences.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Scope decisions: what is in, what is out? Deadline decisions.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Tasks assigned for the sprint/project.)"
+                "task": "string (Tasks assigned for the sprint/project.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Dependencies or unknowns that need resolution.)"],

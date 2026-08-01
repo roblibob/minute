@@ -36,11 +36,26 @@ public struct AllHandsPromptStrategy: PromptStrategy {
             "title": "string (E.g., '[Org/Team] All Hands - [Main Theme]')",
             "date": "YYYY-MM-DD",
             "summary": "string (3-8 sentences summarizing the announcements, key messages from leadership, and overall themes.)",
+            "participants": [
+                {
+                "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                }
+            ],
+            "topics": [
+                {
+                "title": "string (Short topic title)",
+                "points": ["string (Detail points for this topic: context, key points raised by each participant, data or specifics mentioned.)"]
+                }
+            ],
             "decisions": ["string (Announced changes or commitments, e.g. org changes, strategy shifts. Empty if none.)"],
             "action_items": [
                 {
                 "owner": "string",
-                "task": "string (Asks made of the audience or commitments by leadership, e.g. 'Complete the survey by Friday'.)"
+                "task": "string (Asks made of the audience or commitments by leadership, e.g. 'Complete the survey by Friday'.)",
+                "due_date": "string (YYYY-MM-DD, or TBD if no date was mentioned)",
+                "status": "string (Not Started unless the transcript states otherwise)",
+                "comments": "string (Short supporting context for the task. Empty if none.)"
                 }
             ],
             "open_questions": ["string (Questions from Q&A that were deferred or left unanswered.)"],
