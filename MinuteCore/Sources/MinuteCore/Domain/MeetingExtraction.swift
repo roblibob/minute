@@ -26,10 +26,17 @@ public struct MeetingParticipant: Codable, Equatable, Sendable {
     public var name: String
     /// Role or relationship (e.g. "Manager", "Presenter"). Optional.
     public var role: String?
+    /// Transcript speaker label this participant maps to (e.g. "Speaker 1"). Optional.
+    public var speaker: String?
+    /// Evidence-based description: what they did or said, role signals, and the
+    /// evidence/confidence for the name mapping. Optional.
+    public var details: String?
 
-    public init(name: String, role: String? = nil) {
+    public init(name: String, role: String? = nil, speaker: String? = nil, details: String? = nil) {
         self.name = name
         self.role = role
+        self.speaker = speaker
+        self.details = details
     }
 }
 

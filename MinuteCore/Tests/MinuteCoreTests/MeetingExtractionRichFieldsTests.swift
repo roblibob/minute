@@ -125,8 +125,8 @@ struct MeetingExtractionRichFieldsTests {
 
         #expect(markdown.contains("""
         ## Participants
-        - Alice — Manager
-        - Speaker 2
+        - **Alice** — Manager
+        - **Speaker 2**
         """))
         #expect(markdown.contains("""
         ## Topics Discussed
@@ -200,6 +200,70 @@ struct MeetingExtractionRichFieldsTests {
     }
 
     // MARK: - Merging
+
+    @Test
+    func decode_participantSpeakerAndDetails() throws {
+        let json = """
+        {
+          "title": "T", "date": "2026-08-01", "summary": "s",
+          "participants": [
+            {"name": "Jitendra", "speaker": "Speaker 2", "role": "Senior SDE", "details": "Addressed as 'Jitiva' at [02:14]; owns Matter M2."}
+          ]
+        }
+        """
+        let extraction = try JSONDecoder().decode(MeetingExtraction.self, from: Data(json.utf8))
+        let participant = try #require(extraction.participants.first)
+        #expect(participant.speaker == "Speaker 2")
+        #expect(participant.details == "Addressed as 'Jitiva' at [02:14]; owns Matter M2.")
+    }
+
+    @Test
+    func participantLine_composesNameSpeakerRoleAndDetails() {
+        let full = MeetingParticipant(
+            name: "Jitendra",
+            role: "Senior SDE",
+            speaker: "Speaker 2",
+            details: "Addressed as 'Jitiva' at [02:14]; owns Matter M2."
+        )
+        #expect(MarkdownRenderer.participantLine(full)
+            == "- **Jitendra** (Speaker 2) — Senior SDE. Addressed as 'Jitiva' at [02:14]; owns Matter M2.")
+
+        // Speaker label collapses when it matches the name (unresolved speaker).
+        let unresolved = MeetingParticipant(
+            name: "Speaker 3",
+            role: nil,
+            speaker: "Speaker 3",
+            details: "Brief closing thanks only; not part of the discussion."
+        )
+        #expect(MarkdownRenderer.participantLine(unresolved)
+            == "- **Speaker 3** — Brief closing thanks only; not part of the discussion.")
+
+        // Details without role.
+        let detailsOnly = MeetingParticipant(name: "Manager", role: nil, speaker: "Speaker 1", details: "Says 'my team'; assigns goals.")
+        #expect(MarkdownRenderer.participantLine(detailsOnly)
+            == "- **Manager** (Speaker 1) — Says 'my team'; assigns goals.")
+    }
+
+    @Test
+    func merger_backfillsSpeakerAndDetailsAcrossPasses() {
+        let first = SummarizationPassDelta(
+            summaryPoints: ["a"],
+            participants: [MeetingParticipant(name: "Alice", role: nil, speaker: nil, details: nil)]
+        )
+        let second = SummarizationPassDelta(
+            summaryPoints: ["b"],
+            participants: [
+                MeetingParticipant(name: "alice", role: "Manager", speaker: "Speaker 1", details: "Assigns goals; addressed by name at [10:02]."),
+            ]
+        )
+
+        let state1 = SummarizationSummaryMerger.merge(previousState: nil, delta: first, meetingType: nil, recordingDate: Date())
+        let state2 = SummarizationSummaryMerger.merge(previousState: state1, delta: second, meetingType: nil, recordingDate: Date())
+
+        #expect(state2.participants.count == 1)
+        #expect(state2.participants.first?.speaker == "Speaker 1")
+        #expect(state2.participants.first?.details == "Assigns goals; addressed by name at [10:02].")
+    }
 
     @Test
     func merger_mergesParticipantsAndTopicsAcrossPasses() {

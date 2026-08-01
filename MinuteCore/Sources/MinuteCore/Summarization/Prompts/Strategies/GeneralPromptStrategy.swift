@@ -37,7 +37,9 @@ public struct GeneralPromptStrategy: PromptStrategy {
             "participants": [
                 {
                 "name": "string (Participant name; use Speaker N if the real name is not inferable. Never guess names.)",
-                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)"
+                "speaker": "string (Transcript speaker label this participant maps to, e.g. 'Speaker 1'. Empty if not applicable.)",
+                "role": "string (Role or relationship if identifiable, e.g. Manager, Presenter, Candidate. Empty if unknown.)",
+                "details": "string (Evidence-based description: what they did or said, role signals, and the evidence for the name mapping, e.g. 'addressed as Priya at [00:31]'. Note confidence when the mapping is inferred. Empty if nothing notable.)"
                 }
             ],
             "topics": [

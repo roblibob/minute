@@ -41,7 +41,9 @@ public enum MeetingExtractionValidation {
             .map {
                 MeetingParticipant(
                     name: StringNormalizer.normalizeInline($0.name),
-                    role: normalizedOptional($0.role)
+                    role: normalizedOptional($0.role),
+                    speaker: normalizedOptional($0.speaker),
+                    details: normalizedOptional($0.details)
                 )
             }
             .filter { !$0.name.isEmpty }

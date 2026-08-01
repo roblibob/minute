@@ -31,7 +31,7 @@ struct PromptFactoryRuleToggleTests {
         #expect(!prompt.contains("### OPEN QUESTION RULES"))
 
         #expect(prompt.contains("- action_items (array of objects with owner, task, due_date, status, and comments)"))
-        #expect(prompt.contains("- participants (array of objects with name and role"))
+        #expect(prompt.contains("- participants (array of objects with name, speaker, role, and details"))
         #expect(prompt.contains("- topics (array of objects with title and points"))
         #expect(prompt.contains("- key_points (array of string)"))
         #expect(!prompt.contains("- decisions (array of string)"))

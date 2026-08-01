@@ -131,34 +131,44 @@ public enum SummarizationSummaryMerger {
         _ next: [MeetingParticipant]
     ) -> [MeetingParticipant] {
         var merged = previous
-            .map {
-                MeetingParticipant(
-                    name: StringNormalizer.normalizeInline($0.name),
-                    role: normalizedOptionalField($0.role)
-                )
-            }
+            .map { normalizedParticipant($0) }
             .filter { !$0.name.isEmpty }
 
         for candidate in next {
-            let normalized = MeetingParticipant(
-                name: StringNormalizer.normalizeInline(candidate.name),
-                role: normalizedOptionalField(candidate.role)
-            )
+            let normalized = normalizedParticipant(candidate)
             guard !normalized.name.isEmpty else { continue }
 
             if let index = merged.firstIndex(where: { normalizedKey($0.name) == normalizedKey(normalized.name) }) {
-                // Backfill or prefer the richer role; keep the earlier name spelling.
-                if merged[index].role == nil, let role = normalized.role {
-                    merged[index].role = role
-                } else if let existingRole = merged[index].role, let role = normalized.role {
-                    merged[index].role = preferredValue(existing: existingRole, incoming: role)
-                }
+                merged[index].role = mergedOptionalField(existing: merged[index].role, incoming: normalized.role)
+                merged[index].speaker = merged[index].speaker ?? normalized.speaker
+                merged[index].details = mergedOptionalField(existing: merged[index].details, incoming: normalized.details)
             } else {
                 merged.append(normalized)
             }
         }
 
         return merged
+    }
+
+    private static func normalizedParticipant(_ participant: MeetingParticipant) -> MeetingParticipant {
+        MeetingParticipant(
+            name: StringNormalizer.normalizeInline(participant.name),
+            role: normalizedOptionalField(participant.role),
+            speaker: normalizedOptionalField(participant.speaker),
+            details: normalizedOptionalField(participant.details)
+        )
+    }
+
+    /// Backfills a nil field or prefers the richer of two values.
+    private static func mergedOptionalField(existing: String?, incoming: String?) -> String? {
+        switch (existing, incoming) {
+        case (nil, let incoming):
+            return incoming
+        case (let existing, nil):
+            return existing
+        case (let existing?, let incoming?):
+            return preferredValue(existing: existing, incoming: incoming)
+        }
     }
 
     private static func mergeTopics(_ previous: [MeetingTopic], _ next: [MeetingTopic]) -> [MeetingTopic] {

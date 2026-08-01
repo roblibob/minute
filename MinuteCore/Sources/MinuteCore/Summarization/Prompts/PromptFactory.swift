@@ -209,7 +209,7 @@ public enum PromptFactory {
             "- title (string)",
             "- date (YYYY-MM-DD)",
             "- summary (string)",
-            "- participants (array of objects with name and role; use Speaker N when the real name is not inferable)",
+            "- participants (array of objects with name, speaker, role, and details; map each to a transcript Speaker N label, describe what they did with evidence for the name mapping, and never guess names)",
             "- topics (array of objects with title and points, capturing each distinct topic discussed)",
         ]
 

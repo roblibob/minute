@@ -324,7 +324,7 @@ public extension RuntimeAwareSummarizationServicing {
         - action_items (array of objects with owner, task, due_date, status, and comments; new or materially refined items only)
         - open_questions (array of new open questions only)
         - key_points (array of new key points only)
-        - participants (array of objects with name and role; newly identified participants only)
+        - participants (array of objects with name, speaker, role, and details; newly identified participants or new evidence only)
         - topics (array of objects with title and points; new topics or new points for existing topics only)
 
         Rules:

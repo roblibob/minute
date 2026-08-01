@@ -113,7 +113,9 @@ public struct MarkdownRenderer: Sendable {
             .map {
                 MeetingParticipant(
                     name: StringNormalizer.normalizeInline($0.name),
-                    role: $0.role.map(StringNormalizer.normalizeInline)
+                    role: Self.nonEmpty($0.role),
+                    speaker: Self.nonEmpty($0.speaker),
+                    details: Self.nonEmpty($0.details)
                 )
             }
             .filter { !$0.name.isEmpty }
@@ -122,13 +124,39 @@ public struct MarkdownRenderer: Sendable {
 
         lines.append("## Participants")
         for participant in cleaned {
-            if let role = participant.role, !role.isEmpty {
-                lines.append("- \(participant.name) — \(role)")
-            } else {
-                lines.append("- \(participant.name)")
-            }
+            lines.append(Self.participantLine(participant))
         }
         lines.append("")
+    }
+
+    /// Renders `- **Name** (Speaker N) — Role. Details` with absent parts omitted.
+    /// The speaker label collapses when it matches the name (e.g. unresolved "Speaker 3").
+    static func participantLine(_ participant: MeetingParticipant) -> String {
+        var line = "- **\(participant.name)**"
+
+        if let speaker = participant.speaker,
+           speaker.lowercased() != participant.name.lowercased() {
+            line += " (\(speaker))"
+        }
+
+        var descriptorParts: [String] = []
+        if let role = participant.role {
+            descriptorParts.append(role)
+        }
+        if let details = participant.details {
+            descriptorParts.append(details)
+        }
+        if !descriptorParts.isEmpty {
+            line += " — " + descriptorParts.joined(separator: ". ")
+        }
+
+        return line
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = StringNormalizer.normalizeInline(value)
+        return normalized.isEmpty ? nil : normalized
     }
 
     private func appendTopics(_ topics: [MeetingTopic], to lines: inout [String]) {
